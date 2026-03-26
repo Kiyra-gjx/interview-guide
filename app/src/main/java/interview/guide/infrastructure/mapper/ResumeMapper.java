@@ -7,6 +7,7 @@ import interview.guide.modules.resume.model.ResumeEntity;
 import interview.guide.modules.resume.model.ResumeListItemDTO;
 import org.mapstruct.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -39,7 +40,7 @@ public interface ResumeMapper {
     default ResumeListItemDTO toListItemDTO(
         ResumeEntity resume,
         Integer latestScore,
-        java.time.LocalDateTime lastAnalyzedAt,
+        LocalDateTime lastAnalyzedAt,
         Integer interviewCount
     ) {
         return new ResumeListItemDTO(
@@ -50,7 +51,12 @@ public interface ResumeMapper {
             resume.getAccessCount(),
             latestScore,
             lastAnalyzedAt,
-            interviewCount
+            interviewCount,
+            resume.getAnalyzeStatus(),
+            resume.getAnalyzeError(),
+            resume.getAnalyzeErrorCode(),
+            resume.getAnalyzeRetryable(),
+            resume.getStorageUrl()
         );
     }
 

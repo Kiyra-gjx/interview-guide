@@ -2,6 +2,8 @@ package interview.guide.modules.resume.listener;
 
 import interview.guide.common.async.AbstractStreamConsumer;
 import interview.guide.common.constant.AsyncTaskStreamConstants;
+import interview.guide.common.exception.AiServiceException;
+import interview.guide.common.exception.ErrorCode;
 import interview.guide.common.model.AsyncTaskStatus;
 import interview.guide.infrastructure.redis.RedisService;
 import interview.guide.modules.interview.model.ResumeAnalysisResponse;
@@ -14,10 +16,11 @@ import org.redisson.api.stream.StreamMessageId;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
- * 简历分析 Stream 消费者
- * 负责从 Redis Stream 消费消息并执行 AI 分析
+ * 简历分析 Stream 消费者。
  */
 @Slf4j
 @Component
@@ -26,6 +29,7 @@ public class AnalyzeStreamConsumer extends AbstractStreamConsumer<AnalyzeStreamC
     private final ResumeGradingService gradingService;
     private final ResumePersistenceService persistenceService;
     private final ResumeRepository resumeRepository;
+    private final ConcurrentMap<Long, AnalyzeFailureState> failureStates = new ConcurrentHashMap<>();
 
     public AnalyzeStreamConsumer(
         RedisService redisService,
@@ -39,7 +43,15 @@ public class AnalyzeStreamConsumer extends AbstractStreamConsumer<AnalyzeStreamC
         this.resumeRepository = resumeRepository;
     }
 
-    record AnalyzePayload(Long resumeId, String content) {}
+    record AnalyzePayload(Long resumeId, String content) {
+    }
+
+    private record AnalyzeFailureState(
+        String errorMessage,
+        String errorCode,
+        Boolean retryable
+    ) {
+    }
 
     @Override
     protected String taskDisplayName() {
@@ -84,6 +96,7 @@ public class AnalyzeStreamConsumer extends AbstractStreamConsumer<AnalyzeStreamC
 
     @Override
     protected void markProcessing(AnalyzePayload payload) {
+        failureStates.remove(payload.resumeId());
         updateAnalyzeStatus(payload.resumeId(), AsyncTaskStatus.PROCESSING, null);
     }
 
@@ -95,23 +108,37 @@ public class AnalyzeStreamConsumer extends AbstractStreamConsumer<AnalyzeStreamC
             return;
         }
 
-        ResumeAnalysisResponse analysis = gradingService.analyzeResume(payload.content());
-        ResumeEntity resume = resumeRepository.findById(resumeId).orElse(null);
-        if (resume == null) {
-            log.warn("简历在分析期间被删除，跳过保存结果: resumeId={}", resumeId);
-            return;
+        try {
+            ResumeAnalysisResponse analysis = gradingService.analyzeResume(payload.content());
+            ResumeEntity resume = resumeRepository.findById(resumeId).orElse(null);
+            if (resume == null) {
+                log.warn("简历在分析期间被删除，跳过保存结果: resumeId={}", resumeId);
+                return;
+            }
+            persistenceService.saveAnalysis(resume, analysis);
+        } catch (Exception e) {
+            failureStates.put(resumeId, buildFailureState(e));
+            throw e;
         }
-        persistenceService.saveAnalysis(resume, analysis);
     }
 
     @Override
     protected void markCompleted(AnalyzePayload payload) {
+        failureStates.remove(payload.resumeId());
         updateAnalyzeStatus(payload.resumeId(), AsyncTaskStatus.COMPLETED, null);
     }
 
     @Override
     protected void markFailed(AnalyzePayload payload, String error) {
-        updateAnalyzeStatus(payload.resumeId(), AsyncTaskStatus.FAILED, error);
+        AnalyzeFailureState failureState = failureStates.remove(payload.resumeId());
+        if (failureState == null) {
+            failureState = new AnalyzeFailureState(
+                "简历分析失败，请稍后重试",
+                ErrorCode.RESUME_ANALYSIS_FAILED.name(),
+                true
+            );
+        }
+        updateAnalyzeStatus(payload.resumeId(), AsyncTaskStatus.FAILED, failureState);
     }
 
     @Override
@@ -131,21 +158,51 @@ public class AnalyzeStreamConsumer extends AbstractStreamConsumer<AnalyzeStreamC
                 AsyncTaskStreamConstants.STREAM_MAX_LEN
             );
             log.info("简历分析任务已重新入队: resumeId={}, retryCount={}", resumeId, retryCount);
-
         } catch (Exception e) {
             log.error("重试入队失败: resumeId={}, error={}", resumeId, e.getMessage(), e);
-            updateAnalyzeStatus(resumeId, AsyncTaskStatus.FAILED, truncateError("重试入队失败: " + e.getMessage()));
+            updateAnalyzeStatus(
+                resumeId,
+                AsyncTaskStatus.FAILED,
+                new AnalyzeFailureState(
+                    "分析任务重试失败，请稍后重新发起分析",
+                    ErrorCode.RESUME_ANALYSIS_FAILED.name(),
+                    true
+                )
+            );
         }
     }
 
+    private AnalyzeFailureState buildFailureState(Exception e) {
+        if (e instanceof AiServiceException aiServiceException) {
+            return new AnalyzeFailureState(
+                aiServiceException.getMessage(),
+                aiServiceException.getErrorCode().name(),
+                aiServiceException.isRetryable()
+            );
+        }
+        return new AnalyzeFailureState(
+            "简历分析失败，请稍后重试",
+            ErrorCode.RESUME_ANALYSIS_FAILED.name(),
+            true
+        );
+    }
+
     /**
-     * 更新分析状态
+     * 更新分析状态。
      */
-    private void updateAnalyzeStatus(Long resumeId, AsyncTaskStatus status, String error) {
+    private void updateAnalyzeStatus(Long resumeId, AsyncTaskStatus status, AnalyzeFailureState failureState) {
         try {
             resumeRepository.findById(resumeId).ifPresent(resume -> {
                 resume.setAnalyzeStatus(status);
-                resume.setAnalyzeError(error);
+                if (failureState == null) {
+                    resume.setAnalyzeError(null);
+                    resume.setAnalyzeErrorCode(null);
+                    resume.setAnalyzeRetryable(null);
+                } else {
+                    resume.setAnalyzeError(failureState.errorMessage());
+                    resume.setAnalyzeErrorCode(failureState.errorCode());
+                    resume.setAnalyzeRetryable(failureState.retryable());
+                }
                 resumeRepository.save(resume);
                 log.debug("分析状态已更新: resumeId={}, status={}", resumeId, status);
             });
@@ -153,5 +210,4 @@ public class AnalyzeStreamConsumer extends AbstractStreamConsumer<AnalyzeStreamC
             log.error("更新分析状态失败: resumeId={}, status={}, error={}", resumeId, status, e.getMessage(), e);
         }
     }
-
 }

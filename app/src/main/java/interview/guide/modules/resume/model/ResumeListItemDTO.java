@@ -1,9 +1,11 @@
 package interview.guide.modules.resume.model;
 
+import interview.guide.common.model.AsyncTaskStatus;
+
 import java.time.LocalDateTime;
 
 /**
- * 简历列表项DTO
+ * 简历列表项 DTO。
  */
 public record ResumeListItemDTO(
     Long id,
@@ -13,6 +15,11 @@ public record ResumeListItemDTO(
     Integer accessCount,
     Integer latestScore,
     LocalDateTime lastAnalyzedAt,
-    Integer interviewCount
-) {}
-
+    Integer interviewCount,
+    AsyncTaskStatus analyzeStatus,
+    String analyzeError,
+    String analyzeErrorCode,
+    Boolean analyzeRetryable,
+    String storageUrl
+) {
+}

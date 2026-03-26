@@ -5,14 +5,20 @@ package interview.guide.common.exception;
  */
 public class AiServiceException extends BusinessException {
 
+    private final ErrorCode errorCode;
     private final boolean retryable;
 
     public AiServiceException(ErrorCode errorCode, String message, boolean retryable, Throwable cause) {
         super(errorCode, message);
+        this.errorCode = errorCode;
         this.retryable = retryable;
         if (cause != null) {
             initCause(cause);
         }
+    }
+
+    public ErrorCode getErrorCode() {
+        return errorCode;
     }
 
     public boolean isRetryable() {

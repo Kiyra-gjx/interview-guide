@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 简历详情DTO
+ * 简历详情 DTO。
  */
 public record ResumeDetailDTO(
     Long id,
@@ -19,11 +19,13 @@ public record ResumeDetailDTO(
     String resumeText,
     AsyncTaskStatus analyzeStatus,
     String analyzeError,
+    String analyzeErrorCode,
+    Boolean analyzeRetryable,
     List<AnalysisHistoryDTO> analyses,
-    List<Object> interviews  // 面试历史由InterviewHistoryService提供
+    List<Object> interviews
 ) {
     /**
-     * 分析历史DTO
+     * 分析历史 DTO。
      */
     public record AnalysisHistoryDTO(
         Long id,
@@ -37,6 +39,6 @@ public record ResumeDetailDTO(
         LocalDateTime analyzedAt,
         List<String> strengths,
         List<Object> suggestions
-    ) {}
+    ) {
+    }
 }
-
