@@ -12,4 +12,5 @@ build
 qodana.yaml
 
 app/src/main/resources/application-dev.yml
-/docs
+/docs/*
+!/docs/简历分析错误处理改造方案.md
