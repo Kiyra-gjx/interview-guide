@@ -18,15 +18,26 @@ import java.net.SocketTimeoutException;
 import java.util.stream.Collectors;
 
 /**
- * 全局异常处理器
+ * 全局异常处理器。
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-    
+
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-    
+
     /**
-     * 处理业务异常
+     * 处理 AI 业务异常。
+     */
+    @ExceptionHandler(AiServiceException.class)
+    @ResponseStatus(HttpStatus.OK)
+    public Result<Void> handleAiServiceException(AiServiceException e) {
+        log.warn("AI 业务异常: code={}, retryable={}, message={}",
+            e.getCode(), e.isRetryable(), e.getMessage());
+        return Result.error(e.getCode(), e.getMessage());
+    }
+
+    /**
+     * 处理业务异常。
      */
     @ExceptionHandler(BusinessException.class)
     @ResponseStatus(HttpStatus.OK)
@@ -34,35 +45,35 @@ public class GlobalExceptionHandler {
         log.warn("业务异常: code={}, message={}", e.getCode(), e.getMessage());
         return Result.error(e.getCode(), e.getMessage());
     }
-    
+
     /**
-     * 处理参数校验异常
+     * 处理参数校验异常。
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.OK)
     public Result<Void> handleValidationException(MethodArgumentNotValidException e) {
         String message = e.getBindingResult().getFieldErrors().stream()
-                .map(FieldError::getDefaultMessage)
-                .collect(Collectors.joining(", "));
+            .map(FieldError::getDefaultMessage)
+            .collect(Collectors.joining(", "));
         log.warn("参数校验失败: {}", message);
         return Result.error(ErrorCode.BAD_REQUEST, message);
     }
-    
+
     /**
-     * 处理绑定异常
+     * 处理绑定异常。
      */
     @ExceptionHandler(BindException.class)
     @ResponseStatus(HttpStatus.OK)
     public Result<Void> handleBindException(BindException e) {
         String message = e.getBindingResult().getFieldErrors().stream()
-                .map(FieldError::getDefaultMessage)
-                .collect(Collectors.joining(", "));
+            .map(FieldError::getDefaultMessage)
+            .collect(Collectors.joining(", "));
         log.warn("参数绑定失败: {}", message);
         return Result.error(ErrorCode.BAD_REQUEST, message);
     }
-    
+
     /**
-     * 处理文件上传大小超限异常
+     * 处理文件上传大小超限异常。
      */
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     @ResponseStatus(HttpStatus.OK)
@@ -70,9 +81,9 @@ public class GlobalExceptionHandler {
         log.warn("文件上传大小超限: {}", e.getMessage());
         return Result.error(ErrorCode.BAD_REQUEST, "文件大小超过限制");
     }
-    
+
     /**
-     * 处理非法参数异常
+     * 处理非法参数异常。
      */
     @ExceptionHandler(IllegalArgumentException.class)
     @ResponseStatus(HttpStatus.OK)
@@ -80,56 +91,54 @@ public class GlobalExceptionHandler {
         log.warn("非法参数: {}", e.getMessage());
         return Result.error(ErrorCode.BAD_REQUEST, e.getMessage());
     }
-    
+
     /**
-     * 处理 AI 服务网络异常（SSL握手失败、连接超时等）
-     * 统一返回 HTTP 200，通过业务错误码区分异常类型
+     * 处理 AI 服务网络异常。
      */
     @ExceptionHandler(ResourceAccessException.class)
     @ResponseStatus(HttpStatus.OK)
     public Result<Void> handleResourceAccessException(ResourceAccessException e) {
-        log.error("AI服务连接失败: {}", e.getMessage(), e);
-        
-        // 判断具体异常类型
+        log.error("AI 服务连接失败: {}", e.getMessage(), e);
+
         Throwable cause = e.getCause();
         if (cause instanceof SocketTimeoutException) {
-            return Result.error(ErrorCode.AI_SERVICE_TIMEOUT, "AI服务响应超时，请稍后重试");
+            return Result.error(ErrorCode.AI_SERVICE_TIMEOUT, "AI 服务响应超时，请稍后重试");
         }
-        
-        // SSL握手失败或其他网络问题
+
         String message = e.getMessage();
         if (message != null && message.contains("handshake")) {
-            return Result.error(ErrorCode.AI_SERVICE_UNAVAILABLE, "AI服务连接失败（网络不稳定），请检查网络或稍后重试");
+            return Result.error(ErrorCode.AI_SERVICE_UNAVAILABLE, "AI 服务连接失败，请检查网络后重试");
         }
-        
-        return Result.error(ErrorCode.AI_SERVICE_UNAVAILABLE, "AI服务暂时不可用，请稍后重试");
+
+        return Result.error(ErrorCode.AI_SERVICE_UNAVAILABLE, "AI 服务暂时不可用，请稍后重试");
     }
-    
+
     /**
-     * 处理 AI 服务调用异常
-     * 统一返回 HTTP 200，通过业务错误码区分异常类型
+     * 处理 AI 服务调用异常。
      */
     @ExceptionHandler(RestClientException.class)
     @ResponseStatus(HttpStatus.OK)
     public Result<Void> handleRestClientException(RestClientException e) {
-        log.error("AI服务调用失败: {}", e.getMessage(), e);
-        
+        log.error("AI 服务调用失败: {}", e.getMessage(), e);
+
         String message = e.getMessage();
         if (message != null) {
-            if (message.contains("401") || message.contains("Unauthorized")) {
-                return Result.error(ErrorCode.AI_API_KEY_INVALID, "AI服务密钥无效，请联系管理员");
+            if (message.contains("401") || message.contains("Unauthorized") || message.contains("API key is required")) {
+                return Result.error(ErrorCode.AI_API_KEY_INVALID, "AI 服务认证失败，请检查 API Key 配置");
+            }
+            if (message.contains("quota") || message.contains("Quota") || message.contains("billing")) {
+                return Result.error(ErrorCode.AI_QUOTA_EXCEEDED, "AI 服务额度不足，请联系管理员处理");
             }
             if (message.contains("429") || message.contains("Too Many Requests")) {
-                return Result.error(ErrorCode.AI_RATE_LIMIT_EXCEEDED, "AI服务调用过于频繁，请稍后重试");
+                return Result.error(ErrorCode.AI_RATE_LIMIT_EXCEEDED, "AI 服务调用过于频繁，请稍后重试");
             }
         }
-        
-        return Result.error(ErrorCode.AI_SERVICE_ERROR, "AI服务调用失败，请稍后重试");
+
+        return Result.error(ErrorCode.AI_SERVICE_ERROR, "AI 服务调用失败，请稍后重试");
     }
-    
+
     /**
-     * 处理其他未知异常
-     * 统一返回 HTTP 200，通过业务错误码区分异常类型
+     * 处理其他未知异常。
      */
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.OK)

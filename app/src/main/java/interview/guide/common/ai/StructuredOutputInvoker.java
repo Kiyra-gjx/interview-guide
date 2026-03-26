@@ -1,6 +1,5 @@
 package interview.guide.common.ai;
 
-import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
 import org.slf4j.Logger;
 import org.springframework.ai.chat.client.ChatClient;
@@ -15,12 +14,11 @@ import org.springframework.stereotype.Component;
 public class StructuredOutputInvoker {
 
     private static final String STRICT_JSON_INSTRUCTION = """
-请仅返回可被严格 JSON 解析器直接解析的 JSON 对象。
-规则：
-1) 不要输出 Markdown 代码块（如 ```json）。
-2) 不要输出任何解释文字、前后缀或注释。
-3) 字符串内引号必须正确转义。
-4) 字符串内不要出现字面换行，必须使用 \\n。
+请仅返回可被严格 JSON 解析器直接解析的 JSON 对象。规则：
+1. 不要输出 Markdown 代码块。
+2. 不要输出任何解释文字、前后缀或注释。
+3. 字符串中的引号必须正确转义。
+4. 字符串中不要出现字面换行，必须使用 \\n。
 """;
 
     private final int maxAttempts;
@@ -64,10 +62,17 @@ public class StructuredOutputInvoker {
             }
         }
 
-        throw new BusinessException(
-            errorCode,
-            errorPrefix + (lastError != null ? lastError.getMessage() : "unknown")
-        );
+        throw new StructuredOutputException(buildFailureMessage(errorPrefix, logContext), lastError);
+    }
+
+    private String buildFailureMessage(String errorPrefix, String logContext) {
+        if (logContext != null && !logContext.isBlank()) {
+            return logContext + "结构化输出解析失败";
+        }
+        if (errorPrefix != null && !errorPrefix.isBlank()) {
+            return errorPrefix + "结构化输出解析失败";
+        }
+        return "结构化输出解析失败";
     }
 
     private String buildRetrySystemPrompt(String systemPromptWithFormat, Exception lastError) {
