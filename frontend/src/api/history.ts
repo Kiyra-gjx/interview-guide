@@ -2,6 +2,15 @@ import { request } from './request';
 
 export type AnalyzeStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 export type EvaluateStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+export type AnalyzeErrorCode =
+  | 'RESUME_ANALYSIS_FAILED'
+  | 'AI_SERVICE_UNAVAILABLE'
+  | 'AI_SERVICE_TIMEOUT'
+  | 'AI_SERVICE_ERROR'
+  | 'AI_API_KEY_INVALID'
+  | 'AI_RATE_LIMIT_EXCEEDED'
+  | 'AI_QUOTA_EXCEEDED'
+  | 'AI_RESPONSE_FORMAT_INVALID';
 
 export interface ResumeListItem {
   id: number;
@@ -14,6 +23,8 @@ export interface ResumeListItem {
   interviewCount: number;
   analyzeStatus?: AnalyzeStatus;
   analyzeError?: string;
+  analyzeErrorCode?: AnalyzeErrorCode;
+  analyzeRetryable?: boolean;
   storageUrl?: string;
 }
 
@@ -77,6 +88,8 @@ export interface ResumeDetail {
   resumeText: string;
   analyzeStatus?: AnalyzeStatus;
   analyzeError?: string;
+  analyzeErrorCode?: AnalyzeErrorCode;
+  analyzeRetryable?: boolean;
   analyses: AnalysisItem[];
   interviews: InterviewItem[];
 }
@@ -88,30 +101,18 @@ export interface InterviewDetail extends InterviewItem {
 }
 
 export const historyApi = {
-  /**
-   * 获取所有简历列表
-   */
   async getResumes(): Promise<ResumeListItem[]> {
     return request.get<ResumeListItem[]>('/api/resumes');
   },
 
-  /**
-   * 获取简历详情
-   */
   async getResumeDetail(id: number): Promise<ResumeDetail> {
     return request.get<ResumeDetail>(`/api/resumes/${id}/detail`);
   },
 
-  /**
-   * 获取面试详情
-   */
   async getInterviewDetail(sessionId: string): Promise<InterviewDetail> {
     return request.get<InterviewDetail>(`/api/interview/sessions/${sessionId}/details`);
   },
 
-  /**
-   * 导出简历分析报告PDF
-   */
   async exportAnalysisPdf(resumeId: number): Promise<Blob> {
     const response = await request.getInstance().get(`/api/resumes/${resumeId}/export`, {
       responseType: 'blob',
@@ -120,9 +121,6 @@ export const historyApi = {
     return response.data;
   },
 
-  /**
-   * 导出面试报告PDF
-   */
   async exportInterviewPdf(sessionId: string): Promise<Blob> {
     const response = await request.getInstance().get(`/api/interview/sessions/${sessionId}/export`, {
       responseType: 'blob',
@@ -131,30 +129,18 @@ export const historyApi = {
     return response.data;
   },
 
-  /**
-   * 删除简历
-   */
   async deleteResume(id: number): Promise<void> {
     return request.delete(`/api/resumes/${id}`);
   },
 
-  /**
-   * 删除面试记录
-   */
   async deleteInterview(sessionId: string): Promise<void> {
     return request.delete(`/api/interview/sessions/${sessionId}`);
   },
 
-  /**
-   * 获取简历统计信息
-   */
   async getStatistics(): Promise<ResumeStats> {
     return request.get<ResumeStats>('/api/resumes/statistics');
   },
 
-  /**
-   * 重新分析简历
-   */
   async reanalyze(id: number): Promise<void> {
     return request.post(`/api/resumes/${id}/reanalyze`);
   },
