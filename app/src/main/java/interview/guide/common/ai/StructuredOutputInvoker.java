@@ -9,16 +9,18 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * 统一封装结构化输出调用与重试策略。
+ * 统一封装结构化输出调用，包含重试与轻量 JSON 修复兜底。
  */
 @Component
 public class StructuredOutputInvoker {
 
     private static final String STRICT_JSON_INSTRUCTION = """
-请仅返回可被 JSON 解析器直接解析的 JSON 对象，并严格满足字段结构要求：
+请仅返回可被严格 JSON 解析器直接解析的 JSON 对象。
+规则：
 1) 不要输出 Markdown 代码块（如 ```json）。
-2) 不要输出任何解释文字、前后缀、注释。
-3) 所有字符串内引号必须正确转义。
+2) 不要输出任何解释文字、前后缀或注释。
+3) 字符串内引号必须正确转义。
+4) 字符串内不要出现字面换行，必须使用 \\n。
 """;
 
     private final int maxAttempts;
@@ -43,19 +45,22 @@ public class StructuredOutputInvoker {
         Logger log
     ) {
         Exception lastError = null;
+
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             String attemptSystemPrompt = attempt == 1
                 ? systemPromptWithFormat
                 : buildRetrySystemPrompt(systemPromptWithFormat, lastError);
             try {
-                return chatClient.prompt()
+                String rawContent = chatClient.prompt()
                     .system(attemptSystemPrompt)
                     .user(userPrompt)
                     .call()
-                    .entity(outputConverter);
+                    .content();
+                return parseWithRepair(outputConverter, rawContent, logContext, log);
             } catch (Exception e) {
                 lastError = e;
-                log.warn("{}结构化解析失败，准备重试: attempt={}, error={}", logContext, attempt, e.getMessage());
+                log.warn("{}结构化解析失败，准备重试: attempt={}, error={}",
+                    logContext, attempt, e.getMessage());
             }
         }
 
@@ -72,7 +77,7 @@ public class StructuredOutputInvoker {
             .append("\n上次输出解析失败，请仅返回合法 JSON。");
 
         if (includeLastErrorInRetryPrompt && lastError != null && lastError.getMessage() != null) {
-            prompt.append("\n上次失败原因：")
+            prompt.append("\n上次解析错误：")
                 .append(sanitizeErrorMessage(lastError.getMessage()));
         }
         return prompt.toString();
@@ -84,5 +89,128 @@ public class StructuredOutputInvoker {
             return oneLine.substring(0, 200) + "...";
         }
         return oneLine;
+    }
+
+    private <T> T parseWithRepair(
+        BeanOutputConverter<T> outputConverter,
+        String rawContent,
+        String logContext,
+        Logger log
+    ) {
+        try {
+            return outputConverter.convert(rawContent);
+        } catch (Exception originalError) {
+            String repaired = repairJson(rawContent);
+            if (repaired == null || repaired.equals(rawContent)) {
+                throw originalError;
+            }
+
+            try {
+                T value = outputConverter.convert(repaired);
+                log.info("{}结构化输出兜底修复后解析成功", logContext);
+                return value;
+            } catch (Exception repairedError) {
+                originalError.addSuppressed(repairedError);
+                throw originalError;
+            }
+        }
+    }
+
+    private String repairJson(String rawContent) {
+        if (rawContent == null || rawContent.isBlank()) {
+            return rawContent;
+        }
+
+        String candidate = rawContent.trim();
+        if (candidate.startsWith("```")) {
+            candidate = stripCodeFence(candidate);
+        }
+
+        candidate = extractJsonBody(candidate);
+        return escapeControlCharsInJsonStrings(candidate);
+    }
+
+    private String stripCodeFence(String text) {
+        int firstNewline = text.indexOf('\n');
+        if (firstNewline < 0) {
+            return text;
+        }
+
+        String body = text.substring(firstNewline + 1);
+        int fenceEnd = body.lastIndexOf("```");
+        if (fenceEnd >= 0) {
+            return body.substring(0, fenceEnd).trim();
+        }
+        return text;
+    }
+
+    private String extractJsonBody(String text) {
+        int objStart = text.indexOf('{');
+        int objEnd = text.lastIndexOf('}');
+        if (objStart >= 0 && objEnd > objStart) {
+            return text.substring(objStart, objEnd + 1);
+        }
+
+        int arrStart = text.indexOf('[');
+        int arrEnd = text.lastIndexOf(']');
+        if (arrStart >= 0 && arrEnd > arrStart) {
+            return text.substring(arrStart, arrEnd + 1);
+        }
+        return text;
+    }
+
+    private String escapeControlCharsInJsonStrings(String text) {
+        StringBuilder out = new StringBuilder(text.length() + 16);
+        boolean inString = false;
+        boolean escaped = false;
+
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            if (!inString) {
+                out.append(ch);
+                if (ch == '"') {
+                    inString = true;
+                }
+                continue;
+            }
+
+            if (escaped) {
+                out.append(ch);
+                escaped = false;
+                continue;
+            }
+
+            if (ch == '\\') {
+                out.append(ch);
+                escaped = true;
+                continue;
+            }
+
+            if (ch == '"') {
+                out.append(ch);
+                inString = false;
+                continue;
+            }
+
+            if (ch == '\n') {
+                out.append("\\n");
+                continue;
+            }
+            if (ch == '\r') {
+                out.append("\\r");
+                continue;
+            }
+            if (ch == '\t') {
+                out.append("\\t");
+                continue;
+            }
+
+            if (ch < 0x20) {
+                out.append(String.format("\\u%04x", (int) ch));
+                continue;
+            }
+            out.append(ch);
+        }
+        return out.toString();
     }
 }
