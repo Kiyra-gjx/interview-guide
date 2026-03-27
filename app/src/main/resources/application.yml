@@ -2,7 +2,7 @@
 # 智能AI面试官平台配置
 
 server:
-  port: 8080
+  port: ${SERVER_PORT:18080}
 
 spring:
   application:
@@ -115,4 +115,4 @@ app:
   
   # CORS配置 - React前端
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:80}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:15173,http://localhost:5173,http://localhost:5174,http://localhost:80}

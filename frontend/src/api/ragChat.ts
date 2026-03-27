@@ -1,6 +1,4 @@
-import { request, getErrorMessage } from './request';
-
-const API_BASE_URL = import.meta.env.PROD ? '' : 'http://localhost:8080';
+import { API_BASE_URL, request, getErrorMessage } from './request';
 
 // ========== 类型定义 ==========
 
