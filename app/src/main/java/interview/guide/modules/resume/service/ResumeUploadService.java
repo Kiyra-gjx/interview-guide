@@ -12,6 +12,7 @@ import interview.guide.modules.resume.model.ResumeEntity;
 import interview.guide.modules.resume.repository.ResumeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -51,7 +52,31 @@ public class ResumeUploadService {
 
         Optional<ResumeEntity> existingResume = persistenceService.findExistingResume(file);
         if (existingResume.isPresent()) {
-            return handleDuplicateResume(existingResume.get());
+            ResumeEntity resume = existingResume.get();
+            if (resume.getAnalyzeStatus() == AsyncTaskStatus.FAILED) {
+                // 1. 取到 resumeText
+                String resumeText = getResumeText(resume);
+
+                // 4. sendAnalyzeTask
+                analyzeStreamProducer.sendAnalyzeTask(resume.getId(), resumeText);
+
+                // 5. 返回 Pending 响应
+                return Map.of(
+                    "resume", Map.of(
+                            "id", resume.getId(),
+                            "filename", resume.getOriginalFilename(),
+                            "analyzeStatus", AsyncTaskStatus.PENDING.name()
+                    ),
+                    "storage", Map.of(
+                            "fileKey", resume.getStorageKey() != null ? resume.getStorageKey() : "",
+                            "fileUrl", resume.getStorageUrl() != null ? resume.getStorageUrl() : "",
+                            "resumeId", resume.getId()
+                    ),
+                    "duplicate", true
+                );
+            }
+
+            return handleDuplicateResume(resume);
         }
 
         String resumeText = parseService.parseResume(file);
@@ -81,6 +106,33 @@ public class ResumeUploadService {
             ),
             "duplicate", false
         );
+    }
+
+    private @NonNull String getResumeText(ResumeEntity resume) {
+        String resumeText = resume.getResumeText();
+
+        // 1.1 如果解析内容为空，则从存储中提取
+        if (resumeText == null || resumeText.trim().isEmpty()) {
+            resumeText = parseService.downloadAndParseContent(
+                    resume.getStorageKey(),
+                    resume.getOriginalFilename()
+            );
+            // 1.2 如果仍未空，说明简历本身文本有问题
+            if (resumeText == null || resumeText.trim().isEmpty()) {
+                throw new BusinessException(ErrorCode.RESUME_PARSE_FAILED, "无法获取简历文本内容");
+            }
+            resume.setResumeText(resumeText);
+        }
+
+        // 2. 重置状态字段
+        resume.setAnalyzeStatus(AsyncTaskStatus.PENDING);
+        resume.setAnalyzeError(null);
+        resume.setAnalyzeErrorCode(null);
+        resume.setAnalyzeRetryable(null);
+
+        // 3. save
+        resumeRepository.save(resume);
+        return resumeText;
     }
 
     private void validateContentType(String contentType) {
@@ -131,20 +183,7 @@ public class ResumeUploadService {
 
         log.info("开始重新分析简历: resumeId={}, filename={}", resumeId, resume.getOriginalFilename());
 
-        String resumeText = resume.getResumeText();
-        if (resumeText == null || resumeText.trim().isEmpty()) {
-            resumeText = parseService.downloadAndParseContent(resume.getStorageKey(), resume.getOriginalFilename());
-            if (resumeText == null || resumeText.trim().isEmpty()) {
-                throw new BusinessException(ErrorCode.RESUME_PARSE_FAILED, "无法获取简历文本内容");
-            }
-            resume.setResumeText(resumeText);
-        }
-
-        resume.setAnalyzeStatus(AsyncTaskStatus.PENDING);
-        resume.setAnalyzeError(null);
-        resume.setAnalyzeErrorCode(null);
-        resume.setAnalyzeRetryable(null);
-        resumeRepository.save(resume);
+        String resumeText = getResumeText(resume);
 
         analyzeStreamProducer.sendAnalyzeTask(resumeId, resumeText);
         log.info("重新分析任务已发送: resumeId={}", resumeId);

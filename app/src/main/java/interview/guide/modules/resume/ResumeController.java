@@ -45,6 +45,11 @@ public class ResumeController {
         Map<String, Object> result = uploadService.uploadAndAnalyze(file);
         boolean isDuplicate = (Boolean) result.get("duplicate");
         if (isDuplicate) {
+            Object resumeObj = result.get("resume");
+            if (resumeObj instanceof Map<?, ?> resumeMap
+                && "PENDING".equals(resumeMap.get("analyzeStatus"))) {
+                return Result.success("检测到相同简历，已重新触发分析", result);
+            }
             return Result.success("检测到相同简历，已返回历史分析结果", result);
         }
         return Result.success(result);
