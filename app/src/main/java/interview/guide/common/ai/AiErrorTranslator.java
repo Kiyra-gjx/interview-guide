@@ -28,6 +28,9 @@ public class AiErrorTranslator {
         "insufficient_quota",
         "quota exceeded",
         "billing",
+        "arrearage",
+        "overdue-payment",
+        "overdue payment",
         "余额不足",
         "额度不足"
     );
@@ -98,18 +101,18 @@ public class AiErrorTranslator {
             );
         }
 
-        if (isStructuredOutputError(throwable, rootCause, normalizedMessage)) {
-            return new AiErrorDescriptor(
-                ErrorCode.AI_RESPONSE_FORMAT_INVALID,
-                "AI 返回结果格式异常，请稍后重试",
-                true
-            );
-        }
-
         if (containsAny(normalizedMessage, NETWORK_KEYWORDS)) {
             return new AiErrorDescriptor(
                 ErrorCode.AI_SERVICE_UNAVAILABLE,
                 "AI 服务暂时不可用，请稍后重试",
+                true
+            );
+        }
+
+        if (isStructuredOutputError(throwable, rootCause, normalizedMessage)) {
+            return new AiErrorDescriptor(
+                ErrorCode.AI_RESPONSE_FORMAT_INVALID,
+                "AI 返回结果格式异常，请稍后重试",
                 true
             );
         }

@@ -55,7 +55,12 @@ public class StructuredOutputInvoker {
                     .call()
                     .content();
                 return parseWithRepair(outputConverter, rawContent, logContext, log);
+            } catch (StructuredOutputException e) {
+                throw e;
             } catch (Exception e) {
+                if (!shouldRetry(e, attempt)) {
+                    throw e;
+                }
                 lastError = e;
                 log.warn("{}结构化解析失败，准备重试: attempt={}, error={}",
                     logContext, attempt, e.getMessage());
@@ -73,6 +78,33 @@ public class StructuredOutputInvoker {
             return errorPrefix + "结构化输出解析失败";
         }
         return "结构化输出解析失败";
+    }
+
+    private boolean shouldRetry(Exception e, int attempt) {
+        return attempt < maxAttempts && isStructuredOutputError(e);
+    }
+
+    private boolean isStructuredOutputError(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof StructuredOutputException) {
+                return true;
+            }
+            String message = current.getMessage();
+            if (message != null) {
+                String normalized = message.toLowerCase();
+                if (normalized.contains("illegal unquoted character")
+                    || normalized.contains("cannot deserialize")
+                    || normalized.contains("unexpected character")
+                    || normalized.contains("unrecognized token")
+                    || normalized.contains("json parse")
+                    || normalized.contains("jsonmappingexception")) {
+                    return true;
+                }
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private String buildRetrySystemPrompt(String systemPromptWithFormat, Exception lastError) {

@@ -1,6 +1,7 @@
 package interview.guide.common.async;
 
 import interview.guide.common.constant.AsyncTaskStreamConstants;
+import interview.guide.common.exception.AiServiceException;
 import interview.guide.infrastructure.redis.RedisService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -101,7 +102,7 @@ public abstract class AbstractStreamConsumer<T> {
             log.info("{}任务完成: {}", taskDisplayName(), payloadIdentifier(payload));
         } catch (Exception e) {
             log.error("{}任务失败: {}, error={}", taskDisplayName(), payloadIdentifier(payload), e.getMessage(), e);
-            if (retryCount < AsyncTaskStreamConstants.MAX_RETRY_COUNT) {
+            if (shouldRetry(e, retryCount)) {
                 retryMessage(payload, retryCount + 1);
             } else {
                 markFailed(payload, truncateError(
@@ -125,6 +126,16 @@ public abstract class AbstractStreamConsumer<T> {
             return null;
         }
         return error.length() > 500 ? error.substring(0, 500) : error;
+    }
+
+    private boolean shouldRetry(Exception e, int retryCount) {
+        if (retryCount >= AsyncTaskStreamConstants.MAX_RETRY_COUNT) {
+            return false;
+        }
+        if (e instanceof AiServiceException aiServiceException) {
+            return aiServiceException.isRetryable();
+        }
+        return true;
     }
 
     private void ackMessage(StreamMessageId messageId) {
