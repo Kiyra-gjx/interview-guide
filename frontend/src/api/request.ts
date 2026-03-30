@@ -11,7 +11,7 @@ interface Result<T = unknown> {
 
 export const API_BASE_URL = import.meta.env.PROD
   ? ''
-  : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:18080');
+  : (import.meta.env.VITE_API_BASE_URL || '');
 
 const instance: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -66,9 +66,8 @@ instance.interceptors.response.use(
     );
 
     if (isUpload) {
-      // 文件上传失败且没有响应，可能是网络超时或连接中断
-      // 不直接假设是文件大小问题，返回更通用的错误信息
-      return Promise.reject(new Error('上传失败，可能是网络超时或连接中断，请重试'));
+      // 浏览器拿不到响应体时，常见原因是网络中断或跨域被拦截。
+      return Promise.reject(new Error('上传失败，未收到后端响应。请检查网络，或确认当前前端地址已被后端 CORS 允许。'));
     }
 
     // 其他网络错误
@@ -99,7 +98,6 @@ export const request = {
   upload<T>(url: string, formData: FormData, config?: AxiosRequestConfig): Promise<T> {
     return instance.post(url, formData, {
       timeout: 120000,
-      headers: { 'Content-Type': 'multipart/form-data' },
       ...config,
     }).then(res => res.data);
   },
