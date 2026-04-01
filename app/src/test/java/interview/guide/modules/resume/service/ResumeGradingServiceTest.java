@@ -44,7 +44,9 @@ public class ResumeGradingServiceTest {
             aiErrorTranslator,
             structuredOutputInvoker,
             new ByteArrayResource("system".getBytes(StandardCharsets.UTF_8)),
-            new ByteArrayResource("user".getBytes(StandardCharsets.UTF_8))
+            new ByteArrayResource("user".getBytes(StandardCharsets.UTF_8)),
+            new ByteArrayResource("domain-system".getBytes(StandardCharsets.UTF_8)),
+            new ByteArrayResource("domain-user".getBytes(StandardCharsets.UTF_8))
         );
     }
 
@@ -69,8 +71,8 @@ public class ResumeGradingServiceTest {
     }
 
     @Test
-    @DisplayName("技术简历不应该命中领域外兜底，而应进入AI评分链路")
-    void shouldInvokeAi_whenResumeLooksInScope() {
+    @DisplayName("技术简历应进入AI处理链路")
+    void shouldEnterAiPipeline_whenResumeLooksInScope() {
         String resumeText = """
             张三
             软件工程专业
