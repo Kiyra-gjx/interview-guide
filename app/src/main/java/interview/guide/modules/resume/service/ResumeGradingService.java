@@ -32,6 +32,18 @@ public class ResumeGradingService {
 
     private static final Logger log = LoggerFactory.getLogger(ResumeGradingService.class);
 
+    private static final List<String> TECH_KEYWORDS = List.of(
+        "java", "spring", "mysql", "redis", "linux", "docker",
+        "git", "后端", "前端", "数据库", "计算机", "软件工程"
+    );
+
+    private static final List<String> OUT_OF_SCOPE_KEYWORDS = List.of(
+        "法学", "法律", "律师", "律所", "法院", "仲裁", "法务", "合规",
+        "医生", "医药",
+        "教育", "教师", "教学",
+        "农业", "土木", "水产", "养殖"
+    );
+
     private final ChatClient chatClient;
     private final PromptTemplate systemPromptTemplate;
     private final PromptTemplate userPromptTemplate;
@@ -68,6 +80,13 @@ public class ResumeGradingService {
     ) {
     }
 
+    private record ResumeScope(
+        boolean outOfScope,
+        int techSignalCount,
+        int domainSignalCount
+    ) {
+    }
+
     public ResumeGradingService(
         ChatClient.Builder chatClientBuilder,
         AiErrorTranslator aiErrorTranslator,
@@ -90,28 +109,17 @@ public class ResumeGradingService {
         log.info("开始分析简历，文本长度: {} 字符", resumeText.length());
 
         try {
-            String systemPrompt = systemPromptTemplate.render();
+            // 判断是否为非计算机/技术简历
+            ResumeScope scope = assessResumeScope(resumeText);
 
-            Map<String, Object> variables = new HashMap<>();
-            variables.put("resumeText", resumeText);
-            String userPrompt = userPromptTemplate.render(variables);
+            // 判断为非计算机/技术简历
+            if (scope.outOfScope()) {
+                log.info("命中领域外简历兜底：techSignals={}， outOfScopeSignals={}",
+                    scope.techSignalCount(), scope.domainSignalCount());
+                return buildOutOfScopeResponse(resumeText);
+            }
 
-            String systemPromptWithFormat = systemPrompt + "\n\n" + outputConverter.getFormat();
-            ResumeAnalysisResponseDTO dto = structuredOutputInvoker.invoke(
-                chatClient,
-                systemPromptWithFormat,
-                userPrompt,
-                outputConverter,
-                ErrorCode.RESUME_ANALYSIS_FAILED,
-                "简历分析失败：",
-                "简历分析",
-                log
-            );
-            log.debug("AI 响应解析成功: overallScore={}", dto.overallScore());
-
-            ResumeAnalysisResponse result = convertToResponse(dto, resumeText);
-            log.info("简历分析完成，总分: {}", result.overallScore());
-            return result;
+            return analyzeInScopeResume(resumeText);
         } catch (AiServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -128,6 +136,34 @@ public class ResumeGradingService {
                 e
             );
         }
+    }
+
+    /**
+     * AI 正式评分
+     */
+    private ResumeAnalysisResponse analyzeInScopeResume(String resumeText) {
+        String systemPrompt = systemPromptTemplate.render();
+
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("resumeText", resumeText);
+        String userPrompt = userPromptTemplate.render(variables);
+
+        String systemPromptWithFormat = systemPrompt + "\n\n" + outputConverter.getFormat();
+        ResumeAnalysisResponseDTO dto = structuredOutputInvoker.invoke(
+            chatClient,
+            systemPromptWithFormat,
+            userPrompt,
+            outputConverter,
+            ErrorCode.RESUME_ANALYSIS_FAILED,
+            "简历分析失败：",
+            "简历分析",
+            log
+        );
+        log.debug("AI 响应解析成功: overallScore={}", dto.overallScore());
+
+        ResumeAnalysisResponse result = convertToResponse(dto, resumeText);
+        log.info("简历分析完成，总分: {}", result.overallScore());
+        return result;
     }
 
     /**
@@ -155,5 +191,54 @@ public class ResumeGradingService {
             suggestions,
             originalText
         );
+    }
+
+    private ResumeScope assessResumeScope(String resumeText) {
+        String text = resumeText == null ? "" : resumeText.toLowerCase();
+
+        int techSignalCount = countKeywords(text, TECH_KEYWORDS);
+        int domainSignalCount = countKeywords(text, OUT_OF_SCOPE_KEYWORDS);
+
+        boolean outOfScope = techSignalCount <= 1 && domainSignalCount >= 3;
+
+        return new ResumeScope(outOfScope, techSignalCount, domainSignalCount);
+    }
+
+    private int countKeywords(String text, List<String> keywords) {
+        int count = 0;
+        for (String keyword : keywords) {
+            if (text.contains(keyword)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private ResumeAnalysisResponse buildOutOfScopeResponse(String resumeText) {
+        ScoreDetail scoreDetail = new ScoreDetail(8, 10, 2, 5, 4);
+
+        return new ResumeAnalysisResponse(
+            calculateOverallScore(scoreDetail),
+            scoreDetail,
+            "该简历明显不属于计算机/技术岗位目标方向，已按领域外规则降级评分，结果仅供参考。",
+            List.of("简历具备可读性"),
+            List.of(
+                new Suggestion(
+                    "内容",
+                    "高",
+                    "当前简历与产品目标岗位方向不匹配",
+                    "如果目标不是技术岗位，建议适用对应岗位的专用简历模板和评估标准。"
+                )
+            ),
+            resumeText
+        );
+    }
+
+    private int calculateOverallScore(ScoreDetail scoreDetail) {
+        return scoreDetail.contentScore()
+            + scoreDetail.structureScore()
+            + scoreDetail.skillMatchScore()
+            + scoreDetail.expressionScore()
+            + scoreDetail.projectScore();
     }
 }
