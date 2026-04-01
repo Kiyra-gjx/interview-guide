@@ -32,6 +32,8 @@ public class ResumeGradingServiceTest {
     @Mock
     private StructuredOutputInvoker structuredOutputInvoker;
 
+    @Mock
+    private ResumeDomainClassificationService resumeDomainClassificationService;
 
     private ResumeGradingService resumeGradingService;
 
@@ -43,36 +45,34 @@ public class ResumeGradingServiceTest {
             chatClientBuilder,
             aiErrorTranslator,
             structuredOutputInvoker,
+            resumeDomainClassificationService,
             new ByteArrayResource("system".getBytes(StandardCharsets.UTF_8)),
-            new ByteArrayResource("user".getBytes(StandardCharsets.UTF_8)),
-            new ByteArrayResource("domain-system".getBytes(StandardCharsets.UTF_8)),
-            new ByteArrayResource("domain-user".getBytes(StandardCharsets.UTF_8))
+            new ByteArrayResource("user".getBytes(StandardCharsets.UTF_8))
         );
     }
 
     @Test
-    @DisplayName("明显法学简历应命中领域外兜底且不调用AI")
-    void shouldReturnFallback_whenResumeIsObviouslyOutOfScope() {
-        String resumeText = """
-            张三
-            法学专业
-            曾在某律所实习，参与合同审查、仲裁材料整理
-            熟悉法院诉讼流程与法务合规工作
-            """;
+    @DisplayName("领域外简历应直接返回兜底结果且不调用评分AI")
+    void shouldReturnFallback_whenDomainIsOutOfScope() {
+        String resumeText = "任意简历文本";
+
+        when(resumeDomainClassificationService.classify(resumeText))
+            .thenReturn(ResumeDomain.OUT_OF_SCOPE);
 
         ResumeAnalysisResponse response = resumeGradingService.analyzeResume(resumeText);
 
         assertThat(response.overallScore()).isEqualTo(29);
         assertThat(response.summary()).contains("不属于计算机/技术岗位目标方向");
 
+        verify(resumeDomainClassificationService).classify(resumeText);
         verify(structuredOutputInvoker, never()).invoke(
             any(), anyString(), anyString(), any(), any(), anyString(), anyString(), any()
         );
     }
 
     @Test
-    @DisplayName("技术简历应进入AI处理链路")
-    void shouldEnterAiPipeline_whenResumeLooksInScope() {
+    @DisplayName("领域内简历应进入正式评分AI链路")
+    void shouldInvokeScoringAi_whenDomainIsInScope() {
         String resumeText = """
             张三
             软件工程专业
@@ -85,7 +85,7 @@ public class ResumeGradingServiceTest {
             any(), anyString(), anyString(), any(), any(), anyString(), anyString(), any()
         )).thenThrow(new AiServiceException(
             ErrorCode.RESUME_ANALYSIS_FAILED,
-            "mock is failure",
+            "mock scoring failure",
             false,
             null
         ));
@@ -93,6 +93,33 @@ public class ResumeGradingServiceTest {
         assertThatThrownBy(() -> resumeGradingService.analyzeResume(resumeText))
             .isInstanceOf(AiServiceException.class);
 
+        verify(resumeDomainClassificationService).classify(resumeText);
+        verify(structuredOutputInvoker, times(1)).invoke(
+            any(), anyString(), anyString(), any(), any(), anyString(), anyString(), any()
+        );
+    }
+
+    @Test
+    @DisplayName("领域不确定简历应继续进入正式评分AI链路")
+    void shouldInvokeScoringAi_whenDomainIsUncertain() {
+        String resumeText = "边界简历文本";
+
+        when(resumeDomainClassificationService.classify(resumeText))
+            .thenReturn(ResumeDomain.UNCERTAIN);
+
+        when(structuredOutputInvoker.invoke(
+            any(), anyString(), anyString(), any(), any(), anyString(), anyString(), any()
+        )).thenThrow(new AiServiceException(
+            ErrorCode.RESUME_ANALYSIS_FAILED,
+            "mock scoring failure",
+            false,
+            null
+        ));
+
+        assertThatThrownBy(() -> resumeGradingService.analyzeResume(resumeText))
+            .isInstanceOf(AiServiceException.class);
+
+        verify(resumeDomainClassificationService).classify(resumeText);
         verify(structuredOutputInvoker, times(1)).invoke(
             any(), anyString(), anyString(), any(), any(), anyString(), anyString(), any()
         );
