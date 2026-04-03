@@ -1,13 +1,32 @@
 <div align="center">
 
-**智能 AI 面试官平台** - 基于大语言模型的简历分析和模拟面试系统
+<h1>Interview Guide Agent</h1>
+
+基于 Spring AI 的面试 Agent / RAG / Workflow 实验项目（持续迭代中）
 
 [![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0-green?logo=springboot)](https://spring.io/projects/spring-boot)
 [![React](https://img.shields.io/badge/React-18.3-blue?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-336791?logo=postgresql)](https://www.postgresql.org/)
+[![Stage](https://img.shields.io/badge/Stage-Agentizing-2563eb)](https://github.com/Kiyra-gjx/interview-guide)
+[![Focus](https://img.shields.io/badge/Focus-Java%20Backend%20%2B%20Agent-0f766e)](https://github.com/Kiyra-gjx/interview-guide)
+[![License](https://img.shields.io/github/license/Kiyra-gjx/interview-guide)](./LICENSE)
 
+<p>
+  <a href="https://github.com/Kiyra-gjx/interview-guide"><img src="https://img.shields.io/badge/Repo-Kiyra--gjx%2Finterview--guide-111827" alt="repo"></a>
+  <a href="https://github.com/Snailclimb/interview-guide"><img src="https://img.shields.io/badge/Upstream-Snailclimb%2Finterview--guide-334155" alt="upstream"></a>
+  <a href="#快速开始"><img src="https://img.shields.io/badge/Get%20Started-README-7c3aed" alt="get-started"></a>
+</p>
+
+<p>
+  <a href="#项目快照">项目快照</a> •
+  <a href="#界面预览">界面预览</a> •
+  <a href="#系统架构">系统架构</a> •
+  <a href="#上游来源与致谢">上游来源</a> •
+  <a href="#技术栈">技术栈</a> •
+  <a href="#快速开始">快速开始</a>
+</p>
 
 </div>
 
@@ -16,15 +35,113 @@
 
 ## 项目介绍
 
-InterviewGuide 是一个集成了简历分析、模拟面试和知识库管理的智能面试辅助平台。系统利用大语言模型（LLM）和向量数据库技术，为求职者和 HR 提供智能化的简历评估和面试练习服务。
+Interview Guide Agent 是我基于 [Snailclimb/interview-guide](https://github.com/Snailclimb/interview-guide) fork 并持续二次开发的项目。
+
+当前它仍然以 `LLM + RAG + Structured Output + Redis Stream 工作流` 为核心，但目标不是停留在一个“会调用大模型的面试平台”，而是把它逐步演进为一个面向求职与面试场景的 `Agent` 项目。
+
+> 这个仓库一边保留原有面试平台的完整业务链路，一边按 `Tool Calling -> Memory -> Agent Loop -> Eval/Trace` 的顺序逐步 Agent 化，目标是沉淀一个更适合 Java 后端转向 Agent 应用开发的长期项目。
+
+## 项目快照
+
+<table>
+  <tr>
+    <td valign="top" width="33%">
+      <strong>Current Shape</strong>
+      <br/>
+      <br/>
+      <strong>已具备</strong>
+      <br/>
+      - 简历解析与分析
+      <br/>
+      - 模拟面试与追问
+      <br/>
+      - RAG 问答与 SSE 对话
+      <br/>
+      - Redis Stream 异步任务
+      <br/>
+      - Structured Output 兜底
+    </td>
+    <td valign="top" width="33%">
+      <strong>Agent Direction</strong>
+      <br/>
+      <br/>
+      <strong>正在补齐</strong>
+      <br/>
+      - Tool Calling
+      <br/>
+      - Chat / Session Memory
+      <br/>
+      - 单 Agent 面试教练
+      <br/>
+      - Trace / Replay / Eval
+      <br/>
+      - Guardrails
+    </td>
+    <td valign="top" width="33%">
+      <strong>Engineering Focus</strong>
+      <br/>
+      <br/>
+      <strong>工程侧重点</strong>
+      <br/>
+      - Spring Boot 4 + Java 21
+      <br/>
+      - Spring AI 2.0
+      <br/>
+      - PostgreSQL + pgvector
+      <br/>
+      - Redis / Redis Stream
+      <br/>
+      - React + TypeScript
+    </td>
+  </tr>
+</table>
+
+## 项目状态
+
+| 维度 | 当前状态 | 下一步 |
+| --- | --- | --- |
+| 产品定位 | AI 面试平台 | 面试场景 Agent |
+| 推理模式 | Prompt + RAG + Workflow | Tool Calling + 多步决策 |
+| 上下文 | 会话记录与业务状态 | 真正参与推理的 Memory |
+| 工程能力 | 异步任务、状态流转、结构化输出 | Trace、Eval、Guardrails |
+| 项目阶段 | `WIP` | 持续迭代 |
+
+## 界面预览
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="https://oss.javaguide.cn/xingqiu/pratical-project/interview-guide/page-mock-interview.png" alt="mock interview" width="100%" />
+      <br/>
+      <strong>模拟面试</strong>
+    </td>
+    <td align="center" width="50%">
+      <img src="https://oss.javaguide.cn/xingqiu/pratical-project/interview-guide/page-qa-assistant.png" alt="qa assistant" width="100%" />
+      <br/>
+      <strong>知识库问答</strong>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="https://oss.javaguide.cn/xingqiu/pratical-project/interview-guide/page-resume-upload-analysis.png" alt="resume analysis" width="100%" />
+      <br/>
+      <strong>简历分析</strong>
+    </td>
+    <td align="center" width="50%">
+      <img src="https://oss.javaguide.cn/xingqiu/pratical-project/interview-guide/page-knowledge-base-management.png" alt="knowledge base" width="100%" />
+      <br/>
+      <strong>知识库管理</strong>
+    </td>
+  </tr>
+</table>
 
 ## 系统架构
 
-**提示**：架构图采用 draw.io 绘制，导出为 svg 格式，在 Github Dark 模式下的显示效果会有问题。
+**说明**：下面这张图更多反映当前基础平台形态，不完全等同于后续目标中的 Agent 架构。架构图采用 draw.io 绘制，导出为 svg 格式，在 Github Dark 模式下的显示效果会有问题。
 
 ![](https://oss.javaguide.cn/xingqiu/pratical-project/interview-guide/interview-guide-architecture-diagram.svg)
 
-**异步处理流程**：
+**当前异步处理流程**：
 
 简历分析、知识库向量化和面试报告生成采用 Redis Stream 异步处理，这里以简历分析和知识库向量化为例介绍一下整体流程：
 
@@ -42,13 +159,18 @@ InterviewGuide 是一个集成了简历分析、模拟面试和知识库管理�
 
 状态流转： `PENDING` → `PROCESSING` → `COMPLETED` / `FAILED`。
 
-## 配套教程
+**Agent 化演进方向**：
 
-本项目承诺**完整功能免费开源**，也不会做所谓的 Pro 版或“付费解锁核心功能”之类的设计。
+- 在问答链路中引入 `Tool Calling + Memory`，让会话不仅是“记录消息”，还能参与下一步推理
+- 在模拟面试链路中引入单 Agent 模式，让系统能基于简历、知识库和历史表现自主决定追问、讲解和复盘策略
+- 为 Agent 行为补齐 `trace / replay / eval`，把“能跑”升级为“可解释、可调试、可迭代”
 
-如果你想学习这个项目，或者希望把它作为个人项目经历 / 毕设选题，我也整理了一套相对细致的教程：从基础设施搭建、核心业务实现，到最后如何在面试中讲清楚思路与亮点，尽量把容易卡住的地方讲透。
+## 上游来源与致谢
 
-如果你确实需要更系统的辅导，可以点这里了解详情（**教程为付费内容**，主要是想覆盖一些时间成本，望理解，感谢支持）：[《SpringAI 智能面试平台+RAG 知识库》](https://javaguide.cn/zhuanlan/interview-guide.html)。
+- 上游项目：[`Snailclimb/interview-guide`](https://github.com/Snailclimb/interview-guide)
+- 当前仓库：[`Kiyra-gjx/interview-guide`](https://github.com/Kiyra-gjx/interview-guide)
+- 这个仓库保留了上游项目中大量成熟的业务模块和工程结构，并在此基础上按我的 Agent 学习与实践路线继续演进
+- 如果你想了解更原始、更完整的基础版实现，请优先参考上游仓库与其原始文档
 
 ## 技术栈
 
@@ -68,11 +190,11 @@ InterviewGuide 是一个集成了简历分析、模拟面试和知识库管理�
 
 技术选型常见问题解答：
 
-1. 数据存储为什么选择 PostgreSQL + pgvector？PG 的向量数据存储功能够用了，精简架构，不想引入太多组件。
+1. 数据存储为什么选择 PostgreSQL + pgvector？我希望先把检索、会话、业务数据放在尽量少的基础设施里，降低工程复杂度，同时又能保留 RAG 所需的向量检索能力。
 2. 为什么引入 Redis？
-   - Redis 替代 `ConcurrentHashMap` 实现面试会话的缓存。
-   - 基于 Redis Stream 实现简历分析、知识库向量化等场景的异步（还能解耦，分析和向量化可以使用其他编程语言来做）。不使用 [Kafka](https://javaguide.cn/high-performance/message-queue/kafka-questions-01.html) 这类成熟的消息队列，也是不想引入太多组件。
-3. 构建工具为什么选择 Gradle？个人更喜欢用 Gradle，也写过相关的文章：[Gradle核心概念总结](https://javaguide.cn/tools/gradle/gradle-core-concepts.html)。
+   - Redis 替代 `ConcurrentHashMap` 实现面试会话缓存和状态恢复。
+   - Redis Stream 用于简历分析、知识库向量化、面试报告生成等异步任务，便于后续继续扩展 Agent 任务编排。
+3. 构建工具为什么选择 Gradle？当前项目依赖较多，Gradle 在 Spring Boot 4 / Java 21 这套组合下维护依赖和模块化演进都比较顺手。
 
 ### 前端技术
 
@@ -121,6 +243,10 @@ InterviewGuide 是一个集成了简历分析、模拟面试和知识库管理�
 - [x] 前端性能优化（RAG 聊天 - 虚拟列表）
 - [x] 模拟面试增加追问功能
 - [ ] 打通模拟面试和知识库
+- [ ] 把知识库、简历、面试记录封装成 Agent Tools
+- [ ] 引入真正参与推理的 Chat Memory / Session Memory
+- [ ] 增加单 Agent 面试教练模式（规划、检索、追问、复盘）
+- [ ] 增加 Agent Trace / Eval / Guardrails
 
 ## 效果展示
 
@@ -213,9 +339,11 @@ interview-guide/
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/Snailclimb/interview-guide.git
+git clone https://github.com/Kiyra-gjx/interview-guide.git
 cd interview-guide
 ```
+
+如果你希望查看原始基础版本，请参考上游仓库：<https://github.com/Snailclimb/interview-guide>
 
 ### 2. 配置数据库
 
@@ -371,6 +499,7 @@ docker image prune -f
 | **求职者**      | 上传简历获取分析建议，进行模拟面试练习 |
 | **HR/招聘人员** | 批量分析简历，评估候选人能力           |
 | **培训机构**    | 提供面试培训服务，管理知识库资源       |
+| **AI/Agent 学习者** | 作为 Java 后端转向 Agent 应用开发的实践项目 |
 
 ## 常见问题
 
@@ -437,4 +566,4 @@ spring:
 
 ## 许可证
 
-AGPL-3.0 License（只要通过网络提供服务，就必须向用户公开修改后的源码）
+本仓库基于上游 AGPL-3.0 项目 fork 并持续修改，继续遵循 AGPL-3.0 License（只要通过网络提供服务，就必须向用户公开修改后的源码）。
