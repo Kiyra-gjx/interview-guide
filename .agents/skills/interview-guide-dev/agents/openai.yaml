@@ -1,0 +1,4 @@
+﻿interface:
+  display_name: "Interview Guide 开发"
+  short_description: "按仓库约定定位、修改和验证代码"
+  default_prompt: "使用 $interview-guide-dev 在这个仓库中定位相关文件、解释实现路径、完成需求改动，并选择最小但有效的验证方式。"

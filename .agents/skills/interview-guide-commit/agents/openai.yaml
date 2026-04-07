@@ -1,0 +1,4 @@
+interface:
+  display_name: "Interview Guide 提交"
+  short_description: "整理改动并执行安全提交"
+  default_prompt: "使用 $interview-guide-commit 检查当前工作区改动，总结提交内容，生成合适的 commit message，并在必要时执行提交或推送。"
