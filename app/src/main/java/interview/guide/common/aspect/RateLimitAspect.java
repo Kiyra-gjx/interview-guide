@@ -269,8 +269,10 @@ public class RateLimitAspect {
 
     /**
      * 获取当前用户 ID
-     * 从请求属性或 Session 中获取
-     * TODO: 需要根据实际项目的认证框架进行实现，本项目未显示用户管理
+     * 当前项目暂无统一认证体系，USER 维度先按请求上下文中的约定兜底：
+     * 优先读取请求属性中的 userId，其次读取请求头 X-User-Id，
+     * 若都不存在则降级为 anonymous。
+     * 后续接入 JWT、Session 或 Spring Security 后，应在这里统一替换用户标识来源。
      */
     private String getCurrentUserId() {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
