@@ -4,6 +4,7 @@ import interview.guide.common.annotation.RateLimit;
 import interview.guide.common.result.Result;
 import interview.guide.modules.resume.model.ResumeDetailDTO;
 import interview.guide.modules.resume.model.ResumeListItemDTO;
+import interview.guide.modules.resume.model.ResumeStatsDTO;
 import interview.guide.modules.resume.service.ResumeDeleteService;
 import interview.guide.modules.resume.service.ResumeHistoryService;
 import interview.guide.modules.resume.service.ResumeUploadService;
@@ -127,6 +128,15 @@ public class ResumeController {
             "status", "UP",
             "service", "AI Interview Platform - Resume Service"
         ));
+    }
+
+    /**
+     * 获取简历统计信息
+     */
+    @GetMapping("/api/resumes/statistics")
+    public Result<ResumeStatsDTO> getStatistics() {
+        ResumeStatsDTO stats = historyService.getStatistics();
+        return Result.success(stats);
     }
 
 }

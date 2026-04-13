@@ -35,7 +35,7 @@ public class ResumePersistenceService {
     private final ObjectMapper objectMapper;
     private final ResumeMapper resumeMapper;
     private final FileHashService fileHashService;
-    
+
     /**
      * 检查简历是否已存在（基于文件内容hash）
      * 
@@ -203,5 +203,19 @@ public class ResumePersistenceService {
         // 2. 删除简历实体（面试会话会在服务层删除）
         resumeRepository.delete(resume);
         log.info("简历已删除: id={}, filename={}", id, resume.getOriginalFilename());
+    }
+
+    /**
+     * 获取简历总数
+     */
+    public long countResumes() {
+        return resumeRepository.count();
+    }
+
+    /**
+     * 获取简历总访问次数
+     */
+    public long sumAccessCount() {
+        return resumeRepository.sumAccessCount();
     }
 }

@@ -323,4 +323,11 @@ public class InterviewPersistenceService {
             .limit(30) // 核心改动：只保留最近的 30 道题
             .toList();
     }
+
+    /**
+     * 获取面试总数
+     */
+    public long countInterviews() {
+        return sessionRepository.count();
+    }
 }

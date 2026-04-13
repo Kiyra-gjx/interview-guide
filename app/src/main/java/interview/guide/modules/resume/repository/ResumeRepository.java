@@ -2,6 +2,7 @@ package interview.guide.modules.resume.repository;
 
 import interview.guide.modules.resume.model.ResumeEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -21,4 +22,10 @@ public interface ResumeRepository extends JpaRepository<ResumeEntity, Long> {
      * 检查文件哈希是否存在
      */
     boolean existsByFileHash(String fileHash);
+
+    /**
+     * 返回简历访问总数
+     */
+    @Query("SELECT COALESCE(SUM(r.accessCount), 0) FROM ResumeEntity r")
+    Long sumAccessCount();
 }

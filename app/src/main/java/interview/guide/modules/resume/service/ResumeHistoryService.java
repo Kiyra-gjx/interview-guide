@@ -7,10 +7,7 @@ import interview.guide.infrastructure.mapper.InterviewMapper;
 import interview.guide.infrastructure.mapper.ResumeMapper;
 import interview.guide.modules.interview.model.ResumeAnalysisResponse;
 import interview.guide.modules.interview.service.InterviewPersistenceService;
-import interview.guide.modules.resume.model.ResumeAnalysisEntity;
-import interview.guide.modules.resume.model.ResumeDetailDTO;
-import interview.guide.modules.resume.model.ResumeEntity;
-import interview.guide.modules.resume.model.ResumeListItemDTO;
+import interview.guide.modules.resume.model.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -149,5 +146,13 @@ public class ResumeHistoryService {
      * PDF 导出结果。
      */
     public record ExportResult(byte[] pdfBytes, String filename) {
+    }
+
+    public ResumeStatsDTO getStatistics() {
+        return new ResumeStatsDTO(
+            resumePersistenceService.countResumes(),
+            interviewPersistenceService.countInterviews(),
+            resumePersistenceService.sumAccessCount()
+        );
     }
 }
