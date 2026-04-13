@@ -4,11 +4,12 @@ import { AlertCircle, CheckCircle2, Clock, Download, Loader2, RefreshCw, Target,
 import RadarChart from './RadarChart';
 import ScoreProgressBar from './ScoreProgressBar';
 import { formatDateTime } from '../utils/date';
-import type { AnalyzeErrorCode, AnalyzeStatus } from '../api/history';
+import type { AnalysisItem, AnalyzeErrorCode, AnalyzeStatus } from '../api/history';
+import type { Suggestion } from '../types/resume';
 import { getAnalyzeErrorDisplay } from '../utils/analyzeError';
 
 interface AnalysisPanelProps {
-  analysis: any;
+  analysis?: AnalysisItem;
   analyzeStatus?: AnalyzeStatus;
   analyzeError?: string;
   analyzeErrorCode?: AnalyzeErrorCode;
@@ -51,14 +52,18 @@ export default function AnalysisPanel({
     ];
   }, [analysis]);
 
-  const suggestionsByPriority = useMemo(() => {
+  const suggestionsByPriority = useMemo<{
+    high: Suggestion[];
+    medium: Suggestion[];
+    low: Suggestion[];
+  }>(() => {
     if (!analysis?.suggestions) return { high: [], medium: [], low: [] };
 
     const suggestions = analysis.suggestions;
     return {
-      high: suggestions.filter((s: any) => s.priority === '高'),
-      medium: suggestions.filter((s: any) => s.priority === '中'),
-      low: suggestions.filter((s: any) => s.priority === '低'),
+      high: suggestions.filter((s) => s.priority === '高'),
+      medium: suggestions.filter((s) => s.priority === '中'),
+      low: suggestions.filter((s) => s.priority === '低'),
     };
   }, [analysis]);
 
@@ -169,6 +174,10 @@ export default function AnalysisPanel({
         )}
       </div>
     );
+  }
+
+  if (!analysis) {
+    return null;
   }
 
   const projectScore = analysis.projectScore || 0;
@@ -327,7 +336,7 @@ function SuggestionSection({
   delay,
 }: {
   priority: string;
-  suggestions: any[];
+  suggestions: Suggestion[];
   getPriorityColor: (p: string) => string;
   getPriorityBadgeColor: (p: string) => string;
   getCategoryColor: (c: string) => string;
@@ -362,7 +371,7 @@ function SuggestionSection({
         <div className={`flex-1 h-px ${colors.border}`}></div>
       </div>
       <div className="space-y-3">
-        {suggestions.map((s: any, i: number) => (
+        {suggestions.map((s, i: number) => (
           <motion.div
             key={`${priority}-${i}`}
             className={`p-4 rounded-xl border-2 ${getPriorityColor(priority)}`}
@@ -380,7 +389,7 @@ function SuggestionSection({
             </div>
             <div className="mb-2">
               <p className="font-semibold text-slate-900 dark:text-white mb-1">{s.issue || '问题描述'}</p>
-              <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">{s.recommendation || s}</p>
+              <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">{s.recommendation}</p>
             </div>
           </motion.div>
         ))}

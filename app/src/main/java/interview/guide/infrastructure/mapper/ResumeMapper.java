@@ -90,7 +90,7 @@ public interface ResumeMapper {
     ResumeDetailDTO.AnalysisHistoryDTO toAnalysisHistoryDTO(
         ResumeAnalysisEntity entity,
         List<String> strengths,
-        List<Object> suggestions
+        List<ResumeAnalysisResponse.Suggestion> suggestions
     );
 
     /**
@@ -99,7 +99,7 @@ public interface ResumeMapper {
     default List<ResumeDetailDTO.AnalysisHistoryDTO> toAnalysisHistoryDTOList(
         List<ResumeAnalysisEntity> entities,
         java.util.function.Function<ResumeAnalysisEntity, List<String>> strengthsExtractor,
-        java.util.function.Function<ResumeAnalysisEntity, List<Object>> suggestionsExtractor
+        java.util.function.Function<ResumeAnalysisEntity, List<ResumeAnalysisResponse.Suggestion>> suggestionsExtractor
     ) {
         return entities.stream()
             .map(e -> toAnalysisHistoryDTO(e, strengthsExtractor.apply(e), suggestionsExtractor.apply(e)))

@@ -1,6 +1,7 @@
 package interview.guide.modules.resume.model;
 
 import interview.guide.common.model.AsyncTaskStatus;
+import interview.guide.modules.interview.model.ResumeAnalysisResponse;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -38,7 +39,7 @@ public record ResumeDetailDTO(
         String summary,
         LocalDateTime analyzedAt,
         List<String> strengths,
-        List<Object> suggestions
+        List<ResumeAnalysisResponse.Suggestion> suggestions
     ) {
     }
 }

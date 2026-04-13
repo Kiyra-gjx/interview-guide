@@ -1,4 +1,5 @@
 import { request } from './request';
+import type { Suggestion } from '../types/resume';
 
 export type AnalyzeStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 export type EvaluateStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
@@ -45,7 +46,7 @@ export interface AnalysisItem {
   summary: string;
   analyzedAt: string;
   strengths: string[];
-  suggestions: unknown[];
+  suggestions: Suggestion[];
 }
 
 export interface InterviewItem {

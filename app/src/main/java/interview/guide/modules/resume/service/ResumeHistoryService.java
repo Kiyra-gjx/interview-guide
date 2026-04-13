@@ -108,7 +108,7 @@ public class ResumeHistoryService {
         return List.of();
     }
 
-    private List<Object> extractSuggestions(ResumeAnalysisEntity entity) {
+    private List<ResumeAnalysisResponse.Suggestion> extractSuggestions(ResumeAnalysisEntity entity) {
         try {
             if (entity.getSuggestionsJson() != null) {
                 return objectMapper.readValue(entity.getSuggestionsJson(), new TypeReference<>() {
