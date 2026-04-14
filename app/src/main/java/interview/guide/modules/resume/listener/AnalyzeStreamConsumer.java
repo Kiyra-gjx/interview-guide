@@ -116,6 +116,9 @@ public class AnalyzeStreamConsumer extends AbstractStreamConsumer<AnalyzeStreamC
                 return;
             }
             persistenceService.saveAnalysis(resume, analysis);
+        } catch (AiServiceException e) {
+            failureStates.put(resumeId, buildFailureState(e));
+            throw disableAutomaticRetryForStructuredOutputError(e);
         } catch (Exception e) {
             failureStates.put(resumeId, buildFailureState(e));
             throw e;
@@ -184,6 +187,21 @@ public class AnalyzeStreamConsumer extends AbstractStreamConsumer<AnalyzeStreamC
             "简历分析失败，请稍后重试",
             ErrorCode.RESUME_ANALYSIS_FAILED.name(),
             true
+        );
+    }
+
+    private AiServiceException disableAutomaticRetryForStructuredOutputError(AiServiceException e) {
+        if (e.getErrorCode() != ErrorCode.AI_RESPONSE_FORMAT_INVALID || !e.isRetryable()) {
+            return e;
+        }
+
+        // 结构化输出失败已在单次调用内做过重试，这里停止 Stream 自动重入队，
+        // 但保留 failureState 中的 retryable=true，允许用户手动重新发起分析。
+        return new AiServiceException(
+            e.getErrorCode(),
+            e.getMessage(),
+            false,
+            e
         );
     }
 

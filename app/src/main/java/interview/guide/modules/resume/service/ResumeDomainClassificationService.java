@@ -58,6 +58,7 @@ public class ResumeDomainClassificationService {
     );
 
     private record ResumeScope(
+        boolean inScope,
         boolean outOfScope,
         int techSignalCount,
         int domainSignalCount
@@ -74,15 +75,18 @@ public class ResumeDomainClassificationService {
      * 判断简历领域
      */
     public ResumeDomain classify(String resumeText) {
-        // 1. 先判断规则明显领域外
+        // 1. 先用规则短路明显领域内/领域外场景，降低不必要的 AI 调用
         ResumeScope scope = assessResumeScope(resumeText);
 
-        // 2. 否则走 AI 领域识别
+        if (scope.inScope()) {
+            return ResumeDomain.IN_SCOPE;
+        }
+
         if (scope.outOfScope()) {
             return ResumeDomain.OUT_OF_SCOPE;
         }
 
-        // 3. 返回 IN_COPE / OUT_OF_SCOPE / UNCERTAIN
+        // 2. 仅在边界场景下再走 AI 领域识别
         return classifyResumeDomain(resumeText);
     }
 
@@ -95,9 +99,10 @@ public class ResumeDomainClassificationService {
         int techSignalCount = countKeywords(text, TECH_KEYWORDS);
         int domainSignalCount = countKeywords(text, OUT_OF_SCOPE_KEYWORDS);
 
+        boolean inScope = techSignalCount >= 3 && techSignalCount > domainSignalCount + 1;
         boolean outOfScope = techSignalCount <= 1 && domainSignalCount >= 3;
 
-        return new ResumeScope(outOfScope, techSignalCount, domainSignalCount);
+        return new ResumeScope(inScope, outOfScope, techSignalCount, domainSignalCount);
     }
 
     /**

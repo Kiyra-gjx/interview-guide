@@ -45,9 +45,7 @@ public class StructuredOutputInvoker {
         Exception lastError = null;
 
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-            String attemptSystemPrompt = attempt == 1
-                ? systemPromptWithFormat
-                : buildRetrySystemPrompt(systemPromptWithFormat, lastError);
+            String attemptSystemPrompt = buildAttemptSystemPrompt(systemPromptWithFormat, attempt, lastError);
             try {
                 String rawContent = chatClient.prompt()
                     .system(attemptSystemPrompt)
@@ -68,6 +66,13 @@ public class StructuredOutputInvoker {
         }
 
         throw new StructuredOutputException(buildFailureMessage(errorPrefix, logContext), lastError);
+    }
+
+    String buildAttemptSystemPrompt(String systemPromptWithFormat, int attempt, Exception lastError) {
+        if (attempt == 1) {
+            return systemPromptWithFormat + "\n\n" + STRICT_JSON_INSTRUCTION;
+        }
+        return buildRetrySystemPrompt(systemPromptWithFormat, lastError);
     }
 
     private String buildFailureMessage(String errorPrefix, String logContext) {

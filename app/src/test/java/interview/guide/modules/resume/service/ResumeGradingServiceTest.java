@@ -12,10 +12,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.ClassPathResource;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
@@ -46,8 +45,8 @@ public class ResumeGradingServiceTest {
             aiErrorTranslator,
             structuredOutputInvoker,
             resumeDomainClassificationService,
-            new ByteArrayResource("system".getBytes(StandardCharsets.UTF_8)),
-            new ByteArrayResource("user".getBytes(StandardCharsets.UTF_8))
+            new ClassPathResource("prompts/resume-analysis-system.st"),
+            new ClassPathResource("prompts/resume-analysis-user.st")
         );
     }
 
