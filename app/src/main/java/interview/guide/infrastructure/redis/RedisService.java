@@ -26,6 +26,9 @@ import java.util.function.Function;
 @RequiredArgsConstructor
 public class RedisService {
 
+    private static final String EMPTY_STREAM_RESULT_TYPE = "java.util.Collections$EmptyList";
+    private static final String MAP_TYPE = "java.util.Map";
+
     private final RedissonClient redissonClient;
 
     // ==================== 基础键值操作 ====================
@@ -230,12 +233,13 @@ public class RedisService {
         RStream<String, String> stream = redissonClient.getStream(streamKey, StringCodec.INSTANCE);
 
         // 使用阻塞读取，让 Redis 服务端等待消息
-        Map<StreamMessageId, Map<String, String>> messages = stream.readGroup(
+        Map<StreamMessageId, Map<String, String>> messages = readStreamMessages(
+            streamKey,
             groupName,
             consumerName,
-            StreamReadGroupArgs.neverDelivered()
-                .count(count)
-                .timeout(Duration.ofMillis(blockTimeoutMs))
+            count,
+            blockTimeoutMs,
+            stream
         );
 
         if (messages == null || messages.isEmpty()) {
@@ -247,6 +251,45 @@ public class RedisService {
         }
 
         return true;
+    }
+
+    private Map<StreamMessageId, Map<String, String>> readStreamMessages(
+            String streamKey,
+            String groupName,
+            String consumerName,
+            int count,
+            long blockTimeoutMs,
+            RStream<String, String> stream) {
+
+        StreamReadGroupArgs args = StreamReadGroupArgs.neverDelivered().count(count);
+        if (blockTimeoutMs >= 0) {
+            args.timeout(Duration.ofMillis(blockTimeoutMs));
+        }
+
+        try {
+            return stream.readGroup(groupName, consumerName, args);
+        } catch (ClassCastException e) {
+            if (isBlockingReadTimeoutDecodeBug(e, blockTimeoutMs)) {
+                log.debug(
+                    "Redisson 阻塞式 Stream 读超时返回空结果，按无消息处理: stream={}, group={}, consumer={}",
+                    streamKey,
+                    groupName,
+                    consumerName
+                );
+                return Map.of();
+            }
+            throw e;
+        }
+    }
+
+    private boolean isBlockingReadTimeoutDecodeBug(ClassCastException e, long blockTimeoutMs) {
+        if (blockTimeoutMs <= 0) {
+            return false;
+        }
+        String message = e.getMessage();
+        return message != null
+            && message.contains(EMPTY_STREAM_RESULT_TYPE)
+            && message.contains(MAP_TYPE);
     }
 
     /**
