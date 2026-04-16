@@ -2,6 +2,8 @@ package interview.guide.modules.knowledgebase.service;
 
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
+import interview.guide.modules.knowledgebase.model.QueryDebugInfo;
+import interview.guide.modules.knowledgebase.model.QueryDebugResponse;
 import interview.guide.modules.knowledgebase.model.QueryRequest;
 import interview.guide.modules.knowledgebase.model.QueryResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -34,8 +36,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Service
 public class KnowledgeBaseQueryService {
     private static final String NO_RESULT_RESPONSE = "抱歉，在选定的知识库中未检索到相关信息。请换一个更具体的关键词或补充上下文后再试。";
-    private static final Pattern SHORT_TOKEN_PATTERN = Pattern.compile("^[\\p{L}\\p{N}_-]{2,20}$");
+    private static final Pattern PRECISION_TOKEN_PATTERN = Pattern.compile("(?<![A-Za-z0-9_-])[A-Za-z0-9][A-Za-z0-9_-]{1,31}(?![A-Za-z0-9_-])");
     private static final int STREAM_PROBE_CHARS = 120;
+    private static final int DEBUG_PREVIEW_CHARS = 180;
 
     private final ChatClient chatClient;
     private final KnowledgeBaseVectorService vectorService;
@@ -102,9 +105,16 @@ public class KnowledgeBaseQueryService {
      * @return AI回答
      */
     public String answerQuestion(List<Long> knowledgeBaseIds, String question) {
+        return executeQuery(knowledgeBaseIds, question, false).answer();
+    }
+
+    private QueryExecutionResult executeQuery(List<Long> knowledgeBaseIds, String question, boolean includeDebugInfo) {
         log.info("收到知识库提问: kbIds={}, question={}", knowledgeBaseIds, question);
         if (knowledgeBaseIds == null || knowledgeBaseIds.isEmpty() || normalizeQuestion(question).isBlank()) {
-            return NO_RESULT_RESPONSE;
+            QueryDebugInfo debugInfo = includeDebugInfo
+                ? buildQueryDebugInfo(knowledgeBaseIds, null, RetrievalResult.empty(List.of()))
+                : null;
+            return new QueryExecutionResult(NO_RESULT_RESPONSE, debugInfo);
         }
 
         // 1. 验证知识库是否存在并更新问题计数（合并数据库操作）
@@ -112,10 +122,15 @@ public class KnowledgeBaseQueryService {
 
         // 2. Query rewrite + 动态参数检索（RAG）
         QueryContext queryContext = buildQueryContext(question);
-        List<Document> relevantDocs = retrieveRelevantDocs(queryContext, knowledgeBaseIds);
+        RetrievalResult retrievalResult = retrieveRelevantDocs(queryContext, knowledgeBaseIds);
+        List<Document> relevantDocs = retrievalResult.docs();
 
-        if (!hasEffectiveHit(question, relevantDocs)) {
-            return NO_RESULT_RESPONSE;
+        QueryDebugInfo debugInfo = includeDebugInfo
+            ? buildQueryDebugInfo(knowledgeBaseIds, queryContext, retrievalResult)
+            : null;
+
+        if (!retrievalResult.effectiveHit()) {
+            return new QueryExecutionResult(NO_RESULT_RESPONSE, debugInfo);
         }
 
         // 3. 构建上下文（合并检索到的文档）
@@ -139,7 +154,7 @@ public class KnowledgeBaseQueryService {
             answer = normalizeAnswer(answer);
 
             log.info("知识库问答完成: kbIds={}", knowledgeBaseIds);
-            return answer;
+            return new QueryExecutionResult(answer, debugInfo);
 
         } catch (Exception e) {
             log.error("知识库问答失败: {}", e.getMessage(), e);
@@ -168,7 +183,7 @@ public class KnowledgeBaseQueryService {
      * 查询知识库并返回完整响应
      */
     public QueryResponse queryKnowledgeBase(QueryRequest request) {
-        String answer = answerQuestion(request.knowledgeBaseIds(), request.question());
+        QueryExecutionResult result = executeQuery(request.knowledgeBaseIds(), request.question(), false);
 
         // 获取知识库名称（多个知识库用逗号分隔）
         List<String> kbNames = listService.getKnowledgeBaseNames(request.knowledgeBaseIds());
@@ -177,7 +192,20 @@ public class KnowledgeBaseQueryService {
         // 使用第一个知识库ID作为主要标识（兼容前端）
         Long primaryKbId = request.knowledgeBaseIds().getFirst();
 
-        return new QueryResponse(answer, primaryKbId, kbNamesStr);
+        return new QueryResponse(result.answer(), primaryKbId, kbNamesStr);
+    }
+
+    /**
+     * 查询知识库并返回带检索调试信息的完整响应
+     */
+    public QueryDebugResponse queryKnowledgeBaseWithDebug(QueryRequest request) {
+        QueryExecutionResult result = executeQuery(request.knowledgeBaseIds(), request.question(), true);
+
+        List<String> kbNames = listService.getKnowledgeBaseNames(request.knowledgeBaseIds());
+        String kbNamesStr = String.join("、", kbNames);
+        Long primaryKbId = request.knowledgeBaseIds().getFirst();
+
+        return new QueryDebugResponse(result.answer(), primaryKbId, kbNamesStr, result.debugInfo());
     }
 
     /**
@@ -199,11 +227,14 @@ public class KnowledgeBaseQueryService {
 
             // 2. Query rewrite + 动态参数检索
             QueryContext queryContext = buildQueryContext(question);
-            List<Document> relevantDocs = retrieveRelevantDocs(queryContext, knowledgeBaseIds);
+            RetrievalResult retrievalResult = retrieveRelevantDocs(queryContext, knowledgeBaseIds);
+            List<Document> relevantDocs = retrievalResult.docs();
 
-            if (!hasEffectiveHit(question, relevantDocs)) {
+            if (!retrievalResult.effectiveHit()) {
                 return Flux.just(NO_RESULT_RESPONSE);
             }
+
+            logRetrievalDebug(knowledgeBaseIds, queryContext, retrievalResult);
 
             // 3. 构建上下文
             String context = relevantDocs.stream()
@@ -239,20 +270,28 @@ public class KnowledgeBaseQueryService {
 
     private QueryContext buildQueryContext(String originalQuestion) {
         String normalizedQuestion = normalizeQuestion(originalQuestion);
-        String rewrittenQuestion = rewriteQuestion(normalizedQuestion);
+        List<String> precisionTokens = extractPrecisionTokens(normalizedQuestion);
+        String rewrittenQuestion = rewriteQuestion(normalizedQuestion, precisionTokens);
         Set<String> candidates = new LinkedHashSet<>();
         candidates.add(rewrittenQuestion);
         candidates.add(normalizedQuestion);
 
         SearchParams searchParams = resolveSearchParams(normalizedQuestion);
-        return new QueryContext(normalizedQuestion, new ArrayList<>(candidates), searchParams);
+        return new QueryContext(
+            normalizedQuestion,
+            rewrittenQuestion,
+            new ArrayList<>(candidates),
+            searchParams,
+            precisionTokens
+        );
     }
 
     private String normalizeQuestion(String question) {
         return question == null ? "" : question.trim();
     }
 
-    private List<Document> retrieveRelevantDocs(QueryContext queryContext, List<Long> knowledgeBaseIds) {
+    private RetrievalResult retrieveRelevantDocs(QueryContext queryContext, List<Long> knowledgeBaseIds) {
+        List<RetrievalAttempt> attempts = new ArrayList<>();
         for (String candidateQuery : queryContext.candidateQueries()) {
             if (candidateQuery.isBlank()) {
                 continue;
@@ -263,12 +302,15 @@ public class KnowledgeBaseQueryService {
                 queryContext.searchParams().topK(),
                 queryContext.searchParams().minScore()
             );
-            log.info("检索候选 query='{}'，命中 {} 条", candidateQuery, docs.size());
-            if (hasEffectiveHit(candidateQuery, docs)) {
-                return docs;
+            HitEvaluation hitEvaluation = evaluateHit(queryContext.originalQuestion(), queryContext.precisionTokens(), docs);
+            attempts.add(new RetrievalAttempt(candidateQuery, docs, hitEvaluation.effectiveHit(), hitEvaluation.rejectionReason()));
+            log.info("检索候选 query='{}'，命中 {} 条，有效命中={}, rejectionReason={}",
+                candidateQuery, docs.size(), hitEvaluation.effectiveHit(), hitEvaluation.rejectionReason());
+            if (hitEvaluation.effectiveHit()) {
+                return new RetrievalResult(candidateQuery, docs, true, attempts);
             }
         }
-        return List.of();
+        return RetrievalResult.empty(attempts);
     }
 
     private SearchParams resolveSearchParams(String question) {
@@ -282,8 +324,35 @@ public class KnowledgeBaseQueryService {
         return new SearchParams(topkLong, minScoreDefault);
     }
 
-    private String rewriteQuestion(String question) {
+    private List<String> extractPrecisionTokens(String question) {
+        if (question == null || question.isBlank()) {
+            return List.of();
+        }
+
+        Set<String> tokens = new LinkedHashSet<>();
+        var matcher = PRECISION_TOKEN_PATTERN.matcher(question);
+        while (matcher.find()) {
+            String token = matcher.group();
+            if (token != null && !token.isBlank()) {
+                tokens.add(token);
+            }
+        }
+        return new ArrayList<>(tokens);
+    }
+
+    private boolean shouldSkipRewrite(String question, List<String> precisionTokens) {
+        if (question == null || question.isBlank()) {
+            return true;
+        }
+        return precisionTokens.size() == 1 && question.equals(precisionTokens.getFirst());
+    }
+
+    private String rewriteQuestion(String question, List<String> precisionTokens) {
         if (!rewriteEnabled || question.isBlank()) {
+            return question;
+        }
+        if (shouldSkipRewrite(question, precisionTokens)) {
+            log.info("Query rewrite 跳过: question='{}', precisionTokens={}", question, precisionTokens);
             return question;
         }
         try {
@@ -308,36 +377,42 @@ public class KnowledgeBaseQueryService {
 
     /**
      * 检索命中不等于可回答。
-     * 对短 token 场景增加一次命中确认，避免把弱相关片段交给模型后生成大段“信息不足说明”。
+     * 对术语 / 标识符场景增加一次命中确认，避免把弱相关片段交给模型后生成大段“信息不足说明”。
      */
-    private boolean hasEffectiveHit(String question, List<Document> docs) {
+    private HitEvaluation evaluateHit(String originalQuestion, List<String> precisionTokens, List<Document> docs) {
         if (docs == null || docs.isEmpty()) {
-            return false;
+            return new HitEvaluation(false, "no_hits");
         }
 
-        String normalized = normalizeQuestion(question);
-        if (!isShortTokenQuery(normalized)) {
-            return true;
+        if (precisionTokens == null || precisionTokens.isEmpty()) {
+            return new HitEvaluation(true, null);
         }
 
-        String loweredToken = normalized.toLowerCase();
+        List<String> missingTokens = new ArrayList<>();
+        for (String precisionToken : precisionTokens) {
+            if (!containsToken(docs, precisionToken)) {
+                missingTokens.add(precisionToken);
+            }
+        }
+
+        if (missingTokens.isEmpty()) {
+            return new HitEvaluation(true, null);
+        }
+
+        log.info("术语 query 命中确认失败，视为无有效结果: question='{}', missingTokens={}, docs={}",
+            normalizeQuestion(originalQuestion), missingTokens, docs.size());
+        return new HitEvaluation(false, "missing_precision_tokens:" + String.join(",", missingTokens));
+    }
+
+    private boolean containsToken(List<Document> docs, String token) {
+        String loweredToken = token.toLowerCase();
         for (Document doc : docs) {
             String text = doc.getText();
             if (text != null && text.toLowerCase().contains(loweredToken)) {
                 return true;
             }
         }
-
-        log.info("短 query 命中确认失败，视为无有效结果: question='{}', docs={}", normalized, docs.size());
         return false;
-    }
-
-    private boolean isShortTokenQuery(String question) {
-        if (question == null) {
-            return false;
-        }
-        String compact = question.trim();
-        return SHORT_TOKEN_PATTERN.matcher(compact).matches();
     }
 
     private String normalizeAnswer(String answer) {
@@ -419,10 +494,132 @@ public class KnowledgeBaseQueryService {
         });
     }
 
+    private QueryDebugInfo buildQueryDebugInfo(
+        List<Long> knowledgeBaseIds,
+        QueryContext queryContext,
+        RetrievalResult retrievalResult
+    ) {
+        List<Long> debugKbIds = knowledgeBaseIds == null ? List.of() : List.copyOf(knowledgeBaseIds);
+        if (queryContext == null) {
+            return new QueryDebugInfo(
+                debugKbIds,
+                "",
+                "",
+                List.of(),
+                List.of(),
+                null,
+                0,
+                0,
+                0,
+                false,
+                List.of()
+            );
+        }
+
+        return new QueryDebugInfo(
+            debugKbIds,
+            queryContext.originalQuestion(),
+            queryContext.rewrittenQuestion(),
+            List.copyOf(queryContext.candidateQueries()),
+            buildCandidateDebug(retrievalResult.attempts()),
+            retrievalResult.retrievalQuery(),
+            queryContext.searchParams().topK(),
+            queryContext.searchParams().minScore(),
+            retrievalResult.docs().size(),
+            retrievalResult.effectiveHit(),
+            buildDebugHits(retrievalResult.docs())
+        );
+    }
+
+    private List<QueryDebugInfo.Candidate> buildCandidateDebug(List<RetrievalAttempt> attempts) {
+        if (attempts == null || attempts.isEmpty()) {
+            return List.of();
+        }
+        return attempts.stream()
+            .map(attempt -> new QueryDebugInfo.Candidate(
+                attempt.query(),
+                attempt.docs().size(),
+                attempt.effectiveHit(),
+                attempt.rejectionReason(),
+                buildDebugHits(attempt.docs())
+            ))
+            .toList();
+    }
+
+    private List<QueryDebugInfo.Hit> buildDebugHits(List<Document> docs) {
+        if (docs == null || docs.isEmpty()) {
+            return List.of();
+        }
+        return docs.stream()
+            .map(doc -> new QueryDebugInfo.Hit(
+                readKnowledgeBaseId(doc),
+                buildPreview(doc.getText())
+            ))
+            .toList();
+    }
+
+    private String readKnowledgeBaseId(Document doc) {
+        if (doc == null || doc.getMetadata() == null) {
+            return null;
+        }
+        Object knowledgeBaseId = doc.getMetadata().get("kb_id");
+        return knowledgeBaseId == null ? null : knowledgeBaseId.toString();
+    }
+
+    private String buildPreview(String text) {
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+        String normalized = text.replaceAll("\\s+", " ").trim();
+        if (normalized.length() <= DEBUG_PREVIEW_CHARS) {
+            return normalized;
+        }
+        return normalized.substring(0, DEBUG_PREVIEW_CHARS) + "...";
+    }
+
+    private void logRetrievalDebug(List<Long> knowledgeBaseIds, QueryContext queryContext, RetrievalResult retrievalResult) {
+        if (!log.isDebugEnabled()) {
+            return;
+        }
+        QueryDebugInfo debugInfo = buildQueryDebugInfo(knowledgeBaseIds, queryContext, retrievalResult);
+        log.debug("知识库检索调试信息: {}", debugInfo);
+    }
+
     private record SearchParams(int topK, double minScore) {
     }
 
-    private record QueryContext(String originalQuestion, List<String> candidateQueries, SearchParams searchParams) {
+    private record QueryContext(
+        String originalQuestion,
+        String rewrittenQuestion,
+        List<String> candidateQueries,
+        SearchParams searchParams,
+        List<String> precisionTokens
+    ) {
+    }
+
+    private record HitEvaluation(boolean effectiveHit, String rejectionReason) {
+    }
+
+    private record RetrievalAttempt(
+        String query,
+        List<Document> docs,
+        boolean effectiveHit,
+        String rejectionReason
+    ) {
+    }
+
+    private record RetrievalResult(
+        String retrievalQuery,
+        List<Document> docs,
+        boolean effectiveHit,
+        List<RetrievalAttempt> attempts
+    ) {
+        private static RetrievalResult empty(List<RetrievalAttempt> attempts) {
+            return new RetrievalResult(null, List.of(), false, List.copyOf(attempts));
+        }
+    }
+
+    private record QueryExecutionResult(String answer, QueryDebugInfo debugInfo) {
     }
 }
 

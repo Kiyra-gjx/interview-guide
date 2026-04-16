@@ -4,6 +4,7 @@ import interview.guide.common.annotation.RateLimit;
 import interview.guide.common.result.Result;
 import interview.guide.modules.knowledgebase.model.KnowledgeBaseListItemDTO;
 import interview.guide.modules.knowledgebase.model.KnowledgeBaseStatsDTO;
+import interview.guide.modules.knowledgebase.model.QueryDebugResponse;
 import interview.guide.modules.knowledgebase.model.QueryRequest;
 import interview.guide.modules.knowledgebase.model.QueryResponse;
 import interview.guide.modules.knowledgebase.model.VectorStatus;
@@ -85,6 +86,15 @@ public class KnowledgeBaseController {
     @RateLimit(dimensions = {RateLimit.Dimension.GLOBAL, RateLimit.Dimension.IP}, count = 10)
     public Result<QueryResponse> queryKnowledgeBase(@Valid @RequestBody QueryRequest request) {
         return Result.success(queryService.queryKnowledgeBase(request));
+    }
+
+    /**
+     * 基于知识库回答问题并返回检索调试信息
+     */
+    @PostMapping("/api/knowledgebase/query/debug")
+    @RateLimit(dimensions = {RateLimit.Dimension.GLOBAL, RateLimit.Dimension.IP}, count = 5)
+    public Result<QueryDebugResponse> queryKnowledgeBaseWithDebug(@Valid @RequestBody QueryRequest request) {
+        return Result.success(queryService.queryKnowledgeBaseWithDebug(request));
     }
 
     /**

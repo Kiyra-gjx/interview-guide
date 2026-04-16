@@ -57,6 +57,37 @@ export interface QueryResponse {
   knowledgeBaseName: string;
 }
 
+export interface QueryDebugHit {
+  knowledgeBaseId: string | null;
+  preview: string;
+}
+
+export interface QueryDebugCandidate {
+  query: string;
+  rawHitCount: number;
+  effectiveHit: boolean;
+  rejectionReason: string | null;
+  hits: QueryDebugHit[];
+}
+
+export interface QueryDebugInfo {
+  knowledgeBaseIds: number[];
+  originalQuestion: string;
+  rewrittenQuestion: string;
+  candidateQueries: string[];
+  candidates: QueryDebugCandidate[];
+  retrievalQuery: string | null;
+  topK: number;
+  minScore: number;
+  hitCount: number;
+  effectiveHit: boolean;
+  hits: QueryDebugHit[];
+}
+
+export interface QueryDebugResponse extends QueryResponse {
+  debug: QueryDebugInfo;
+}
+
 export const knowledgeBaseApi = {
   /**
    * 上传知识库文件
@@ -175,6 +206,15 @@ export const knowledgeBaseApi = {
   async queryKnowledgeBase(req: QueryRequest): Promise<QueryResponse> {
     return request.post<QueryResponse>('/api/knowledgebase/query', req, {
       timeout: 180000, // 3分钟超时
+    });
+  },
+
+  /**
+   * 基于知识库回答问题并返回检索调试信息
+   */
+  async queryKnowledgeBaseDebug(req: QueryRequest): Promise<QueryDebugResponse> {
+    return request.post<QueryDebugResponse>('/api/knowledgebase/query/debug', req, {
+      timeout: 180000,
     });
   },
 
