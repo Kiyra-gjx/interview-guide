@@ -1,4 +1,0 @@
-﻿interface:
-  display_name: "Interview Guide 代码审查"
-  short_description: "按项目风险点审查当前仓库改动"
-  default_prompt: "使用 $interview-guide-code-review 审查当前仓库改动，优先指出具体 bug 和回归风险，并在总结前给出带文件引用的发现。"
