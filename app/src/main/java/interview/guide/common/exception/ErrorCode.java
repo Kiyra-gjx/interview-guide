@@ -63,7 +63,13 @@ public enum ErrorCode {
     AI_RESPONSE_FORMAT_INVALID(7007, "AI 返回结果格式异常，请稍后重试"),
 
     // ========== 限流模块错误 8xxx ==========
-    RATE_LIMIT_EXCEEDED(8001, "请求过于频繁，请稍后再试");
+    RATE_LIMIT_EXCEEDED(8001, "请求过于频繁，请稍后再试"),
+
+    // ========== Agent 模块错误 9xxx ==========
+    AGENT_SESSION_NOT_FOUND(9001, "Agent 会话不存在"),
+    AGENT_TOOL_NOT_FOUND(9002, "Agent 工具不存在"),
+    AGENT_EXECUTION_FAILED(9003, "Agent 执行失败"),
+    AGENT_INVALID_INPUT(9004, "Agent 输入参数无效");
 
     private final Integer code;
     private final String message;
