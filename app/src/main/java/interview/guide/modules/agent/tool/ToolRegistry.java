@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -36,6 +37,13 @@ public class ToolRegistry {
             throw new BusinessException(ErrorCode.AGENT_TOOL_NOT_FOUND, "未找到 Tool: " + toolName);
         }
         return tool;
+    }
+
+    public Optional<AgentTool> findTool(String toolName) {
+        if (toolName == null || toolName.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(toolMap.get(toolName.trim()));
     }
 
     public String describeTools() {

@@ -69,7 +69,9 @@ public enum ErrorCode {
     AGENT_SESSION_NOT_FOUND(9001, "Agent 会话不存在"),
     AGENT_TOOL_NOT_FOUND(9002, "Agent 工具不存在"),
     AGENT_EXECUTION_FAILED(9003, "Agent 执行失败"),
-    AGENT_INVALID_INPUT(9004, "Agent 输入参数无效");
+    AGENT_INVALID_INPUT(9004, "Agent 输入参数无效"),
+    AGENT_TURN_CONFLICT(9005, "Agent 当前轮次冲突"),
+    AGENT_TURN_EXPIRED(9006, "Agent 当前轮次已失效");
 
     private final Integer code;
     private final String message;

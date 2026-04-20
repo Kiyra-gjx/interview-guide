@@ -37,6 +37,11 @@ public class ResumeProfileTool implements AgentTool {
     }
 
     @Override
+    public List<String> requiredInputs() {
+        return List.of("resumeId");
+    }
+
+    @Override
     public AgentToolResult execute(Map<String, Object> input, AgentToolContext context) {
         Long resumeId = readLong(input.get("resumeId"));
         if (resumeId == null) {

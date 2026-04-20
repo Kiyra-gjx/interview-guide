@@ -11,10 +11,15 @@ import java.time.LocalDateTime;
  * Agent 会话消息。
  */
 @Entity
-@Table(name = "agent_messages", indexes = {
-    @Index(name = "idx_agent_message_session", columnList = "session_id"),
-    @Index(name = "idx_agent_message_order", columnList = "session_id, messageOrder")
-})
+@Table(
+    name = "agent_messages",
+    indexes = {
+        @Index(name = "idx_agent_message_session", columnList = "session_id"),
+        @Index(name = "idx_agent_message_order", columnList = "session_id, message_order"),
+        @Index(name = "idx_agent_message_turn", columnList = "turn_id")
+    },
+    uniqueConstraints = @UniqueConstraint(name = "uk_agent_message_session_order", columnNames = {"session_id", "message_order"})
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -28,6 +33,10 @@ public class AgentMessageEntity {
     @JoinColumn(name = "session_id", nullable = false)
     private AgentSessionEntity session;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "turn_id")
+    private AgentTurnEntity turn;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private MessageRole role;
@@ -35,10 +44,10 @@ public class AgentMessageEntity {
     @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
 
-    @Column(nullable = false)
+    @Column(name = "message_order", nullable = false)
     private Integer messageOrder;
 
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     public enum MessageRole {

@@ -38,6 +38,11 @@ public class KnowledgeBaseSearchTool implements AgentTool {
     }
 
     @Override
+    public List<String> requiredInputs() {
+        return List.of("knowledgeBaseIds", "question");
+    }
+
+    @Override
     public AgentToolResult execute(Map<String, Object> input, AgentToolContext context) {
         List<Long> knowledgeBaseIds = readLongList(input.get("knowledgeBaseIds"));
         if (knowledgeBaseIds.isEmpty() && context.knowledgeBaseIds() != null) {

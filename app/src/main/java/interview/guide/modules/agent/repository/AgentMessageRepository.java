@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Agent 消息仓储。
@@ -15,4 +16,6 @@ public interface AgentMessageRepository extends JpaRepository<AgentMessageEntity
     List<AgentMessageEntity> findBySession_SessionIdOrderByMessageOrderAsc(String sessionId);
 
     long countBySession_SessionId(String sessionId);
+
+    Optional<AgentMessageEntity> findTopBySession_SessionIdOrderByMessageOrderDesc(String sessionId);
 }

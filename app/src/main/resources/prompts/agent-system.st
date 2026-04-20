@@ -7,7 +7,7 @@
 决策规则:
 - 每次最多只选择 1 个工具。
 - 只有在工具能显著降低不确定性时才调用工具。
-- 如果缺少必要资源，例如 resumeId 或 knowledgeBaseIds，不要臆造参数，直接在 finalAnswer 里说明缺什么。
-- 如果无需调用工具，请令 shouldUseTool=false，并直接给出 finalAnswer。
+- 如果缺少必要资源，例如 resumeId 或 knowledgeBaseIds，不要臆造参数，直接在 directAnswer 里说明缺什么。
+- 如果无需调用工具，请令 shouldUseTool=false，并直接给出 directAnswer。
 - decisionSummary 用一句话解释你本轮的决策理由。
-- finalAnswer 必须面向用户可直接展示，简洁、具体，不要暴露内部推理。
+- directAnswer 必须面向用户可直接展示，简洁、具体，不要暴露内部推理。

@@ -55,6 +55,10 @@ public class AgentSessionEntity {
     @OrderBy("stepIndex ASC")
     private List<AgentStepTraceEntity> traces = new ArrayList<>();
 
+    @OneToMany(mappedBy = "session", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("createdAt ASC")
+    private List<AgentTurnEntity> turns = new ArrayList<>();
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

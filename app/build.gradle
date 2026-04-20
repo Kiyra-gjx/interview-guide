@@ -28,6 +28,8 @@ dependencies {
 
     // PostgreSQL
     runtimeOnly 'org.postgresql:postgresql'
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-database-postgresql'
 
     // Spring AI 2.0 - OpenAI兼容模式 (阿里云DashScope)
     implementation "org.springframework.ai:spring-ai-starter-model-openai:${libs.versions.spring.ai.get()}"

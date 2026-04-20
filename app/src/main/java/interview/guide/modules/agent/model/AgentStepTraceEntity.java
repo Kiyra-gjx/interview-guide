@@ -11,10 +11,15 @@ import java.time.LocalDateTime;
  * Agent 单步执行轨迹。
  */
 @Entity
-@Table(name = "agent_step_traces", indexes = {
-    @Index(name = "idx_agent_trace_session", columnList = "session_id"),
-    @Index(name = "idx_agent_trace_session_step", columnList = "session_id, stepIndex")
-})
+@Table(
+    name = "agent_step_traces",
+    indexes = {
+        @Index(name = "idx_agent_trace_session", columnList = "session_id"),
+        @Index(name = "idx_agent_trace_session_step", columnList = "session_id, step_index"),
+        @Index(name = "idx_agent_trace_turn", columnList = "turn_id")
+    },
+    uniqueConstraints = @UniqueConstraint(name = "uk_agent_trace_session_step", columnNames = {"session_id", "step_index"})
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -28,32 +33,36 @@ public class AgentStepTraceEntity {
     @JoinColumn(name = "session_id", nullable = false)
     private AgentSessionEntity session;
 
-    @Column(nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "turn_id")
+    private AgentTurnEntity turn;
+
+    @Column(name = "step_index", nullable = false)
     private Integer stepIndex;
 
-    @Column(length = 500)
+    @Column(name = "decision_summary", length = 500)
     private String decisionSummary;
 
-    @Column(length = 100)
+    @Column(name = "selected_tool", length = 100)
     private String selectedTool;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "tool_input_json", columnDefinition = "TEXT")
     private String toolInputJson;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "tool_output_json", columnDefinition = "TEXT")
     private String toolOutputJson;
 
-    @Column(length = 500)
+    @Column(name = "observation_summary", length = 500)
     private String observationSummary;
 
     @Enumerated(EnumType.STRING)
     @Column(length = 20, nullable = false)
     private AgentExecutionState status = AgentExecutionState.CREATED;
 
-    @Column(length = 1000)
+    @Column(name = "error_message", length = 1000)
     private String errorMessage;
 
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @PrePersist
