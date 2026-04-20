@@ -275,6 +275,7 @@ public class InterviewSessionService {
      * 如果是最后一题，自动触发异步评估
      */
     public SubmitAnswerResponse submitAnswer(SubmitAnswerRequest request) {
+        // 1. 读取当前会话与题目快照，确保后续索引和状态判断基于同一份数据。
         CachedSession session = getOrRestoreSession(request.sessionId());
         List<InterviewQuestionDTO> questions = session.getQuestions(objectMapper);
 
@@ -297,14 +298,14 @@ public class InterviewSessionService {
 
         SessionStatus newStatus = hasNextQuestion ? SessionStatus.IN_PROGRESS : SessionStatus.COMPLETED;
 
-        // 更新 Redis 缓存
+        // 2. 先更新缓存中的题目、当前索引和会话状态，保证用户下一次读取能看到最新进度。
         sessionCache.updateQuestions(request.sessionId(), questions);
         sessionCache.updateCurrentIndex(request.sessionId(), newIndex);
         if (newStatus == SessionStatus.COMPLETED) {
             sessionCache.updateSessionStatus(request.sessionId(), SessionStatus.COMPLETED);
         }
 
-        // 保存答案到数据库
+        // 3. 再异步友好地补持久化；数据库失败不影响当前面试继续进行。
         try {
             persistenceService.saveAnswer(
                 request.sessionId(), index,
@@ -342,6 +343,7 @@ public class InterviewSessionService {
      * 暂存答案（不进入下一题）
      */
     public void saveAnswer(SubmitAnswerRequest request) {
+        // 1. 暂存场景只更新当前题答案，不推进 currentIndex。
         CachedSession session = getOrRestoreSession(request.sessionId());
         List<InterviewQuestionDTO> questions = session.getQuestions(objectMapper);
 
@@ -363,7 +365,7 @@ public class InterviewSessionService {
             sessionCache.updateSessionStatus(request.sessionId(), SessionStatus.IN_PROGRESS);
         }
 
-        // 保存答案到数据库（不更新currentIndex）
+        // 2. 持久化时只写答案和状态，不修改当前题索引。
         try {
             persistenceService.saveAnswer(
                 request.sessionId(), index,
@@ -383,16 +385,17 @@ public class InterviewSessionService {
      * 提前交卷（触发异步评估）
      */
     public void completeInterview(String sessionId) {
+        // 1. 提前交卷只允许发生在未完成会话上，避免重复触发评估。
         CachedSession session = getOrRestoreSession(sessionId);
 
         if (session.getStatus() == SessionStatus.COMPLETED || session.getStatus() == SessionStatus.EVALUATED) {
             throw new BusinessException(ErrorCode.INTERVIEW_ALREADY_COMPLETED);
         }
 
-        // 更新 Redis 缓存
+        // 2. 先把缓存状态切到 COMPLETED，让前端立即感知交卷结果。
         sessionCache.updateSessionStatus(sessionId, SessionStatus.COMPLETED);
 
-        // 更新数据库状态
+        // 3. 再补数据库状态和评估任务状态，失败时记录日志但不阻塞交卷响应。
         try {
             persistenceService.updateSessionStatus(sessionId,
                 InterviewSessionEntity.SessionStatus.COMPLETED);
@@ -402,7 +405,7 @@ public class InterviewSessionService {
             log.warn("更新会话状态失败: {}", e.getMessage());
         }
 
-        // 发送评估任务到 Redis Stream
+        // 4. 最后投递异步评估任务，由消费者生成报告。
         evaluateStreamProducer.sendEvaluateTask(sessionId);
 
         log.info("会话 {} 提前交卷，评估任务已入队", sessionId);
@@ -433,6 +436,7 @@ public class InterviewSessionService {
      * 生成评估报告
      */
     public InterviewReportDTO generateReport(String sessionId) {
+        // 1. 只有已完成或已评估的会话才允许生成报告。
         CachedSession session = getOrRestoreSession(sessionId);
 
         if (session.getStatus() != SessionStatus.COMPLETED && session.getStatus() != SessionStatus.EVALUATED) {
@@ -449,10 +453,10 @@ public class InterviewSessionService {
             questions
         );
 
-        // 更新 Redis 缓存状态
+        // 2. 报告生成成功后，把缓存状态推进到 EVALUATED。
         sessionCache.updateSessionStatus(sessionId, SessionStatus.EVALUATED);
 
-        // 保存报告到数据库
+        // 3. 报告落库失败不影响本次返回，避免用户拿不到已生成的结果。
         try {
             persistenceService.saveReport(sessionId, report);
         } catch (Exception e) {

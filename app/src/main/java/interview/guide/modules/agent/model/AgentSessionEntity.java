@@ -14,8 +14,8 @@ import java.util.List;
  */
 @Entity
 @Table(name = "agent_sessions", indexes = {
-    @Index(name = "idx_agent_session_session", columnList = "sessionId", unique = true),
-    @Index(name = "idx_agent_session_updated", columnList = "updatedAt")
+    @Index(name = "idx_agent_session_session", columnList = "session_id", unique = true),
+    @Index(name = "idx_agent_session_updated", columnList = "updated_at")
 })
 @Getter
 @Setter
@@ -26,7 +26,7 @@ public class AgentSessionEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 36)
+    @Column(name = "session_id", nullable = false, unique = true, length = 36)
     private String sessionId;
 
     @Column(nullable = false)
@@ -35,16 +35,17 @@ public class AgentSessionEntity {
     @Column(columnDefinition = "TEXT", nullable = false)
     private String goal;
 
+    @Column(name = "resume_id")
     private Long resumeId;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "knowledge_base_ids_json", columnDefinition = "TEXT")
     private String knowledgeBaseIdsJson;
 
     @Enumerated(EnumType.STRING)
     @Column(length = 20, nullable = false)
     private AgentExecutionState status = AgentExecutionState.CREATED;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "memory_json", columnDefinition = "TEXT")
     private String memoryJson;
 
     @OneToMany(mappedBy = "session", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -59,10 +60,10 @@ public class AgentSessionEntity {
     @OrderBy("createdAt ASC")
     private List<AgentTurnEntity> turns = new ArrayList<>();
 
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(nullable = false)
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     @PrePersist

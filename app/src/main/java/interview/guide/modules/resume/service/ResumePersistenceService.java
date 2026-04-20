@@ -44,11 +44,13 @@ public class ResumePersistenceService {
      */
     public Optional<ResumeEntity> findExistingResume(MultipartFile file) {
         try {
+            // 1. 基于文件内容计算 hash，避免仅按文件名判断重复。
             String fileHash = fileHashService.calculateHash(file);
             Optional<ResumeEntity> existing = resumeRepository.findByFileHash(fileHash);
             
             if (existing.isPresent()) {
                 log.info("检测到重复简历: hash={}", fileHash);
+                // 2. 复用已有简历时更新访问次数，保留命中统计。
                 ResumeEntity resume = existing.get();
                 resume.incrementAccessCount();
                 resumeRepository.save(resume);
@@ -68,8 +70,10 @@ public class ResumePersistenceService {
     public ResumeEntity saveResume(MultipartFile file, String resumeText,
                                    String storageKey, String storageUrl) {
         try {
+            // 1. 重新计算文件 hash，确保落库时和查重逻辑使用同一份标识。
             String fileHash = fileHashService.calculateHash(file);
             
+            // 2. 组装简历实体，保存文件元数据、存储地址和解析出的正文。
             ResumeEntity resume = new ResumeEntity();
             resume.setFileHash(fileHash);
             resume.setOriginalFilename(file.getOriginalFilename());
@@ -79,6 +83,7 @@ public class ResumePersistenceService {
             resume.setStorageUrl(storageUrl);
             resume.setResumeText(resumeText);
             
+            // 3. 持久化后返回数据库中的正式实体，供后续分析和会话复用。
             ResumeEntity saved = resumeRepository.save(resume);
             log.info("简历已保存: id={}, hash={}", saved.getId(), fileHash);
             
@@ -96,13 +101,16 @@ public class ResumePersistenceService {
     public ResumeAnalysisEntity saveAnalysis(ResumeEntity resume, ResumeAnalysisResponse analysis) {
         try {
             // 使用 MapStruct 映射基础字段
+            // 1. 先映射结构化评分字段，再补上与简历的关联关系。
             ResumeAnalysisEntity entity = resumeMapper.toAnalysisEntity(analysis);
             entity.setResume(resume);
 
             // JSON 字段需要手动序列化
+            // 2. 列表类字段单独序列化成 JSON，避免实体层结构过深。
             entity.setStrengthsJson(objectMapper.writeValueAsString(analysis.strengths()));
             entity.setSuggestionsJson(objectMapper.writeValueAsString(analysis.suggestions()));
 
+            // 3. 保存分析结果，供后续查询最新评测和历史记录。
             ResumeAnalysisEntity saved = analysisRepository.save(entity);
             log.info("简历评测结果已保存: analysisId={}, resumeId={}, score={}",
                     saved.getId(), resume.getId(), analysis.overallScore());
@@ -147,6 +155,7 @@ public class ResumePersistenceService {
      */
     public ResumeAnalysisResponse entityToDTO(ResumeAnalysisEntity entity) {
         try {
+            // 1. 先把 JSON 字段反序列化回接口层使用的列表结构。
             List<String> strengths = objectMapper.readValue(
                 entity.getStrengthsJson() != null ? entity.getStrengthsJson() : "[]",
                     new TypeReference<>() {
@@ -159,6 +168,7 @@ public class ResumePersistenceService {
                     }
             );
             
+            // 2. 再和实体中的基础评分字段一起组装成响应 DTO。
             return new ResumeAnalysisResponse(
                 entity.getOverallScore(),
                 resumeMapper.toScoreDetail(entity),  // 使用MapStruct自动映射
@@ -186,6 +196,7 @@ public class ResumePersistenceService {
      */
     @Transactional(rollbackFor = Exception.class)
     public void deleteResume(Long id) {
+        // 1. 先确认简历存在，避免对不存在的数据执行级联删除。
         Optional<ResumeEntity> resumeOpt = resumeRepository.findById(id);
         if (resumeOpt.isEmpty()) {
             throw new BusinessException(ErrorCode.RESUME_NOT_FOUND);
@@ -193,14 +204,14 @@ public class ResumePersistenceService {
         
         ResumeEntity resume = resumeOpt.get();
         
-        // 1. 删除所有简历分析记录
+        // 2. 先删分析记录，确保简历主记录删除前不再被历史分析引用。
         List<ResumeAnalysisEntity> analyses = analysisRepository.findByResumeIdOrderByAnalyzedAtDesc(id);
         if (!analyses.isEmpty()) {
             analysisRepository.deleteAll(analyses);
             log.info("已删除 {} 条简历分析记录", analyses.size());
         }
         
-        // 2. 删除简历实体（面试会话会在服务层删除）
+        // 3. 最后删除简历主记录，把清理顺序收口在同一个事务里。
         resumeRepository.delete(resume);
         log.info("简历已删除: id={}, filename={}", id, resume.getOriginalFilename());
     }

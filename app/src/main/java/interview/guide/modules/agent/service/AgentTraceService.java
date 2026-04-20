@@ -18,7 +18,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Agent trace 服务。
+ * Agent trace 持久化服务。
+ * 负责记录直接回复、工具调用、降级分支等执行轨迹，便于后续排障和展示。
  */
 @Service
 @RequiredArgsConstructor
@@ -33,12 +34,18 @@ public class AgentTraceService {
     private final AgentTurnRepository turnRepository;
     private final ObjectMapper objectMapper;
 
+    /**
+     * 估算会话下一条 trace 的 stepIndex。
+     */
     public int estimateNextStepIndex(String sessionId) {
         return traceRepository.findTopBySession_SessionIdOrderByStepIndexDesc(sessionId)
             .map(AgentStepTraceEntity::getStepIndex)
             .orElse(0) + 1;
     }
 
+    /**
+     * 记录“直接回复”路径的 trace。
+     */
     @Transactional
     public AgentStepTraceEntity recordDirectReply(
         String turnId,
@@ -52,6 +59,9 @@ public class AgentTraceService {
         return traceRepository.save(trace);
     }
 
+    /**
+     * 记录“工具决策被拒绝并降级”路径的 trace。
+     */
     @Transactional
     public AgentStepTraceEntity recordRejectedToolDecision(
         String turnId,
@@ -69,6 +79,9 @@ public class AgentTraceService {
         return traceRepository.save(trace);
     }
 
+    /**
+     * 为工具调用创建一条 RUNNING 状态的 trace。
+     */
     @Transactional
     public AgentStepTraceEntity startToolStep(
         String turnId,
@@ -81,6 +94,9 @@ public class AgentTraceService {
         return traceRepository.save(trace);
     }
 
+    /**
+     * 将工具执行结果回填到 trace。
+     */
     @Transactional
     public void completeToolStep(AgentStepTraceEntity trace, AgentToolResult result) {
         trace.setToolOutputJson(writeJson(result.output()));
@@ -89,6 +105,9 @@ public class AgentTraceService {
         traceRepository.save(trace);
     }
 
+    /**
+     * 记录工具执行失败结果，并保存面向用户的降级回复。
+     */
     @Transactional
     public void failToolStep(AgentStepTraceEntity trace, Exception error, String reply) {
         trace.setToolOutputJson(writeJson(Map.of("reply", blankToEmpty(reply))));
@@ -98,6 +117,9 @@ public class AgentTraceService {
         traceRepository.save(trace);
     }
 
+    /**
+     * 查询会话的完整 trace 列表。
+     */
     public List<AgentTraceDTO> getTrace(String sessionId) {
         return traceRepository.findBySession_SessionIdOrderByStepIndexAsc(sessionId).stream()
             .map(trace -> new AgentTraceDTO(
@@ -114,7 +136,10 @@ public class AgentTraceService {
             .toList();
     }
 
-    // Allocate stepIndex at persistence time so remote calls stay outside the transaction.
+    /**
+     * 构造一条新的 trace 实体，并在持久化阶段分配 stepIndex。
+     * 这样可以把远程调用放在事务外，只在真正落库时做顺序控制。
+     */
     private AgentStepTraceEntity newTrace(
         String turnId,
         String decisionSummary,
@@ -123,6 +148,8 @@ public class AgentTraceService {
     ) {
         AgentTurnEntity turn = getTurnEntity(turnId);
         AgentSessionEntity session = turn.getSession();
+
+        // 通过锁住 session，保证同一会话下 stepIndex 分配稳定递增。
         lockSession(session.getSessionId());
 
         AgentStepTraceEntity trace = new AgentStepTraceEntity();
@@ -135,21 +162,33 @@ public class AgentTraceService {
         return trace;
     }
 
+    /**
+     * 根据 turnId 读取 turn 实体。
+     */
     private AgentTurnEntity getTurnEntity(String turnId) {
         return turnRepository.findByTurnId(turnId)
             .orElseThrow(() -> new IllegalStateException("Agent turn not found: " + turnId));
     }
 
+    /**
+     * 对会话加锁，确保 trace 顺序号分配串行化。
+     */
     private void lockSession(String sessionId) {
         sessionRepository.findBySessionIdForUpdate(sessionId);
     }
 
+    /**
+     * 计算下一条 stepIndex。
+     */
     private int nextStepIndex(String sessionId) {
         return traceRepository.findTopBySession_SessionIdOrderByStepIndexDesc(sessionId)
             .map(AgentStepTraceEntity::getStepIndex)
             .orElse(0) + 1;
     }
 
+    /**
+     * 将对象序列化为 JSON，用于存 trace 的输入输出快照。
+     */
     private String writeJson(Object value) {
         if (value == null) {
             return null;
@@ -161,6 +200,9 @@ public class AgentTraceService {
         }
     }
 
+    /**
+     * 清洗异常信息并控制长度。
+     */
     private String sanitize(Exception error) {
         if (error == null || error.getMessage() == null) {
             return "unknown_error";
@@ -169,6 +211,9 @@ public class AgentTraceService {
         return clip(message, ERROR_LIMIT);
     }
 
+    /**
+     * 截断字符串，避免 trace 字段过长。
+     */
     private String clip(String value, int maxLength) {
         if (value == null || value.isBlank()) {
             return null;
@@ -179,6 +224,9 @@ public class AgentTraceService {
             : normalized;
     }
 
+    /**
+     * 将空值统一转为空字符串，方便 trace JSON 输出。
+     */
     private String blankToEmpty(String value) {
         return value == null ? "" : value.trim();
     }

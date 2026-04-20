@@ -55,6 +55,9 @@ public class KnowledgeBaseQueryService {
     private final double minScoreShort;
     private final double minScoreDefault;
 
+    /**
+     * 初始化知识库问答所需的提示词模板、检索服务和动态检索参数。
+     */
     public KnowledgeBaseQueryService(
             ChatClient.Builder chatClientBuilder,
             KnowledgeBaseVectorService vectorService,
@@ -108,9 +111,13 @@ public class KnowledgeBaseQueryService {
         return executeQuery(knowledgeBaseIds, question, false).answer();
     }
 
+    /**
+     * 执行一次完整的知识库问答流程，并按需返回检索调试信息。
+     */
     private QueryExecutionResult executeQuery(List<Long> knowledgeBaseIds, String question, boolean includeDebugInfo) {
         log.info("收到知识库提问: kbIds={}, question={}", knowledgeBaseIds, question);
         if (knowledgeBaseIds == null || knowledgeBaseIds.isEmpty() || normalizeQuestion(question).isBlank()) {
+            // 空请求直接返回固定兜底答案，并按需构造空的调试信息。
             QueryDebugInfo debugInfo = includeDebugInfo
                 ? buildQueryDebugInfo(knowledgeBaseIds, null, RetrievalResult.empty(List.of()))
                 : null;
@@ -125,6 +132,7 @@ public class KnowledgeBaseQueryService {
         RetrievalResult retrievalResult = retrieveRelevantDocs(queryContext, knowledgeBaseIds);
         List<Document> relevantDocs = retrievalResult.docs();
 
+        // 2.1 调试信息和主流程共用同一份检索结果，避免重复检索。
         QueryDebugInfo debugInfo = includeDebugInfo
             ? buildQueryDebugInfo(knowledgeBaseIds, queryContext, retrievalResult)
             : null;
@@ -146,6 +154,7 @@ public class KnowledgeBaseQueryService {
 
         try {
             // 5. 调用AI生成回答
+            // 5.1 只有在检索命中有效时才调用模型，减少无意义生成。
             String answer = chatClient.prompt()
                     .system(systemPrompt)
                     .user(userPrompt)
@@ -268,14 +277,20 @@ public class KnowledgeBaseQueryService {
         }
     }
 
+    /**
+     * 构建一次检索所需的上下文，包括归一化问题、rewrite 候选和动态检索参数。
+     */
     private QueryContext buildQueryContext(String originalQuestion) {
+        // 1. 先归一化问题文本，统一处理空白字符。
         String normalizedQuestion = normalizeQuestion(originalQuestion);
+        // 2. 提取术语 token，供 rewrite 决策和命中有效性校验复用。
         List<String> precisionTokens = extractPrecisionTokens(normalizedQuestion);
         String rewrittenQuestion = rewriteQuestion(normalizedQuestion, precisionTokens);
         Set<String> candidates = new LinkedHashSet<>();
         candidates.add(rewrittenQuestion);
         candidates.add(normalizedQuestion);
 
+        // 3. 同时保留 rewrite 前后的候选 query，按顺序尝试检索。
         SearchParams searchParams = resolveSearchParams(normalizedQuestion);
         return new QueryContext(
             normalizedQuestion,
@@ -286,22 +301,30 @@ public class KnowledgeBaseQueryService {
         );
     }
 
+    /**
+     * 做最基础的问题清洗，避免空指针和首尾空白影响后续流程。
+     */
     private String normalizeQuestion(String question) {
         return question == null ? "" : question.trim();
     }
 
+    /**
+     * 按候选 query 顺序检索文档，并在首个有效命中时结束搜索。
+     */
     private RetrievalResult retrieveRelevantDocs(QueryContext queryContext, List<Long> knowledgeBaseIds) {
         List<RetrievalAttempt> attempts = new ArrayList<>();
         for (String candidateQuery : queryContext.candidateQueries()) {
             if (candidateQuery.isBlank()) {
                 continue;
             }
+            // 1. 使用动态 topK 和 minScore 执行向量检索。
             List<Document> docs = vectorService.similaritySearch(
                 candidateQuery,
                 knowledgeBaseIds,
                 queryContext.searchParams().topK(),
                 queryContext.searchParams().minScore()
             );
+            // 2. 检索命中后还要做一次精确术语校验，避免弱相关结果进入生成阶段。
             HitEvaluation hitEvaluation = evaluateHit(queryContext.originalQuestion(), queryContext.precisionTokens(), docs);
             attempts.add(new RetrievalAttempt(candidateQuery, docs, hitEvaluation.effectiveHit(), hitEvaluation.rejectionReason()));
             log.info("检索候选 query='{}'，命中 {} 条，有效命中={}, rejectionReason={}",
@@ -313,6 +336,9 @@ public class KnowledgeBaseQueryService {
         return RetrievalResult.empty(attempts);
     }
 
+    /**
+     * 根据问题长度选择检索参数，让短问题和长问题使用不同的召回策略。
+     */
     private SearchParams resolveSearchParams(String question) {
         int compactLength = question.replaceAll("\\s+", "").length();
         if (compactLength <= shortQueryLength) {
@@ -324,6 +350,9 @@ public class KnowledgeBaseQueryService {
         return new SearchParams(topkLong, minScoreDefault);
     }
 
+    /**
+     * 从问题中抽取术语型 token，用于精确召回约束和 rewrite 保护。
+     */
     private List<String> extractPrecisionTokens(String question) {
         if (question == null || question.isBlank()) {
             return List.of();
@@ -340,6 +369,9 @@ public class KnowledgeBaseQueryService {
         return new ArrayList<>(tokens);
     }
 
+    /**
+     * 判断当前问题是否应该跳过 rewrite，避免把本就精确的术语问法改坏。
+     */
     private boolean shouldSkipRewrite(String question, List<String> precisionTokens) {
         if (question == null || question.isBlank()) {
             return true;
@@ -347,15 +379,23 @@ public class KnowledgeBaseQueryService {
         return precisionTokens.size() == 1 && question.equals(precisionTokens.getFirst());
     }
 
+    /**
+     * 对问题做可控 rewrite，失败时回退到原问题，不阻断主流程。
+     */
     private String rewriteQuestion(String question, List<String> precisionTokens) {
+        // 1. rewrite 开关关闭或问题为空时直接短路。
         if (!rewriteEnabled || question.isBlank()) {
             return question;
         }
+
+        // 2. 单术语精确问法跳过 rewrite，优先保护召回精度。
         if (shouldSkipRewrite(question, precisionTokens)) {
             log.info("Query rewrite 跳过: question='{}', precisionTokens={}", question, precisionTokens);
             return question;
         }
+
         try {
+            // 3. rewrite 只生成候选检索词，不改动原始问题本身。
             Map<String, Object> variables = new HashMap<>();
             variables.put("question", question);
             String rewritePrompt = rewritePromptTemplate.render(variables);
@@ -370,6 +410,7 @@ public class KnowledgeBaseQueryService {
             log.info("Query rewrite: origin='{}', rewritten='{}'", question, normalized);
             return normalized;
         } catch (Exception e) {
+            // 4. rewrite 失败时继续使用原问题，避免辅助能力影响主链路可用性。
             log.warn("Query rewrite 失败，使用原问题继续检索: {}", e.getMessage());
             return question;
         }
@@ -390,6 +431,7 @@ public class KnowledgeBaseQueryService {
 
         List<String> missingTokens = new ArrayList<>();
         for (String precisionToken : precisionTokens) {
+            // 逐个检查关键 token 是否至少出现在一条候选文档中。
             if (!containsToken(docs, precisionToken)) {
                 missingTokens.add(precisionToken);
             }
@@ -404,6 +446,9 @@ public class KnowledgeBaseQueryService {
         return new HitEvaluation(false, "missing_precision_tokens:" + String.join(",", missingTokens));
     }
 
+    /**
+     * 判断候选文档中是否包含指定 token，命中判断使用不区分大小写的包含关系。
+     */
     private boolean containsToken(List<Document> docs, String token) {
         String loweredToken = token.toLowerCase();
         for (Document doc : docs) {
@@ -415,6 +460,9 @@ public class KnowledgeBaseQueryService {
         return false;
     }
 
+    /**
+     * 清洗模型回答，把空回答或“无结果”类模板统一收敛成固定兜底文案。
+     */
     private String normalizeAnswer(String answer) {
         if (answer == null || answer.isBlank()) {
             return NO_RESULT_RESPONSE;
@@ -426,6 +474,9 @@ public class KnowledgeBaseQueryService {
         return normalized;
     }
 
+    /**
+     * 判断当前文本是否属于“未检索到有效信息”的模型回复模板。
+     */
     private boolean isNoResultLike(String text) {
         return text.contains("没有找到相关信息")
             || text.contains("未检索到相关信息")
@@ -456,6 +507,7 @@ public class KnowledgeBaseQueryService {
                         return;
                     }
 
+                    // 1. 先缓存前一小段输出，快速识别“无结果”模板。
                     probeBuffer.append(chunk);
                     String probeText = probeBuffer.toString();
                     if (isNoResultLike(probeText)) {
@@ -469,6 +521,7 @@ public class KnowledgeBaseQueryService {
                     }
 
                     if (probeBuffer.length() >= STREAM_PROBE_CHARS) {
+                        // 2. 一旦确认是正常回答，就切换到透传模式，保持流式速度。
                         passthrough.set(true);
                         sink.next(probeText);
                         probeBuffer.setLength(0);
@@ -480,6 +533,7 @@ public class KnowledgeBaseQueryService {
                         return;
                     }
                     if (!passthrough.get()) {
+                        // 3. 如果流提前结束且仍在探测阶段，再做一次统一归一化兜底。
                         sink.next(normalizeAnswer(probeBuffer.toString()));
                     }
                     sink.complete();
@@ -494,6 +548,9 @@ public class KnowledgeBaseQueryService {
         });
     }
 
+    /**
+     * 构造调试接口需要的检索元信息，便于排查 rewrite、召回和命中判断问题。
+     */
     private QueryDebugInfo buildQueryDebugInfo(
         List<Long> knowledgeBaseIds,
         QueryContext queryContext,
@@ -531,6 +588,9 @@ public class KnowledgeBaseQueryService {
         );
     }
 
+    /**
+     * 把每次候选 query 的检索结果转换成可展示的调试结构。
+     */
     private List<QueryDebugInfo.Candidate> buildCandidateDebug(List<RetrievalAttempt> attempts) {
         if (attempts == null || attempts.isEmpty()) {
             return List.of();
@@ -546,6 +606,9 @@ public class KnowledgeBaseQueryService {
             .toList();
     }
 
+    /**
+     * 将命中文档压缩成调试视图，避免直接暴露过长正文。
+     */
     private List<QueryDebugInfo.Hit> buildDebugHits(List<Document> docs) {
         if (docs == null || docs.isEmpty()) {
             return List.of();
@@ -558,6 +621,9 @@ public class KnowledgeBaseQueryService {
             .toList();
     }
 
+    /**
+     * 从文档 metadata 中读取知识库 ID，用于调试面板展示来源。
+     */
     private String readKnowledgeBaseId(Document doc) {
         if (doc == null || doc.getMetadata() == null) {
             return null;
@@ -566,6 +632,9 @@ public class KnowledgeBaseQueryService {
         return knowledgeBaseId == null ? null : knowledgeBaseId.toString();
     }
 
+    /**
+     * 生成调试预览文本，压缩空白并限制长度，避免日志和接口返回过大。
+     */
     private String buildPreview(String text) {
         if (text == null || text.isBlank()) {
             return "";
@@ -577,6 +646,9 @@ public class KnowledgeBaseQueryService {
         return normalized.substring(0, DEBUG_PREVIEW_CHARS) + "...";
     }
 
+    /**
+     * 在 debug 日志打开时输出一次完整检索调试快照，方便本地排查问题。
+     */
     private void logRetrievalDebug(List<Long> knowledgeBaseIds, QueryContext queryContext, RetrievalResult retrievalResult) {
         if (!log.isDebugEnabled()) {
             return;
@@ -622,4 +694,3 @@ public class KnowledgeBaseQueryService {
     private record QueryExecutionResult(String answer, QueryDebugInfo debugInfo) {
     }
 }
-
