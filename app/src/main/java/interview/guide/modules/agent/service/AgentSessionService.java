@@ -116,9 +116,12 @@ public class AgentSessionService {
         AgentMemorySnapshot memorySnapshot,
         AgentCompletionMode completionMode
     ) {
-        AgentTurnEntity turn = getTurnEntityForUpdate(turnId);
+        AgentTurnEntity turnSnapshot = getTurnEntity(turnId);
+        ensureCompletable(turnSnapshot);
+        LockedTurn lockedTurn = lockTurnForMutation(turnId, turnSnapshot.getSession().getSessionId());
+        AgentTurnEntity turn = lockedTurn.turn();
         ensureCompletable(turn);
-        AgentSessionEntity session = getSessionEntityForUpdate(turn.getSession().getSessionId());
+        AgentSessionEntity session = lockedTurn.session();
         LocalDateTime now = LocalDateTime.now();
 
         // 1. 先写记忆，再写 assistant 消息，确保本轮结果完整闭环。
@@ -146,11 +149,16 @@ public class AgentSessionService {
      */
     @Transactional
     public AgentTurnEntity failTurn(String turnId, Exception error) {
-        AgentTurnEntity turn = getTurnEntityForUpdate(turnId);
+        AgentTurnEntity turnSnapshot = getTurnEntity(turnId);
+        if (!isFailSafe(turnSnapshot)) {
+            return turnSnapshot;
+        }
+        LockedTurn lockedTurn = lockTurnForMutation(turnId, turnSnapshot.getSession().getSessionId());
+        AgentTurnEntity turn = lockedTurn.turn();
         if (!isFailSafe(turn)) {
             return turn;
         }
-        AgentSessionEntity session = getSessionEntityForUpdate(turn.getSession().getSessionId());
+        AgentSessionEntity session = lockedTurn.session();
         LocalDateTime now = LocalDateTime.now();
 
         // 失败分支只更新 turn 元数据，不追加 assistant 消息或记忆。
@@ -199,11 +207,28 @@ public class AgentSessionService {
     }
 
     /**
+     * 按 turnId 读取 turn 实体，用于获取会话上下文。
+     */
+    private AgentTurnEntity getTurnEntity(String turnId) {
+        return turnRepository.findByTurnId(turnId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.AGENT_EXECUTION_FAILED, "未找到 Agent turn: " + turnId));
+    }
+
+    /**
      * 以加锁方式读取 turn 实体，保证终态更新串行化。
      */
     private AgentTurnEntity getTurnEntityForUpdate(String turnId) {
         return turnRepository.findByTurnIdForUpdate(turnId)
             .orElseThrow(() -> new BusinessException(ErrorCode.AGENT_EXECUTION_FAILED, "未找到 Agent turn: " + turnId));
+    }
+
+    /**
+     * 终态写入统一按 session -> turn 的顺序加锁，避免与 startTurn 的回收路径形成锁顺序反转。
+     */
+    private LockedTurn lockTurnForMutation(String turnId, String sessionId) {
+        AgentSessionEntity session = getSessionEntityForUpdate(sessionId);
+        AgentTurnEntity turn = getTurnEntityForUpdate(turnId);
+        return new LockedTurn(session, turn);
     }
 
     /**
@@ -386,5 +411,8 @@ public class AgentSessionService {
      * turn 启动结果，供编排层继续使用会话与 turnId。
      */
     public record StartedTurn(AgentSessionEntity session, String turnId) {
+    }
+
+    private record LockedTurn(AgentSessionEntity session, AgentTurnEntity turn) {
     }
 }
