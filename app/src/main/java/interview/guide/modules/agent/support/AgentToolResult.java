@@ -11,16 +11,29 @@ import java.util.Map;
  */
 public record AgentToolResult(
     String summary,
-    Map<String, Object> output,
+    Map<String, Object> answerPayload,
+    Map<String, Object> debugPayload,
     List<String> confirmedFacts
 ) {
 
     public AgentToolResult {
-        output = output == null
+        answerPayload = answerPayload == null
             ? Map.of()
-            : Collections.unmodifiableMap(new LinkedHashMap<>(output));
+            : Collections.unmodifiableMap(new LinkedHashMap<>(answerPayload));
+        debugPayload = debugPayload == null
+            ? Map.of()
+            : Collections.unmodifiableMap(new LinkedHashMap<>(debugPayload));
         confirmedFacts = confirmedFacts == null
             ? List.of()
             : Collections.unmodifiableList(new ArrayList<>(confirmedFacts));
+    }
+
+    public Map<String, Object> tracePayload() {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("summary", summary);
+        payload.put("answerPayload", answerPayload);
+        payload.put("debugPayload", debugPayload);
+        payload.put("confirmedFacts", confirmedFacts);
+        return Collections.unmodifiableMap(payload);
     }
 }

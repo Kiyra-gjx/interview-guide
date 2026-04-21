@@ -15,15 +15,22 @@ import interview.guide.modules.agent.model.CreateAgentSessionRequest;
 import interview.guide.modules.agent.repository.AgentMessageRepository;
 import interview.guide.modules.agent.repository.AgentSessionRepository;
 import interview.guide.modules.agent.repository.AgentTurnRepository;
+import interview.guide.modules.knowledgebase.model.KnowledgeBaseEntity;
+import interview.guide.modules.knowledgebase.repository.KnowledgeBaseRepository;
+import interview.guide.modules.resume.repository.ResumeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -39,6 +46,8 @@ public class AgentSessionService {
     private final AgentSessionRepository sessionRepository;
     private final AgentMessageRepository messageRepository;
     private final AgentTurnRepository turnRepository;
+    private final ResumeRepository resumeRepository;
+    private final KnowledgeBaseRepository knowledgeBaseRepository;
     private final ObjectMapper objectMapper;
     private final AgentMemoryService memoryService;
 
@@ -47,14 +56,18 @@ public class AgentSessionService {
      */
     @Transactional
     public AgentSessionDTO createSession(CreateAgentSessionRequest request) {
+        String goal = request.goal().trim();
+        Long resumeId = validateResumeId(request.resumeId());
+        List<Long> knowledgeBaseIds = validateKnowledgeBaseIds(request.knowledgeBaseIds());
+
         AgentSessionEntity session = new AgentSessionEntity();
         session.setSessionId(UUID.randomUUID().toString());
-        session.setTitle(resolveTitle(request.title(), request.goal()));
-        session.setGoal(request.goal().trim());
-        session.setResumeId(request.resumeId());
-        session.setKnowledgeBaseIdsJson(writeJson(request.knowledgeBaseIds() == null ? List.of() : request.knowledgeBaseIds()));
+        session.setTitle(resolveTitle(request.title(), goal));
+        session.setGoal(goal);
+        session.setResumeId(resumeId);
+        session.setKnowledgeBaseIdsJson(writeJson(knowledgeBaseIds));
         session.setStatus(AgentExecutionState.CREATED);
-        memoryService.writeMemory(session, memoryService.createInitialSnapshot(request.goal()));
+        memoryService.writeMemory(session, memoryService.createInitialSnapshot(goal));
         AgentSessionEntity saved = sessionRepository.save(session);
         return toSessionDTO(saved);
     }
@@ -393,6 +406,47 @@ public class AgentSessionService {
             return normalized;
         }
         return normalized.substring(0, 24) + "...";
+    }
+
+    /**
+     * 校验会话绑定的简历资源是否合法。
+     */
+    private Long validateResumeId(Long resumeId) {
+        if (resumeId == null) {
+            return null;
+        }
+        if (!resumeRepository.existsById(resumeId)) {
+            throw new BusinessException(ErrorCode.AGENT_INVALID_INPUT, "resumeId 对应的简历不存在: " + resumeId);
+        }
+        return resumeId;
+    }
+
+    /**
+     * 校验并规范化会话绑定的知识库资源。
+     * 这里会去重，并阻止不存在或空值 ID 落库。
+     */
+    private List<Long> validateKnowledgeBaseIds(List<Long> knowledgeBaseIds) {
+        if (knowledgeBaseIds == null || knowledgeBaseIds.isEmpty()) {
+            return List.of();
+        }
+        if (knowledgeBaseIds.stream().anyMatch(Objects::isNull)) {
+            throw new BusinessException(ErrorCode.AGENT_INVALID_INPUT, "knowledgeBaseIds 不能包含空值");
+        }
+
+        List<Long> normalizedIds = new ArrayList<>(new LinkedHashSet<>(knowledgeBaseIds));
+        Set<Long> existingIds = knowledgeBaseRepository.findAllById(normalizedIds).stream()
+            .map(KnowledgeBaseEntity::getId)
+            .collect(java.util.stream.Collectors.toSet());
+        if (existingIds.size() != normalizedIds.size()) {
+            List<Long> missingIds = normalizedIds.stream()
+                .filter(id -> !existingIds.contains(id))
+                .toList();
+            throw new BusinessException(
+                ErrorCode.AGENT_INVALID_INPUT,
+                "knowledgeBaseIds 包含不存在的知识库: " + missingIds
+            );
+        }
+        return normalizedIds;
     }
 
     /**

@@ -10,6 +10,8 @@ import interview.guide.modules.agent.model.AgentTurnStatus;
 import interview.guide.modules.agent.repository.AgentMessageRepository;
 import interview.guide.modules.agent.repository.AgentSessionRepository;
 import interview.guide.modules.agent.repository.AgentTurnRepository;
+import interview.guide.modules.knowledgebase.repository.KnowledgeBaseRepository;
+import interview.guide.modules.resume.repository.ResumeRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,6 +45,10 @@ class AgentTurnTerminalStateTest {
     private ObjectMapper objectMapper;
     @Mock
     private AgentMemoryService memoryService;
+    @Mock
+    private ResumeRepository resumeRepository;
+    @Mock
+    private KnowledgeBaseRepository knowledgeBaseRepository;
 
     private AgentSessionService sessionService;
 
@@ -52,6 +58,8 @@ class AgentTurnTerminalStateTest {
             sessionRepository,
             messageRepository,
             turnRepository,
+            resumeRepository,
+            knowledgeBaseRepository,
             objectMapper,
             memoryService
         );

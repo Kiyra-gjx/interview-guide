@@ -101,7 +101,7 @@ public class AgentTraceService {
      */
     @Transactional
     public void completeToolStep(AgentStepTraceEntity trace, AgentToolResult result) {
-        trace.setToolOutputJson(writeJson(result.output()));
+        trace.setToolOutputJson(writeJson(result.tracePayload()));
         trace.setObservationSummary(clip(result.summary(), SUMMARY_LIMIT));
         trace.setStatus(AgentExecutionState.COMPLETED);
         traceRepository.save(trace);

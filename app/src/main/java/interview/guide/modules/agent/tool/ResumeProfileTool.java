@@ -67,14 +67,14 @@ public class ResumeProfileTool implements AgentTool {
                 .toList();
         String summary = latest == null ? "" : nullToEmpty(latest.summary());
 
-        Map<String, Object> output = new LinkedHashMap<>();
-        output.put("resumeId", resumeId);
-        output.put("filename", detail.filename());
-        output.put("resumeTextPreview", preview(detail.resumeText()));
-        output.put("latestSummary", summary);
-        output.put("strengths", strengths);
-        output.put("suggestions", suggestions);
-        output.put("interviewCount", detail.interviews() == null ? 0 : detail.interviews().size());
+        Map<String, Object> answerPayload = new LinkedHashMap<>();
+        answerPayload.put("resumeId", resumeId);
+        answerPayload.put("filename", detail.filename());
+        answerPayload.put("resumeTextPreview", preview(detail.resumeText()));
+        answerPayload.put("latestSummary", summary);
+        answerPayload.put("strengths", strengths);
+        answerPayload.put("suggestions", suggestions);
+        answerPayload.put("interviewCount", detail.interviews() == null ? 0 : detail.interviews().size());
 
         List<String> facts = new ArrayList<>();
         if (!summary.isBlank()) {
@@ -87,7 +87,8 @@ public class ResumeProfileTool implements AgentTool {
 
         return new AgentToolResult(
             "已读取简历画像，包含摘要、优势和历史面试数量。",
-            output,
+            answerPayload,
+            Map.of(),
             facts
         );
     }

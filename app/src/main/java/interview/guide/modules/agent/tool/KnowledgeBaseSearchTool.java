@@ -65,14 +65,17 @@ public class KnowledgeBaseSearchTool implements AgentTool {
         );
         QueryDebugInfo debug = response.debug();
 
-        Map<String, Object> output = new LinkedHashMap<>();
-        output.put("knowledgeBaseIds", knowledgeBaseIds);
-        output.put("knowledgeBaseName", response.knowledgeBaseName());
-        output.put("answer", response.answer());
-        output.put("retrievalQuery", debug == null ? null : debug.retrievalQuery());
-        output.put("effectiveHit", debug != null && debug.effectiveHit());
-        output.put("hitCount", debug == null ? 0 : debug.hitCount());
-        output.put("hits", debug == null ? List.of() : debug.hits());
+        Map<String, Object> answerPayload = new LinkedHashMap<>();
+        answerPayload.put("knowledgeBaseIds", knowledgeBaseIds);
+        answerPayload.put("knowledgeBaseName", response.knowledgeBaseName());
+        answerPayload.put("question", question);
+        answerPayload.put("answer", response.answer());
+
+        Map<String, Object> debugPayload = new LinkedHashMap<>();
+        debugPayload.put("retrievalQuery", debug == null ? null : debug.retrievalQuery());
+        debugPayload.put("effectiveHit", debug != null && debug.effectiveHit());
+        debugPayload.put("hitCount", debug == null ? 0 : debug.hitCount());
+        debugPayload.put("hits", debug == null ? List.of() : debug.hits());
 
         List<String> facts = new ArrayList<>();
         facts.add("知识库检索结论: " + preview(response.answer()));
@@ -83,7 +86,8 @@ public class KnowledgeBaseSearchTool implements AgentTool {
         int hitCount = debug == null ? 0 : debug.hitCount();
         return new AgentToolResult(
             "已完成知识库检索，命中 " + hitCount + " 条候选片段。",
-            output,
+            answerPayload,
+            debugPayload,
             facts
         );
     }

@@ -78,7 +78,7 @@ public class AgentPromptService {
         variables.put("latestUserMessage", nullToEmpty(latestUserMessage));
         variables.put("memorySummary", summarizeMemory(memorySnapshot));
         variables.put("toolName", nullToEmpty(toolName));
-        variables.put("toolResultJson", toJson(toolResult.output()));
+        variables.put("answerPayloadJson", toJson(toolResult.answerPayload()));
         return answerUserPromptTemplate.render(variables);
     }
 

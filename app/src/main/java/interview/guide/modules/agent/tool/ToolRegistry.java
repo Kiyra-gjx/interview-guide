@@ -26,7 +26,11 @@ public class ToolRegistry {
     void init() {
         Map<String, AgentTool> registry = new LinkedHashMap<>();
         for (AgentTool tool : tools) {
-            registry.put(tool.name(), tool);
+            String toolName = tool.name();
+            if (registry.containsKey(toolName)) {
+                throw new IllegalStateException("Duplicate Agent Tool detected: " + toolName);
+            }
+            registry.put(toolName, tool);
         }
         this.toolMap = Map.copyOf(registry);
     }
