@@ -184,6 +184,16 @@ public class AgentSessionService {
     }
 
     /**
+     * 查询指定 turn 的消息增量。
+     */
+    public List<AgentMessageDTO> getTurnMessages(String turnId) {
+        getTurnEntity(turnId);
+        return messageRepository.findByTurn_TurnIdOrderByMessageOrderAsc(turnId).stream()
+            .map(this::toMessageDTO)
+            .toList();
+    }
+
+    /**
      * 解析会话绑定的知识库 ID 列表。
      */
     public List<Long> readKnowledgeBaseIds(AgentSessionEntity session) {
@@ -211,7 +221,7 @@ public class AgentSessionService {
      */
     private AgentTurnEntity getTurnEntity(String turnId) {
         return turnRepository.findByTurnId(turnId)
-            .orElseThrow(() -> new BusinessException(ErrorCode.AGENT_EXECUTION_FAILED, "未找到 Agent turn: " + turnId));
+            .orElseThrow(() -> new BusinessException(ErrorCode.AGENT_TURN_NOT_FOUND, "未找到 Agent turn: " + turnId));
     }
 
     /**
@@ -219,7 +229,7 @@ public class AgentSessionService {
      */
     private AgentTurnEntity getTurnEntityForUpdate(String turnId) {
         return turnRepository.findByTurnIdForUpdate(turnId)
-            .orElseThrow(() -> new BusinessException(ErrorCode.AGENT_EXECUTION_FAILED, "未找到 Agent turn: " + turnId));
+            .orElseThrow(() -> new BusinessException(ErrorCode.AGENT_TURN_NOT_FOUND, "未找到 Agent turn: " + turnId));
     }
 
     /**

@@ -20,45 +20,41 @@ const instance: AxiosInstance = axios.create({
 
 /**
  * 响应拦截器
- * 
- * 后端约定：所有响应都是 HTTP 200 + Result
- * - code === 200 → 成功，返回 data
- * - code !== 200 → 失败，直接显示 message
+ *
+ * 后端约定：
+ * - 成功响应使用 `HTTP 200 + Result`
+ * - 部分业务错误会返回真实的 `404 / 409` 等状态码，但响应体仍保持 `Result` 结构
+ * - `code === 200` 表示成功，返回 `data`
+ * - `code !== 200` 表示失败，直接显示 `message`
  */
 instance.interceptors.response.use(
   (response) => {
     const result = response.data as Result;
-    
-    // 检查是否是 Result 格式
+
+    // 识别标准 Result 包装
     if (result && typeof result === 'object' && 'code' in result) {
       if (result.code === 200) {
-        // 成功：返回 data
         response.data = result.data;
         return response;
       }
-      // 失败：直接抛出 message
       return Promise.reject(new Error(result.message || '请求失败'));
     }
-    
-    // 非 Result 格式，直接返回
+
+    // 非 Result 响应直接透传
     return response;
   },
   (error) => {
-    // 有响应的情况：后端返回了结果（即使是错误）
+    // 已收到后端响应，即使状态码不是 200
     if (error.response) {
       const { data } = error.response;
-      // 尝试解析 Result 格式
       if (data && typeof data === 'object' && 'code' in data && 'message' in data) {
         const result = data as Result;
         return Promise.reject(new Error(result.message || '请求失败'));
       }
-      // 响应格式不对
       return Promise.reject(new Error('请求失败，请重试'));
     }
 
-    // 没有响应的情况：真正的网络错误或连接被重置
-    // 对于文件上传，可能是网络超时或连接中断，但不一定是文件大小问题
-    // 让后端返回真实的错误信息，而不是在这里假设
+    // 没有收到 HTTP 响应，通常是网络问题
     const config = error.config;
     const isUpload = config && (
       config.url?.includes('/upload') ||
@@ -66,11 +62,9 @@ instance.interceptors.response.use(
     );
 
     if (isUpload) {
-      // 浏览器拿不到响应体时，常见原因是网络中断或跨域被拦截。
       return Promise.reject(new Error('上传失败，未收到后端响应。请检查网络，或确认当前前端地址已被后端 CORS 允许。'));
     }
 
-    // 其他网络错误
     return Promise.reject(new Error('网络连接失败，请检查网络'));
   }
 );
@@ -103,7 +97,7 @@ export const request = {
   },
 
   /**
-   * 获取原始实例（用于特殊场景如下载 Blob）
+   * 获取原始 axios 实例，供下载 Blob 等特殊场景复用
    */
   getInstance(): AxiosInstance {
     return instance;
@@ -111,7 +105,7 @@ export const request = {
 };
 
 /**
- * 获取错误信息
+ * 提取用户可见的错误信息
  */
 export function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {

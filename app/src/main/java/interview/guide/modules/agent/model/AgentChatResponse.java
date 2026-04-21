@@ -7,9 +7,12 @@ import java.util.List;
  */
 public record AgentChatResponse(
     String sessionId,
+    String turnId,
+    AgentTurnStatus turnStatus,
+    AgentCompletionMode completionMode,
     String reply,
     AgentMemorySnapshot memory,
     List<AgentTraceDTO> traceSteps,
-    List<AgentMessageDTO> messages
+    List<AgentMessageDTO> messagesDelta
 ) {
 }

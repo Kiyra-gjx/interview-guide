@@ -105,6 +105,17 @@ class AgentSessionServiceTest {
         verify(turnRepository, atLeastOnce()).save(eq(expiredTurn));
     }
 
+    @Test
+    @DisplayName("should reject turn message lookups when the turn does not exist")
+    void shouldRejectTurnMessageLookupWhenTurnDoesNotExist() {
+        when(turnRepository.findByTurnId("missing-turn")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> sessionService.getTurnMessages("missing-turn"))
+            .isInstanceOf(BusinessException.class)
+            .satisfies(error -> assertThat(((BusinessException) error).getCode())
+                .isEqualTo(ErrorCode.AGENT_TURN_NOT_FOUND.getCode()));
+    }
+
     private AgentSessionEntity createSession(String sessionId) {
         AgentSessionEntity session = new AgentSessionEntity();
         session.setSessionId(sessionId);

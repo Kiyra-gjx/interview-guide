@@ -1,4 +1,6 @@
 export type AgentExecutionState = 'CREATED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+export type AgentTurnStatus = 'CREATED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'ABORTED';
+export type AgentCompletionMode = 'SUCCESS' | 'DEGRADED';
 
 export interface AgentMessage {
   role: 'user' | 'assistant';
@@ -52,8 +54,11 @@ export interface AgentChatRequest {
 
 export interface AgentChatResponse {
   sessionId: string;
+  turnId: string;
+  turnStatus: AgentTurnStatus;
+  completionMode: AgentCompletionMode;
   reply: string;
   memory: AgentMemorySnapshot;
   traceSteps: AgentTraceStep[];
-  messages: AgentMessage[];
+  messagesDelta: AgentMessage[];
 }

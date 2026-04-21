@@ -5,10 +5,12 @@ import { getErrorMessage } from '../api/request';
 import { historyApi, type ResumeListItem } from '../api/history';
 import { knowledgeBaseApi, type KnowledgeBaseItem } from '../api/knowledgebase';
 import type {
+  AgentCompletionMode,
   AgentMemorySnapshot,
   AgentMessage,
   AgentSession,
   AgentTraceStep,
+  AgentTurnStatus,
 } from '../types/agent';
 
 function prettyJson(jsonText: string | null): string {
@@ -33,6 +35,11 @@ export default function AgentCoachPage() {
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [memory, setMemory] = useState<AgentMemorySnapshot | null>(null);
   const [traceSteps, setTraceSteps] = useState<AgentTraceStep[]>([]);
+  const [lastTurnMeta, setLastTurnMeta] = useState<{
+    turnId: string;
+    turnStatus: AgentTurnStatus;
+    completionMode: AgentCompletionMode;
+  } | null>(null);
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [creating, setCreating] = useState(false);
   const [sending, setSending] = useState(false);
@@ -85,6 +92,7 @@ export default function AgentCoachPage() {
       });
       setSession(created);
       setMessages(created.messages);
+      setLastTurnMeta(null);
       await refreshSessionMeta(created.sessionId);
     } catch (err) {
       setError(getErrorMessage(err));
@@ -108,12 +116,15 @@ export default function AgentCoachPage() {
       const response = await agentApi.sendMessage(session.sessionId, {
         message: message.trim(),
       });
-      setMessages(response.messages);
+      setMessages((current) => [...current, ...response.messagesDelta]);
       setMemory(response.memory);
-      setTraceSteps(response.traceSteps);
+      setTraceSteps((current) => [...current, ...response.traceSteps]);
+      setLastTurnMeta({
+        turnId: response.turnId,
+        turnStatus: response.turnStatus,
+        completionMode: response.completionMode,
+      });
       setMessage('');
-      const refreshed = await agentApi.getSession(session.sessionId);
-      setSession(refreshed);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -132,6 +143,7 @@ export default function AgentCoachPage() {
     setMessages([]);
     setMemory(null);
     setTraceSteps([]);
+    setLastTurnMeta(null);
     setError('');
   };
 
@@ -260,8 +272,15 @@ export default function AgentCoachPage() {
                 </p>
               </div>
               {session && (
-                <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-300">
-                  {session.title}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+                    {session.title}
+                  </div>
+                  {lastTurnMeta && (
+                    <div className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
+                      {lastTurnMeta.turnStatus} / {lastTurnMeta.completionMode} / {lastTurnMeta.turnId.slice(0, 8)}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

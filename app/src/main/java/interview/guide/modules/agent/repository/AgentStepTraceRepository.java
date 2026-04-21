@@ -15,6 +15,8 @@ public interface AgentStepTraceRepository extends JpaRepository<AgentStepTraceEn
 
     List<AgentStepTraceEntity> findBySession_SessionIdOrderByStepIndexAsc(String sessionId);
 
+    List<AgentStepTraceEntity> findByTurn_TurnIdOrderByStepIndexAsc(String turnId);
+
     Optional<AgentStepTraceEntity> findBySession_SessionIdAndStepIndex(String sessionId, Integer stepIndex);
 
     long countBySession_SessionId(String sessionId);

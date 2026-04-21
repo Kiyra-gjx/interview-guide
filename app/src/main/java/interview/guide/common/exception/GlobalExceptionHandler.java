@@ -4,6 +4,7 @@ import interview.guide.common.result.Result;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -40,10 +41,10 @@ public class GlobalExceptionHandler {
      * 处理业务异常。
      */
     @ExceptionHandler(BusinessException.class)
-    @ResponseStatus(HttpStatus.OK)
-    public Result<Void> handleBusinessException(BusinessException e) {
+    public ResponseEntity<Result<Void>> handleBusinessException(BusinessException e) {
         log.warn("业务异常: code={}, message={}", e.getCode(), e.getMessage());
-        return Result.error(e.getCode(), e.getMessage());
+        return ResponseEntity.status(resolveBusinessStatus(e))
+            .body(Result.error(e.getCode(), e.getMessage()));
     }
 
     /**
@@ -145,5 +146,13 @@ public class GlobalExceptionHandler {
     public Result<Void> handleException(Exception e) {
         log.error("系统异常: {}", e.getMessage(), e);
         return Result.error(ErrorCode.INTERNAL_ERROR, "系统繁忙，请稍后重试");
+    }
+
+    private HttpStatus resolveBusinessStatus(BusinessException e) {
+        return switch (e.getCode()) {
+            case 9005 -> HttpStatus.CONFLICT;
+            case 9001, 9007, 404 -> HttpStatus.NOT_FOUND;
+            default -> HttpStatus.OK;
+        };
     }
 }

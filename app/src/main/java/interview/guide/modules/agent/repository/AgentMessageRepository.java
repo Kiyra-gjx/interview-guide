@@ -15,6 +15,8 @@ public interface AgentMessageRepository extends JpaRepository<AgentMessageEntity
 
     List<AgentMessageEntity> findBySession_SessionIdOrderByMessageOrderAsc(String sessionId);
 
+    List<AgentMessageEntity> findByTurn_TurnIdOrderByMessageOrderAsc(String turnId);
+
     long countBySession_SessionId(String sessionId);
 
     Optional<AgentMessageEntity> findTopBySession_SessionIdOrderByMessageOrderDesc(String sessionId);

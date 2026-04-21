@@ -1,5 +1,7 @@
 package interview.guide.modules.agent.service;
 
+import interview.guide.common.exception.BusinessException;
+import interview.guide.common.exception.ErrorCode;
 import interview.guide.modules.agent.model.AgentExecutionState;
 import interview.guide.modules.agent.model.AgentSessionEntity;
 import interview.guide.modules.agent.model.AgentStepTraceEntity;
@@ -121,7 +123,28 @@ public class AgentTraceService {
      * 查询会话的完整 trace 列表。
      */
     public List<AgentTraceDTO> getTrace(String sessionId) {
+        requireSession(sessionId);
         return traceRepository.findBySession_SessionIdOrderByStepIndexAsc(sessionId).stream()
+            .map(trace -> new AgentTraceDTO(
+                trace.getStepIndex(),
+                trace.getDecisionSummary(),
+                trace.getSelectedTool(),
+                trace.getToolInputJson(),
+                trace.getToolOutputJson(),
+                trace.getObservationSummary(),
+                trace.getStatus(),
+                trace.getErrorMessage(),
+                trace.getCreatedAt()
+            ))
+            .toList();
+    }
+
+    /**
+     * 查询指定 turn 的 trace 增量。
+     */
+    public List<AgentTraceDTO> getTurnTrace(String turnId) {
+        getTurnEntity(turnId);
+        return traceRepository.findByTurn_TurnIdOrderByStepIndexAsc(turnId).stream()
             .map(trace -> new AgentTraceDTO(
                 trace.getStepIndex(),
                 trace.getDecisionSummary(),
@@ -167,14 +190,20 @@ public class AgentTraceService {
      */
     private AgentTurnEntity getTurnEntity(String turnId) {
         return turnRepository.findByTurnId(turnId)
-            .orElseThrow(() -> new IllegalStateException("Agent turn not found: " + turnId));
+            .orElseThrow(() -> new BusinessException(ErrorCode.AGENT_TURN_NOT_FOUND, "未找到 Agent turn: " + turnId));
     }
 
     /**
      * 对会话加锁，确保 trace 顺序号分配串行化。
      */
     private void lockSession(String sessionId) {
-        sessionRepository.findBySessionIdForUpdate(sessionId);
+        sessionRepository.findBySessionIdForUpdate(sessionId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.AGENT_SESSION_NOT_FOUND));
+    }
+
+    private void requireSession(String sessionId) {
+        sessionRepository.findBySessionId(sessionId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.AGENT_SESSION_NOT_FOUND));
     }
 
     /**

@@ -13,6 +13,8 @@ import interview.guide.modules.agent.model.AgentMessageDTO;
 import interview.guide.modules.agent.model.AgentSessionEntity;
 import interview.guide.modules.agent.model.AgentStepTraceEntity;
 import interview.guide.modules.agent.model.AgentTraceDTO;
+import interview.guide.modules.agent.model.AgentTurnEntity;
+import interview.guide.modules.agent.model.AgentTurnStatus;
 import interview.guide.modules.agent.support.AgentToolResult;
 import interview.guide.modules.agent.tool.AgentTool;
 import interview.guide.modules.agent.tool.ToolRegistry;
@@ -87,7 +89,11 @@ class AgentOrchestratorTest {
         AgentSessionEntity session = createSession(sessionId, "优化求职材料", 88L);
         AgentMemorySnapshot memory = createMemory();
         List<AgentTraceDTO> trace = List.of(createTrace("missing_tool", AgentExecutionState.FAILED));
-        List<AgentMessageDTO> messages = List.of(createMessage("user", request.message(), 1));
+        List<AgentMessageDTO> messagesDelta = List.of(
+            createMessage("user", request.message(), 1),
+            createMessage("assistant", "degraded reply", 2)
+        );
+        AgentTurnEntity completedTurn = createCompletedTurn(turnId, session, AgentCompletionMode.DEGRADED);
 
         when(sessionService.startTurn(sessionId, request.message()))
             .thenReturn(new AgentSessionService.StartedTurn(session, turnId));
@@ -113,9 +119,14 @@ class AgentOrchestratorTest {
             "hallucinated direct answer"
         ));
         when(toolRegistry.findTool("missing_tool")).thenReturn(Optional.empty());
-        when(sessionService.getSessionEntity(sessionId)).thenReturn(session);
-        when(traceService.getTrace(sessionId)).thenReturn(trace);
-        when(sessionService.getMessages(sessionId)).thenReturn(messages);
+        when(sessionService.completeTurn(
+            eq(turnId),
+            anyString(),
+            eq(memory),
+            eq(AgentCompletionMode.DEGRADED)
+        )).thenReturn(completedTurn);
+        when(traceService.getTurnTrace(turnId)).thenReturn(trace);
+        when(sessionService.getTurnMessages(turnId)).thenReturn(messagesDelta);
 
         AgentChatResponse response = orchestrator.chat(sessionId, request);
 
@@ -129,19 +140,18 @@ class AgentOrchestratorTest {
             errorCaptor.capture(),
             replyCaptor.capture()
         );
-        verify(sessionService).completeTurn(
-            eq(turnId),
-            eq(replyCaptor.getValue()),
-            eq(memory),
-            eq(AgentCompletionMode.DEGRADED)
-        );
         verify(sessionService, never()).failTurn(anyString(), any(Exception.class));
 
         assertThat(errorCaptor.getValue()).contains("toolName");
         assertThat(replyCaptor.getValue()).isNotBlank();
         assertThat(replyCaptor.getValue()).isNotEqualTo("hallucinated direct answer");
+        assertThat(response.turnId()).isEqualTo(turnId);
+        assertThat(response.turnStatus()).isEqualTo(AgentTurnStatus.COMPLETED);
+        assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.DEGRADED);
         assertThat(response.reply()).isEqualTo(replyCaptor.getValue());
         assertThat(response.memory()).isEqualTo(memory);
+        assertThat(response.traceSteps()).isEqualTo(trace);
+        assertThat(response.messagesDelta()).isEqualTo(messagesDelta);
     }
 
     @Test
@@ -154,7 +164,11 @@ class AgentOrchestratorTest {
         AgentMemorySnapshot memory = createMemory();
         AgentStepTraceEntity stepTrace = new AgentStepTraceEntity();
         List<AgentTraceDTO> trace = List.of(createTrace("get_resume_profile", AgentExecutionState.FAILED));
-        List<AgentMessageDTO> messages = List.of(createMessage("user", request.message(), 1));
+        List<AgentMessageDTO> messagesDelta = List.of(
+            createMessage("user", request.message(), 1),
+            createMessage("assistant", "tool failed", 2)
+        );
+        AgentTurnEntity completedTurn = createCompletedTurn(turnId, session, AgentCompletionMode.DEGRADED);
 
         when(sessionService.startTurn(sessionId, request.message()))
             .thenReturn(new AgentSessionService.StartedTurn(session, turnId));
@@ -190,27 +204,31 @@ class AgentOrchestratorTest {
         )).thenReturn(stepTrace);
         when(sessionService.readKnowledgeBaseIds(session)).thenReturn(List.of());
         when(tool.execute(anyMap(), any())).thenThrow(new BusinessException(ErrorCode.AGENT_EXECUTION_FAILED, "tool boom"));
-        when(sessionService.getSessionEntity(sessionId)).thenReturn(session);
-        when(traceService.getTrace(sessionId)).thenReturn(trace);
-        when(sessionService.getMessages(sessionId)).thenReturn(messages);
+        when(sessionService.completeTurn(
+            eq(turnId),
+            anyString(),
+            eq(memory),
+            eq(AgentCompletionMode.DEGRADED)
+        )).thenReturn(completedTurn);
+        when(traceService.getTurnTrace(turnId)).thenReturn(trace);
+        when(sessionService.getTurnMessages(turnId)).thenReturn(messagesDelta);
 
         AgentChatResponse response = orchestrator.chat(sessionId, request);
 
         ArgumentCaptor<String> replyCaptor = ArgumentCaptor.forClass(String.class);
         verify(traceService).failToolStep(eq(stepTrace), any(Exception.class), replyCaptor.capture());
-        verify(sessionService).completeTurn(
-            eq(turnId),
-            eq(replyCaptor.getValue()),
-            eq(memory),
-            eq(AgentCompletionMode.DEGRADED)
-        );
         verify(traceService, never()).completeToolStep(any(), any(AgentToolResult.class));
         verify(memoryService, never()).updateAfterTool(any(), anyString(), any());
         verify(sessionService, never()).failTurn(anyString(), any(Exception.class));
 
         assertThat(replyCaptor.getValue()).isNotBlank();
+        assertThat(response.turnId()).isEqualTo(turnId);
+        assertThat(response.turnStatus()).isEqualTo(AgentTurnStatus.COMPLETED);
+        assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.DEGRADED);
         assertThat(response.reply()).isEqualTo(replyCaptor.getValue());
         assertThat(response.memory()).isEqualTo(memory);
+        assertThat(response.traceSteps()).isEqualTo(trace);
+        assertThat(response.messagesDelta()).isEqualTo(messagesDelta);
     }
 
     @Test
@@ -221,12 +239,11 @@ class AgentOrchestratorTest {
         AgentChatRequest request = new AgentChatRequest("直接回答");
         AgentSessionEntity session = createSession(sessionId, "准备面试", 42L);
         AgentMemorySnapshot memory = createMemory();
+        AgentTurnEntity completedTurn = createCompletedTurn(turnId, session, AgentCompletionMode.SUCCESS);
 
         when(sessionService.startTurn(sessionId, request.message()))
             .thenReturn(new AgentSessionService.StartedTurn(session, turnId));
-        when(memoryService.readMemory(session))
-            .thenReturn(memory)
-            .thenThrow(new RuntimeException("response_assembly_failed"));
+        when(memoryService.readMemory(session)).thenReturn(memory);
         when(traceService.estimateNextStepIndex(sessionId)).thenReturn(1);
         when(toolRegistry.describeTools()).thenReturn("- get_resume_profile");
         when(promptService.buildDecisionSystemPrompt(anyString(), anyString())).thenReturn("decision-system");
@@ -247,7 +264,13 @@ class AgentOrchestratorTest {
             "answer directly",
             "直接回复"
         ));
-        when(sessionService.getSessionEntity(sessionId)).thenReturn(session);
+        when(sessionService.completeTurn(
+            eq(turnId),
+            eq("直接回复"),
+            eq(memory),
+            eq(AgentCompletionMode.SUCCESS)
+        )).thenReturn(completedTurn);
+        when(traceService.getTurnTrace(turnId)).thenThrow(new RuntimeException("response_assembly_failed"));
 
         assertThatThrownBy(() -> orchestrator.chat(sessionId, request))
             .isInstanceOf(RuntimeException.class)
@@ -316,6 +339,19 @@ class AgentOrchestratorTest {
         session.setGoal(goal);
         session.setResumeId(resumeId);
         return session;
+    }
+
+    private AgentTurnEntity createCompletedTurn(
+        String turnId,
+        AgentSessionEntity session,
+        AgentCompletionMode completionMode
+    ) {
+        AgentTurnEntity turn = new AgentTurnEntity();
+        turn.setTurnId(turnId);
+        turn.setSession(session);
+        turn.setStatus(AgentTurnStatus.COMPLETED);
+        turn.setCompletionMode(completionMode);
+        return turn;
     }
 
     private AgentMemorySnapshot createMemory() {

@@ -9,6 +9,7 @@ import interview.guide.modules.agent.model.AgentDecisionDTO;
 import interview.guide.modules.agent.model.AgentMemorySnapshot;
 import interview.guide.modules.agent.model.AgentSessionEntity;
 import interview.guide.modules.agent.model.AgentStepTraceEntity;
+import interview.guide.modules.agent.model.AgentTurnEntity;
 import interview.guide.modules.agent.support.AgentToolContext;
 import interview.guide.modules.agent.support.AgentToolResult;
 import interview.guide.modules.agent.tool.AgentTool;
@@ -67,7 +68,8 @@ public class AgentOrchestrator {
      */
     public AgentChatResponse chat(String sessionId, AgentChatRequest request) {
         String turnId = null;
-        String reply;
+        boolean turnCompleted = false;
+        AgentChatResponse response;
 
         try {
             // 1. 创建 turn，并先把用户消息落库，确保本轮执行有唯一归属。
@@ -82,17 +84,23 @@ public class AgentOrchestrator {
 
             // 3. 执行决策并在成功后提交 turn 完成态。
             TurnExecution execution = executeDecision(turnId, session, memory, request.message(), decision);
-            sessionService.completeTurn(turnId, execution.reply(), execution.memorySnapshot(), execution.completionMode());
-            reply = execution.reply();
+            AgentTurnEntity completedTurn = sessionService.completeTurn(
+                turnId,
+                execution.reply(),
+                execution.memorySnapshot(),
+                execution.completionMode()
+            );
+            turnCompleted = true;
+            response = buildChatResponse(completedTurn, execution.reply(), execution.memorySnapshot());
         } catch (Exception e) {
             // 4. 只有 turn 已创建时才补失败终态；终态保护由 sessionService 负责。
-            if (turnId != null) {
+            if (turnId != null && !turnCompleted) {
                 sessionService.failTurn(turnId, e);
             }
             throw e;
         }
 
-        return buildChatResponse(sessionId, reply);
+        return response;
     }
 
     /**
@@ -297,14 +305,21 @@ public class AgentOrchestrator {
     /**
      * 组装接口层最终需要的会话视图。
      */
-    private AgentChatResponse buildChatResponse(String sessionId, String reply) {
-        AgentSessionEntity latestSession = sessionService.getSessionEntity(sessionId);
+    private AgentChatResponse buildChatResponse(
+        AgentTurnEntity completedTurn,
+        String reply,
+        AgentMemorySnapshot memorySnapshot
+    ) {
+        String turnId = completedTurn.getTurnId();
         return new AgentChatResponse(
-            sessionId,
+            completedTurn.getSession().getSessionId(),
+            turnId,
+            completedTurn.getStatus(),
+            completedTurn.getCompletionMode(),
             reply,
-            memoryService.readMemory(latestSession),
-            traceService.getTrace(sessionId),
-            sessionService.getMessages(sessionId)
+            memorySnapshot,
+            traceService.getTurnTrace(turnId),
+            sessionService.getTurnMessages(turnId)
         );
     }
 
