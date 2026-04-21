@@ -24,6 +24,8 @@ export interface AgentTraceStep {
   toolInputJson: string | null;
   toolOutputJson: string | null;
   observationSummary: string | null;
+  memoryBefore: AgentMemorySnapshot | null;
+  memoryAfter: AgentMemorySnapshot | null;
   status: AgentExecutionState;
   errorMessage: string | null;
   createdAt: string;

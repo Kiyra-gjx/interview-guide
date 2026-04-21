@@ -24,6 +24,17 @@ function prettyJson(jsonText: string | null): string {
   }
 }
 
+function prettyValue(value: unknown): string {
+  if (value == null) {
+    return '暂无';
+  }
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
 export default function AgentCoachPage() {
   const [goal, setGoal] = useState('根据我的简历，帮我准备一轮 Java 后端面试，优先关注 Redis 和并发。');
   const [message, setMessage] = useState('先结合我的背景，给我一个 3 步训练建议。');
@@ -406,6 +417,14 @@ export default function AgentCoachPage() {
                       <div>
                         <p className="font-semibold text-slate-700 dark:text-slate-200">Output</p>
                         <pre className="mt-1 overflow-x-auto rounded-xl bg-slate-50 p-3 dark:bg-slate-950">{prettyJson(step.toolOutputJson)}</pre>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-700 dark:text-slate-200">Memory Before</p>
+                        <pre className="mt-1 overflow-x-auto rounded-xl bg-slate-50 p-3 dark:bg-slate-950">{prettyValue(step.memoryBefore)}</pre>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-700 dark:text-slate-200">Memory After</p>
+                        <pre className="mt-1 overflow-x-auto rounded-xl bg-slate-50 p-3 dark:bg-slate-950">{prettyValue(step.memoryAfter)}</pre>
                       </div>
                       {step.errorMessage && (
                         <p className="text-rose-500 dark:text-rose-300">

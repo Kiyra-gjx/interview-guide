@@ -18,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.stereotype.Service;
+import io.micrometer.core.instrument.Timer;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,6 +41,7 @@ public class AgentOrchestrator {
     private final AgentSessionService sessionService;
     private final AgentMemoryService memoryService;
     private final AgentTraceService traceService;
+    private final AgentMetricsService metricsService;
     private final AgentPromptService promptService;
     private final BeanOutputConverter<AgentDecisionDTO> decisionOutputConverter;
 
@@ -50,6 +52,7 @@ public class AgentOrchestrator {
         AgentSessionService sessionService,
         AgentMemoryService memoryService,
         AgentTraceService traceService,
+        AgentMetricsService metricsService,
         AgentPromptService promptService
     ) {
         this.chatClient = chatClientBuilder.build();
@@ -58,6 +61,7 @@ public class AgentOrchestrator {
         this.sessionService = sessionService;
         this.memoryService = memoryService;
         this.traceService = traceService;
+        this.metricsService = metricsService;
         this.promptService = promptService;
         this.decisionOutputConverter = new BeanOutputConverter<>(AgentDecisionDTO.class);
     }
@@ -68,7 +72,9 @@ public class AgentOrchestrator {
      */
     public AgentChatResponse chat(String sessionId, AgentChatRequest request) {
         String turnId = null;
-        boolean turnCompleted = false;
+        boolean turnTerminalPersisted = false;
+        Timer.Sample latencySample = metricsService.startTurnLatency();
+        AgentCompletionMode completionMode = null;
         AgentChatResponse response;
 
         try {
@@ -76,6 +82,8 @@ public class AgentOrchestrator {
             AgentSessionService.StartedTurn startedTurn = sessionService.startTurn(sessionId, request.message());
             turnId = startedTurn.turnId();
             AgentSessionEntity session = startedTurn.session();
+            metricsService.recordTurnStarted();
+            metricsService.recordTurnReclaimed(startedTurn.reclaimedExpiredTurnCount());
 
             // 2. 读取记忆并生成决策，决定是直接回复、调用工具还是走降级分支。
             AgentMemorySnapshot memory = memoryService.readMemory(session);
@@ -90,12 +98,22 @@ public class AgentOrchestrator {
                 execution.memorySnapshot(),
                 execution.completionMode()
             );
-            turnCompleted = true;
+            completionMode = execution.completionMode();
+            metricsService.recordTurnCompleted(completionMode);
+            turnTerminalPersisted = true;
             response = buildChatResponse(completedTurn, execution.reply(), execution.memorySnapshot());
+            metricsService.stopTurnLatency(
+                latencySample,
+                completionMode == AgentCompletionMode.DEGRADED ? "degraded" : "success"
+            );
         } catch (Exception e) {
             // 4. 只有 turn 已创建时才补失败终态；终态保护由 sessionService 负责。
-            if (turnId != null && !turnCompleted) {
+            if (turnId != null && !turnTerminalPersisted) {
                 sessionService.failTurn(turnId, e);
+                metricsService.recordTurnFailed();
+                metricsService.stopTurnLatency(latencySample, "failed");
+            } else if (turnTerminalPersisted) {
+                metricsService.stopTurnLatency(latencySample, "response_error");
             }
             throw e;
         }
@@ -235,7 +253,13 @@ public class AgentOrchestrator {
         AgentMemorySnapshot memory,
         ResolvedDecision decision
     ) {
-        traceService.recordDirectReply(turnId, decision.decisionSummary(), decision.reply());
+        traceService.recordDirectReply(
+            turnId,
+            decision.decisionSummary(),
+            decision.reply(),
+            memory,
+            memory
+        );
         return new TurnExecution(decision.reply(), memory, AgentCompletionMode.SUCCESS);
     }
 
@@ -254,7 +278,9 @@ public class AgentOrchestrator {
             decision.selectedTool(),
             decision.toolInput(),
             decision.failureReason(),
-            decision.reply()
+            decision.reply(),
+            memory,
+            memory
         );
         return new TurnExecution(decision.reply(), memory, AgentCompletionMode.DEGRADED);
     }
@@ -274,29 +300,55 @@ public class AgentOrchestrator {
             turnId,
             decision.decisionSummary(),
             decision.selectedTool(),
-            decision.toolInput()
+            decision.toolInput(),
+            memory
         );
 
         try {
-            // 2. 执行工具、更新 trace，并把工具输出合并进最新记忆。
+            // 2. 先执行工具本身，再单独处理 memory / trace 后处理，避免污染 tool 成功率。
             AgentToolResult result = decision.tool().execute(
                 decision.toolInput(),
                 buildToolContext(session, memory, latestUserMessage)
             );
-            traceService.completeToolStep(trace, result);
-            AgentMemorySnapshot updatedMemory = memoryService.updateAfterTool(memory, decision.tool().name(), result);
+            metricsService.recordToolExecution(decision.tool().name(), true);
+            AgentMemorySnapshot postProcessedMemory = memory;
+            try {
+                postProcessedMemory = memoryService.updateAfterTool(memory, decision.tool().name(), result);
+                traceService.completeToolStep(trace, result, postProcessedMemory);
+            } catch (Exception e) {
+                String reply = buildToolPostProcessingFailureReply(session, decision.tool().name());
+                traceService.failToolStep(
+                    trace,
+                    e,
+                    reply,
+                    memory,
+                    "tool_post_processing_failure",
+                    "工具后处理失败，已回退为直接回复"
+                );
+                log.warn("Agent Tool 后处理失败: sessionId={}, tool={}, error={}",
+                    session.getSessionId(), decision.tool().name(), e.getMessage());
+                return new TurnExecution(reply, memory, AgentCompletionMode.DEGRADED);
+            }
             String reply = buildFinalAnswer(
                 session,
                 latestUserMessage,
-                updatedMemory,
+                postProcessedMemory,
                 decision.tool().name(),
                 result
             );
-            return new TurnExecution(reply, updatedMemory, AgentCompletionMode.SUCCESS);
+            return new TurnExecution(reply, postProcessedMemory, AgentCompletionMode.SUCCESS);
         } catch (Exception e) {
             // 3. 工具失败时不让整轮异常扩散，而是落失败 trace 并返回降级文案。
             String reply = buildToolFailureReply(session, decision.tool().name());
-            traceService.failToolStep(trace, e, reply);
+            metricsService.recordToolExecution(decision.tool().name(), false);
+            traceService.failToolStep(
+                trace,
+                e,
+                reply,
+                memory,
+                "tool_execution_failure",
+                "工具执行失败，已回退为直接回复"
+            );
             log.warn("Agent Tool 执行失败: sessionId={}, tool={}, error={}", session.getSessionId(), decision.tool().name(), e.getMessage());
             return new TurnExecution(reply, memory, AgentCompletionMode.DEGRADED);
         }
@@ -471,6 +523,19 @@ public class AgentOrchestrator {
         }
         if ("search_knowledge_base".equals(toolName)) {
             return "这次检索知识库失败了。你可以稍后重试，或先把问题描述得更具体一些。";
+        }
+        return buildFallbackReply(session);
+    }
+
+    /**
+     * Tool 已成功执行，但后续 memory / trace 收敛失败时的保守回复。
+     */
+    private String buildToolPostProcessingFailureReply(AgentSessionEntity session, String toolName) {
+        if ("get_resume_profile".equals(toolName)) {
+            return "这次已经拿到简历结果，但在整理上下文时失败了。你可以稍后重试。";
+        }
+        if ("search_knowledge_base".equals(toolName)) {
+            return "这次已经拿到知识库结果，但在整理上下文时失败了。你可以稍后重试。";
         }
         return buildFallbackReply(session);
     }

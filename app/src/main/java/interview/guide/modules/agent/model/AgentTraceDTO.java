@@ -12,6 +12,8 @@ public record AgentTraceDTO(
     String toolInputJson,
     String toolOutputJson,
     String observationSummary,
+    AgentMemorySnapshot memoryBefore,
+    AgentMemorySnapshot memoryAfter,
     AgentExecutionState status,
     String errorMessage,
     LocalDateTime createdAt

@@ -23,9 +23,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -38,6 +41,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -60,6 +65,8 @@ class AgentOrchestratorTest {
     @Mock
     private AgentTraceService traceService;
     @Mock
+    private AgentMetricsService metricsService;
+    @Mock
     private AgentPromptService promptService;
     @Mock
     private AgentTool tool;
@@ -76,6 +83,7 @@ class AgentOrchestratorTest {
             sessionService,
             memoryService,
             traceService,
+            metricsService,
             promptService
         );
     }
@@ -94,7 +102,9 @@ class AgentOrchestratorTest {
             createMessage("assistant", "degraded reply", 2)
         );
         AgentTurnEntity completedTurn = createCompletedTurn(turnId, session, AgentCompletionMode.DEGRADED);
+        Timer.Sample latencySample = Timer.start(new SimpleMeterRegistry());
 
+        when(metricsService.startTurnLatency()).thenReturn(latencySample);
         when(sessionService.startTurn(sessionId, request.message()))
             .thenReturn(new AgentSessionService.StartedTurn(session, turnId));
         when(memoryService.readMemory(session)).thenReturn(memory);
@@ -138,9 +148,25 @@ class AgentOrchestratorTest {
             eq("missing_tool"),
             eq(Map.of("resumeId", 88L)),
             errorCaptor.capture(),
-            replyCaptor.capture()
+            replyCaptor.capture(),
+            eq(memory),
+            eq(memory)
         );
         verify(sessionService, never()).failTurn(anyString(), any(Exception.class));
+        verify(metricsService).recordTurnStarted();
+        verify(metricsService).recordTurnCompleted(AgentCompletionMode.DEGRADED);
+        InOrder inOrder = inOrder(metricsService, sessionService, traceService);
+        inOrder.verify(metricsService).startTurnLatency();
+        inOrder.verify(sessionService).startTurn(sessionId, request.message());
+        inOrder.verify(sessionService).completeTurn(
+            eq(turnId),
+            anyString(),
+            eq(memory),
+            eq(AgentCompletionMode.DEGRADED)
+        );
+        inOrder.verify(traceService).getTurnTrace(turnId);
+        inOrder.verify(sessionService).getTurnMessages(turnId);
+        inOrder.verify(metricsService).stopTurnLatency(latencySample, "degraded");
 
         assertThat(errorCaptor.getValue()).contains("toolName");
         assertThat(replyCaptor.getValue()).isNotBlank();
@@ -200,7 +226,8 @@ class AgentOrchestratorTest {
             eq(turnId),
             eq("need resume context"),
             eq("get_resume_profile"),
-            anyMap()
+            anyMap(),
+            eq(memory)
         )).thenReturn(stepTrace);
         when(sessionService.readKnowledgeBaseIds(session)).thenReturn(List.of());
         when(tool.execute(anyMap(), any())).thenThrow(new BusinessException(ErrorCode.AGENT_EXECUTION_FAILED, "tool boom"));
@@ -216,10 +243,19 @@ class AgentOrchestratorTest {
         AgentChatResponse response = orchestrator.chat(sessionId, request);
 
         ArgumentCaptor<String> replyCaptor = ArgumentCaptor.forClass(String.class);
-        verify(traceService).failToolStep(eq(stepTrace), any(Exception.class), replyCaptor.capture());
-        verify(traceService, never()).completeToolStep(any(), any(AgentToolResult.class));
+        verify(traceService).failToolStep(
+            eq(stepTrace),
+            any(Exception.class),
+            replyCaptor.capture(),
+            eq(memory),
+            eq("tool_execution_failure"),
+            eq("工具执行失败，已回退为直接回复")
+        );
+        verify(traceService, never()).completeToolStep(any(), any(AgentToolResult.class), any());
         verify(memoryService, never()).updateAfterTool(any(), anyString(), any());
         verify(sessionService, never()).failTurn(anyString(), any(Exception.class));
+        verify(metricsService).recordToolExecution("get_resume_profile", false);
+        verify(metricsService).recordTurnCompleted(AgentCompletionMode.DEGRADED);
 
         assertThat(replyCaptor.getValue()).isNotBlank();
         assertThat(response.turnId()).isEqualTo(turnId);
@@ -232,6 +268,191 @@ class AgentOrchestratorTest {
     }
 
     @Test
+    @DisplayName("should keep tool execution metric successful when post processing fails")
+    void shouldKeepToolExecutionMetricSuccessfulWhenPostProcessingFails() {
+        String sessionId = "session-tool-post-processing-failure";
+        String turnId = "turn-tool-post-processing-failure";
+        AgentChatRequest request = new AgentChatRequest("帮我提炼简历亮点");
+        AgentSessionEntity session = createSession(sessionId, "准备面试", 42L);
+        AgentMemorySnapshot memory = createMemory();
+        AgentStepTraceEntity stepTrace = new AgentStepTraceEntity();
+        List<AgentTraceDTO> trace = List.of(createTrace("get_resume_profile", AgentExecutionState.FAILED));
+        List<AgentMessageDTO> messagesDelta = List.of(
+            createMessage("user", request.message(), 1),
+            createMessage("assistant", "post processing failed", 2)
+        );
+        AgentTurnEntity completedTurn = createCompletedTurn(turnId, session, AgentCompletionMode.DEGRADED);
+        AgentToolResult toolResult = new AgentToolResult(
+            "summary",
+            Map.of("resumeId", 42L),
+            Map.of(),
+            List.of("fact-1")
+        );
+
+        when(sessionService.startTurn(sessionId, request.message()))
+            .thenReturn(new AgentSessionService.StartedTurn(session, turnId));
+        when(memoryService.readMemory(session)).thenReturn(memory);
+        when(traceService.estimateNextStepIndex(sessionId)).thenReturn(2);
+        when(toolRegistry.describeTools()).thenReturn("- get_resume_profile");
+        when(promptService.buildDecisionSystemPrompt(anyString(), anyString())).thenReturn("decision-system");
+        when(promptService.buildDecisionUserPrompt(session.getGoal(), request.message(), memory, 2)).thenReturn("decision-user");
+        when(structuredOutputInvoker.invoke(
+            any(),
+            anyString(),
+            anyString(),
+            any(),
+            any(),
+            anyString(),
+            anyString(),
+            any()
+        )).thenReturn(new AgentDecisionDTO(
+            true,
+            "get_resume_profile",
+            Map.of(),
+            "need resume context",
+            null
+        ));
+        when(toolRegistry.findTool("get_resume_profile")).thenReturn(Optional.of(tool));
+        when(tool.name()).thenReturn("get_resume_profile");
+        when(tool.requiredInputs()).thenReturn(List.of("resumeId"));
+        when(traceService.startToolStep(
+            eq(turnId),
+            eq("need resume context"),
+            eq("get_resume_profile"),
+            anyMap(),
+            eq(memory)
+        )).thenReturn(stepTrace);
+        when(sessionService.readKnowledgeBaseIds(session)).thenReturn(List.of());
+        when(tool.execute(anyMap(), any())).thenReturn(toolResult);
+        when(memoryService.updateAfterTool(memory, "get_resume_profile", toolResult))
+            .thenThrow(new RuntimeException("memory boom"));
+        when(sessionService.completeTurn(
+            eq(turnId),
+            anyString(),
+            eq(memory),
+            eq(AgentCompletionMode.DEGRADED)
+        )).thenReturn(completedTurn);
+        when(traceService.getTurnTrace(turnId)).thenReturn(trace);
+        when(sessionService.getTurnMessages(turnId)).thenReturn(messagesDelta);
+
+        AgentChatResponse response = orchestrator.chat(sessionId, request);
+
+        ArgumentCaptor<String> replyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(traceService).failToolStep(
+            eq(stepTrace),
+            any(Exception.class),
+            replyCaptor.capture(),
+            eq(memory),
+            eq("tool_post_processing_failure"),
+            eq("工具后处理失败，已回退为直接回复")
+        );
+        verify(metricsService).recordToolExecution("get_resume_profile", true);
+        verify(metricsService, never()).recordToolExecution("get_resume_profile", false);
+        assertThat(replyCaptor.getValue()).contains("整理上下文");
+        assertThat(response.memory()).isEqualTo(memory);
+        assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.DEGRADED);
+    }
+
+    @Test
+    @DisplayName("should keep trace memoryAfter aligned with persisted memory when trace completion fails")
+    void shouldKeepTraceMemoryAfterAlignedWhenTraceCompletionFails() {
+        String sessionId = "session-trace-complete-failure";
+        String turnId = "turn-trace-complete-failure";
+        AgentChatRequest request = new AgentChatRequest("帮我提炼知识库结论");
+        AgentSessionEntity session = createSession(sessionId, "准备面试", 42L);
+        AgentMemorySnapshot memory = createMemory();
+        AgentMemorySnapshot updatedMemory = new AgentMemorySnapshot(
+            "prepare interview",
+            "resume_context_ready",
+            List.of("fact-1", "fact-2"),
+            List.of("get_resume_profile"),
+            "new focus"
+        );
+        AgentStepTraceEntity stepTrace = new AgentStepTraceEntity();
+        List<AgentTraceDTO> trace = List.of(createTrace("get_resume_profile", AgentExecutionState.FAILED));
+        List<AgentMessageDTO> messagesDelta = List.of(
+            createMessage("user", request.message(), 1),
+            createMessage("assistant", "trace complete failed", 2)
+        );
+        AgentTurnEntity completedTurn = createCompletedTurn(turnId, session, AgentCompletionMode.DEGRADED);
+        AgentToolResult toolResult = new AgentToolResult(
+            "summary",
+            Map.of("resumeId", 42L),
+            Map.of(),
+            List.of("fact-1")
+        );
+
+        when(sessionService.startTurn(sessionId, request.message()))
+            .thenReturn(new AgentSessionService.StartedTurn(session, turnId));
+        when(memoryService.readMemory(session)).thenReturn(memory);
+        when(traceService.estimateNextStepIndex(sessionId)).thenReturn(2);
+        when(toolRegistry.describeTools()).thenReturn("- get_resume_profile");
+        when(promptService.buildDecisionSystemPrompt(anyString(), anyString())).thenReturn("decision-system");
+        when(promptService.buildDecisionUserPrompt(session.getGoal(), request.message(), memory, 2)).thenReturn("decision-user");
+        when(structuredOutputInvoker.invoke(
+            any(),
+            anyString(),
+            anyString(),
+            any(),
+            any(),
+            anyString(),
+            anyString(),
+            any()
+        )).thenReturn(new AgentDecisionDTO(
+            true,
+            "get_resume_profile",
+            Map.of(),
+            "need resume context",
+            null
+        ));
+        when(toolRegistry.findTool("get_resume_profile")).thenReturn(Optional.of(tool));
+        when(tool.name()).thenReturn("get_resume_profile");
+        when(tool.requiredInputs()).thenReturn(List.of("resumeId"));
+        when(traceService.startToolStep(
+            eq(turnId),
+            eq("need resume context"),
+            eq("get_resume_profile"),
+            anyMap(),
+            eq(memory)
+        )).thenReturn(stepTrace);
+        when(sessionService.readKnowledgeBaseIds(session)).thenReturn(List.of());
+        when(tool.execute(anyMap(), any())).thenReturn(toolResult);
+        when(memoryService.updateAfterTool(memory, "get_resume_profile", toolResult)).thenReturn(updatedMemory);
+        doThrow(new RuntimeException("trace boom"))
+            .when(traceService).completeToolStep(stepTrace, toolResult, updatedMemory);
+        when(sessionService.completeTurn(
+            eq(turnId),
+            anyString(),
+            eq(memory),
+            eq(AgentCompletionMode.DEGRADED)
+        )).thenReturn(completedTurn);
+        when(traceService.getTurnTrace(turnId)).thenReturn(trace);
+        when(sessionService.getTurnMessages(turnId)).thenReturn(messagesDelta);
+
+        AgentChatResponse response = orchestrator.chat(sessionId, request);
+
+        ArgumentCaptor<String> replyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(traceService).failToolStep(
+            eq(stepTrace),
+            any(Exception.class),
+            replyCaptor.capture(),
+            eq(memory),
+            eq("tool_post_processing_failure"),
+            eq("工具后处理失败，已回退为直接回复")
+        );
+        verify(sessionService).completeTurn(
+            eq(turnId),
+            eq(replyCaptor.getValue()),
+            eq(memory),
+            eq(AgentCompletionMode.DEGRADED)
+        );
+        verify(metricsService).recordToolExecution("get_resume_profile", true);
+        verify(metricsService, never()).recordToolExecution("get_resume_profile", false);
+        assertThat(response.memory()).isEqualTo(memory);
+        assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.DEGRADED);
+    }
+
+    @Test
     @DisplayName("should not mark a completed turn as failed when response assembly throws")
     void shouldNotMarkCompletedTurnAsFailedWhenResponseAssemblyThrows() {
         String sessionId = "session-response-error";
@@ -240,7 +461,9 @@ class AgentOrchestratorTest {
         AgentSessionEntity session = createSession(sessionId, "准备面试", 42L);
         AgentMemorySnapshot memory = createMemory();
         AgentTurnEntity completedTurn = createCompletedTurn(turnId, session, AgentCompletionMode.SUCCESS);
+        Timer.Sample latencySample = Timer.start(new SimpleMeterRegistry());
 
+        when(metricsService.startTurnLatency()).thenReturn(latencySample);
         when(sessionService.startTurn(sessionId, request.message()))
             .thenReturn(new AgentSessionService.StartedTurn(session, turnId));
         when(memoryService.readMemory(session)).thenReturn(memory);
@@ -282,6 +505,9 @@ class AgentOrchestratorTest {
             eq(memory),
             eq(AgentCompletionMode.SUCCESS)
         );
+        verify(metricsService).recordTurnStarted();
+        verify(metricsService).recordTurnCompleted(AgentCompletionMode.SUCCESS);
+        verify(metricsService).stopTurnLatency(latencySample, "response_error");
         verify(sessionService, never()).failTurn(anyString(), any(Exception.class));
     }
 
@@ -330,6 +556,7 @@ class AgentOrchestratorTest {
                 .isEqualTo(ErrorCode.AGENT_TURN_EXPIRED.getCode()));
 
         verify(sessionService).failTurn(eq(turnId), any(Exception.class));
+        verify(metricsService).recordTurnFailed();
         verify(sessionService, never()).getSessionEntity(sessionId);
     }
 
@@ -372,6 +599,8 @@ class AgentOrchestratorTest {
             "{}",
             "{}",
             "observation",
+            createMemory(),
+            createMemory(),
             status,
             null,
             LocalDateTime.now()

@@ -97,7 +97,7 @@ public class AgentSessionService {
         LocalDateTime now = LocalDateTime.now();
 
         // 1. 先回收已经过期的运行中 turn，避免陈旧执行占住会话。
-        reclaimExpiredRunningTurns(sessionId, now);
+        int reclaimedExpiredTurnCount = reclaimExpiredRunningTurns(sessionId, now);
         // 2. 如果仍存在有效运行中的 turn，直接拒绝新请求。
         rejectActiveRunningTurns(sessionId, now);
 
@@ -116,7 +116,7 @@ public class AgentSessionService {
         appendMessage(session, savedTurn, AgentMessageEntity.MessageRole.USER, userMessage);
         touchSession(session, now);
         sessionRepository.save(session);
-        return new StartedTurn(session, savedTurn.getTurnId());
+        return new StartedTurn(session, savedTurn.getTurnId(), reclaimedExpiredTurnCount);
     }
 
     /**
@@ -257,15 +257,18 @@ public class AgentSessionService {
     /**
      * 回收租约已过期但仍停留在 RUNNING 的旧 turn。
      */
-    private void reclaimExpiredRunningTurns(String sessionId, LocalDateTime now) {
+    private int reclaimExpiredRunningTurns(String sessionId, LocalDateTime now) {
+        int reclaimedCount = 0;
         for (AgentTurnEntity runningTurn : turnRepository.findBySession_SessionIdAndStatusOrderByCreatedAtAsc(
             sessionId,
             AgentTurnStatus.RUNNING
         )) {
             if (isLeaseExpired(runningTurn, now)) {
                 markTurnAborted(runningTurn, now, "stale_running_turn");
+                reclaimedCount++;
             }
         }
+        return reclaimedCount;
     }
 
     /**
@@ -474,7 +477,10 @@ public class AgentSessionService {
     /**
      * turn 启动结果，供编排层继续使用会话与 turnId。
      */
-    public record StartedTurn(AgentSessionEntity session, String turnId) {
+    public record StartedTurn(AgentSessionEntity session, String turnId, int reclaimedExpiredTurnCount) {
+        public StartedTurn(AgentSessionEntity session, String turnId) {
+            this(session, turnId, 0);
+        }
     }
 
     private record LockedTurn(AgentSessionEntity session, AgentTurnEntity turn) {

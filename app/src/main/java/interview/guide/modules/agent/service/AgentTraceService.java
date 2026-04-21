@@ -3,6 +3,7 @@ package interview.guide.modules.agent.service;
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
 import interview.guide.modules.agent.model.AgentExecutionState;
+import interview.guide.modules.agent.model.AgentMemorySnapshot;
 import interview.guide.modules.agent.model.AgentSessionEntity;
 import interview.guide.modules.agent.model.AgentStepTraceEntity;
 import interview.guide.modules.agent.model.AgentTraceDTO;
@@ -11,6 +12,7 @@ import interview.guide.modules.agent.repository.AgentSessionRepository;
 import interview.guide.modules.agent.repository.AgentStepTraceRepository;
 import interview.guide.modules.agent.repository.AgentTurnRepository;
 import interview.guide.modules.agent.support.AgentToolResult;
+import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +25,7 @@ import java.util.Map;
  * Agent trace 持久化服务。
  * 负责记录直接回复、工具调用、降级分支等执行轨迹，便于后续排障和展示。
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AgentTraceService {
@@ -30,6 +33,16 @@ public class AgentTraceService {
     private static final int SUMMARY_LIMIT = 500;
     private static final int TOOL_LIMIT = 100;
     private static final int ERROR_LIMIT = 1000;
+    private static final String MEMORY_SNAPSHOT_WRITE_FAILURE_JSON = """
+{"userGoal":"","currentPhase":"memory_snapshot_unavailable","confirmedFacts":["memory_snapshot_write_failed"],"usedTools":[],"nextFocus":"请检查 trace 数据完整性"}
+""";
+    private static final AgentMemorySnapshot MEMORY_SNAPSHOT_READ_FAILURE = new AgentMemorySnapshot(
+        "",
+        "memory_snapshot_unavailable",
+        List.of("memory_snapshot_read_failed"),
+        List.of(),
+        "请检查 trace 数据完整性"
+    );
 
     private final AgentStepTraceRepository traceRepository;
     private final AgentSessionRepository sessionRepository;
@@ -52,11 +65,18 @@ public class AgentTraceService {
     public AgentStepTraceEntity recordDirectReply(
         String turnId,
         String decisionSummary,
-        String reply
+        String reply,
+        AgentMemorySnapshot memoryBefore,
+        AgentMemorySnapshot memoryAfter
     ) {
-        AgentStepTraceEntity trace = newTrace(turnId, decisionSummary, "direct_answer", null);
-        trace.setToolOutputJson(writeJson(Map.of("reply", blankToEmpty(reply))));
+        AgentStepTraceEntity trace = newTrace(turnId, decisionSummary, "direct_answer", null, memoryBefore);
+        trace.setToolOutputJson(writeJson(buildReplyTracePayload(
+            "direct_reply",
+            "已直接生成最终回复",
+            reply
+        )));
         trace.setObservationSummary(clip(reply, SUMMARY_LIMIT));
+        trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
         trace.setStatus(AgentExecutionState.COMPLETED);
         return traceRepository.save(trace);
     }
@@ -71,11 +91,18 @@ public class AgentTraceService {
         String selectedTool,
         Map<String, Object> toolInput,
         String errorMessage,
-        String reply
+        String reply,
+        AgentMemorySnapshot memoryBefore,
+        AgentMemorySnapshot memoryAfter
     ) {
-        AgentStepTraceEntity trace = newTrace(turnId, decisionSummary, selectedTool, toolInput);
-        trace.setToolOutputJson(writeJson(Map.of("reply", blankToEmpty(reply))));
-        trace.setObservationSummary("工具调用已降级为直接回复");
+        AgentStepTraceEntity trace = newTrace(turnId, decisionSummary, selectedTool, toolInput, memoryBefore);
+        trace.setToolOutputJson(writeJson(buildReplyTracePayload(
+            "rejected_tool_decision",
+            "工具决策不可执行，已降级为直接回复",
+            reply
+        )));
+        trace.setObservationSummary("工具决策不可执行，已降级为直接回复");
+        trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
         trace.setStatus(AgentExecutionState.FAILED);
         trace.setErrorMessage(clip(blankToEmpty(errorMessage), ERROR_LIMIT));
         return traceRepository.save(trace);
@@ -89,9 +116,10 @@ public class AgentTraceService {
         String turnId,
         String decisionSummary,
         String selectedTool,
-        Map<String, Object> toolInput
+        Map<String, Object> toolInput,
+        AgentMemorySnapshot memoryBefore
     ) {
-        AgentStepTraceEntity trace = newTrace(turnId, decisionSummary, selectedTool, toolInput);
+        AgentStepTraceEntity trace = newTrace(turnId, decisionSummary, selectedTool, toolInput, memoryBefore);
         trace.setStatus(AgentExecutionState.RUNNING);
         return traceRepository.save(trace);
     }
@@ -100,9 +128,14 @@ public class AgentTraceService {
      * 将工具执行结果回填到 trace。
      */
     @Transactional
-    public void completeToolStep(AgentStepTraceEntity trace, AgentToolResult result) {
+    public void completeToolStep(
+        AgentStepTraceEntity trace,
+        AgentToolResult result,
+        AgentMemorySnapshot memoryAfter
+    ) {
         trace.setToolOutputJson(writeJson(result.tracePayload()));
         trace.setObservationSummary(clip(result.summary(), SUMMARY_LIMIT));
+        trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
         trace.setStatus(AgentExecutionState.COMPLETED);
         traceRepository.save(trace);
     }
@@ -111,9 +144,21 @@ public class AgentTraceService {
      * 记录工具执行失败结果，并保存面向用户的降级回复。
      */
     @Transactional
-    public void failToolStep(AgentStepTraceEntity trace, Exception error, String reply) {
-        trace.setToolOutputJson(writeJson(Map.of("reply", blankToEmpty(reply))));
-        trace.setObservationSummary("Tool execution failed and fell back to a direct reply");
+    public void failToolStep(
+        AgentStepTraceEntity trace,
+        Exception error,
+        String reply,
+        AgentMemorySnapshot memoryAfter,
+        String failureKind,
+        String observationSummary
+    ) {
+        trace.setToolOutputJson(writeJson(buildReplyTracePayload(
+            failureKind,
+            observationSummary,
+            reply
+        )));
+        trace.setObservationSummary(observationSummary);
+        trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
         trace.setStatus(AgentExecutionState.FAILED);
         trace.setErrorMessage(sanitize(error));
         traceRepository.save(trace);
@@ -125,17 +170,7 @@ public class AgentTraceService {
     public List<AgentTraceDTO> getTrace(String sessionId) {
         requireSession(sessionId);
         return traceRepository.findBySession_SessionIdOrderByStepIndexAsc(sessionId).stream()
-            .map(trace -> new AgentTraceDTO(
-                trace.getStepIndex(),
-                trace.getDecisionSummary(),
-                trace.getSelectedTool(),
-                trace.getToolInputJson(),
-                trace.getToolOutputJson(),
-                trace.getObservationSummary(),
-                trace.getStatus(),
-                trace.getErrorMessage(),
-                trace.getCreatedAt()
-            ))
+            .map(this::toTraceDTO)
             .toList();
     }
 
@@ -145,17 +180,7 @@ public class AgentTraceService {
     public List<AgentTraceDTO> getTurnTrace(String turnId) {
         getTurnEntity(turnId);
         return traceRepository.findByTurn_TurnIdOrderByStepIndexAsc(turnId).stream()
-            .map(trace -> new AgentTraceDTO(
-                trace.getStepIndex(),
-                trace.getDecisionSummary(),
-                trace.getSelectedTool(),
-                trace.getToolInputJson(),
-                trace.getToolOutputJson(),
-                trace.getObservationSummary(),
-                trace.getStatus(),
-                trace.getErrorMessage(),
-                trace.getCreatedAt()
-            ))
+            .map(this::toTraceDTO)
             .toList();
     }
 
@@ -167,7 +192,8 @@ public class AgentTraceService {
         String turnId,
         String decisionSummary,
         String selectedTool,
-        Map<String, Object> toolInput
+        Map<String, Object> toolInput,
+        AgentMemorySnapshot memoryBefore
     ) {
         AgentTurnEntity turn = getTurnEntity(turnId);
         AgentSessionEntity session = turn.getSession();
@@ -182,7 +208,24 @@ public class AgentTraceService {
         trace.setDecisionSummary(clip(decisionSummary, SUMMARY_LIMIT));
         trace.setSelectedTool(clip(selectedTool, TOOL_LIMIT));
         trace.setToolInputJson(writeJson(toolInput));
+        trace.setMemoryBeforeJson(writeMemorySnapshotJson(memoryBefore));
         return trace;
+    }
+
+    private AgentTraceDTO toTraceDTO(AgentStepTraceEntity trace) {
+        return new AgentTraceDTO(
+            trace.getStepIndex(),
+            trace.getDecisionSummary(),
+            trace.getSelectedTool(),
+            trace.getToolInputJson(),
+            trace.getToolOutputJson(),
+            trace.getObservationSummary(),
+            readMemorySnapshot(trace.getMemoryBeforeJson()),
+            readMemorySnapshot(trace.getMemoryAfterJson()),
+            trace.getStatus(),
+            trace.getErrorMessage(),
+            trace.getCreatedAt()
+        );
     }
 
     /**
@@ -225,7 +268,34 @@ public class AgentTraceService {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (Exception e) {
+            log.warn("Agent trace JSON 写入失败: valueType={}, error={}",
+                value.getClass().getSimpleName(), e.getMessage());
             return "{\"error\":\"json_write_failed\"}";
+        }
+    }
+
+    private String writeMemorySnapshotJson(AgentMemorySnapshot snapshot) {
+        if (snapshot == null) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(snapshot);
+        } catch (Exception e) {
+            log.warn("Agent memory snapshot 写入失败: phase={}, error={}",
+                snapshot.currentPhase(), e.getMessage());
+            return MEMORY_SNAPSHOT_WRITE_FAILURE_JSON;
+        }
+    }
+
+    private AgentMemorySnapshot readMemorySnapshot(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(json, AgentMemorySnapshot.class);
+        } catch (Exception e) {
+            log.warn("Agent memory snapshot 读取失败: json={}, error={}", clip(json, 120), e.getMessage());
+            return MEMORY_SNAPSHOT_READ_FAILURE;
         }
     }
 
@@ -258,5 +328,20 @@ public class AgentTraceService {
      */
     private String blankToEmpty(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private Map<String, Object> buildReplyTracePayload(
+        String kind,
+        String summary,
+        String reply
+    ) {
+        return Map.of(
+            "kind", kind,
+            "summary", blankToEmpty(summary),
+            "reply", blankToEmpty(reply),
+            "answerPayload", Map.of(),
+            "debugPayload", Map.of(),
+            "confirmedFacts", List.of()
+        );
     }
 }

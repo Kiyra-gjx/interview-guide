@@ -55,6 +55,12 @@ public class AgentStepTraceEntity {
     @Column(name = "observation_summary", length = 500)
     private String observationSummary;
 
+    @Column(name = "memory_before_json", columnDefinition = "TEXT")
+    private String memoryBeforeJson;
+
+    @Column(name = "memory_after_json", columnDefinition = "TEXT")
+    private String memoryAfterJson;
+
     @Enumerated(EnumType.STRING)
     @Column(length = 20, nullable = false)
     private AgentExecutionState status = AgentExecutionState.CREATED;
