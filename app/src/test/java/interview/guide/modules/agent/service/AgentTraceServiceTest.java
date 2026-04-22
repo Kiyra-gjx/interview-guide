@@ -2,6 +2,11 @@ package interview.guide.modules.agent.service;
 
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
+import interview.guide.modules.agent.guardrail.AgentGuardrailAction;
+import interview.guide.modules.agent.guardrail.AgentGuardrailCode;
+import interview.guide.modules.agent.guardrail.AgentGuardrailResolution;
+import interview.guide.modules.agent.guardrail.AgentGuardrailResult;
+import interview.guide.modules.agent.guardrail.AgentGuardrailStage;
 import interview.guide.modules.agent.model.AgentExecutionState;
 import interview.guide.modules.agent.model.AgentMemorySnapshot;
 import interview.guide.modules.agent.model.AgentSessionEntity;
@@ -27,6 +32,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -73,7 +79,14 @@ class AgentTraceServiceTest {
 
         AgentMemorySnapshot memory = new AgentMemorySnapshot("goal", "phase", java.util.List.of(), java.util.List.of(), "next");
 
-        assertThatThrownBy(() -> traceService.recordDirectReply("missing-turn", "decision", "reply", memory, memory))
+        assertThatThrownBy(() -> traceService.recordDirectReply(
+            "missing-turn",
+            "decision",
+            "reply",
+            memory,
+            memory,
+            java.util.List.of()
+        ))
             .isInstanceOf(BusinessException.class)
             .satisfies(error -> assertThat(((BusinessException) error).getCode())
                 .isEqualTo(ErrorCode.AGENT_TURN_NOT_FOUND.getCode()));
@@ -101,9 +114,10 @@ class AgentTraceServiceTest {
             Map.of("retrievalQuery", "debug query"),
             java.util.List.of("fact-1")
         );
+        String finalReply = "最终给用户的回复";
         when(objectMapper.writeValueAsString(any())).thenReturn("{\"ok\":true}");
 
-        traceService.completeToolStep(trace, result, memoryAfter);
+        traceService.completeToolStep(trace, result, memoryAfter, finalReply, java.util.List.of());
 
         ArgumentCaptor<Object> payloadCaptor = ArgumentCaptor.forClass(Object.class);
         verify(objectMapper, times(2)).writeValueAsString(payloadCaptor.capture());
@@ -113,7 +127,7 @@ class AgentTraceServiceTest {
         assertThat(trace.getMemoryAfterJson()).isEqualTo("{\"ok\":true}");
         assertThat(trace.getObservationSummary()).isEqualTo("summary");
         assertThat(trace.getStatus()).isEqualTo(AgentExecutionState.COMPLETED);
-        assertThat(payloadCaptor.getAllValues()).contains(result.tracePayload(), memoryAfter);
+        assertThat(payloadCaptor.getAllValues()).contains(result.tracePayload(finalReply), memoryAfter);
     }
 
     @Test
@@ -150,6 +164,66 @@ class AgentTraceServiceTest {
         assertThat(traceDTOs).hasSize(1);
         assertThat(traceDTOs.getFirst().memoryBefore()).isEqualTo(memoryBefore);
         assertThat(traceDTOs.getFirst().memoryAfter()).isEqualTo(memoryAfter);
+    }
+
+    @Test
+    @DisplayName("should expose persisted guardrail results from turn trace lookups")
+    void shouldExposePersistedGuardrailResultsFromTurnTraceLookups() throws Exception {
+        AgentSessionEntity session = new AgentSessionEntity();
+        session.setSessionId("session-guardrail");
+        AgentTurnEntity turn = new AgentTurnEntity();
+        turn.setTurnId("turn-guardrail");
+        turn.setSession(session);
+        AgentStepTraceEntity trace = new AgentStepTraceEntity();
+        trace.setTurn(turn);
+        trace.setSession(session);
+        trace.setStepIndex(1);
+        trace.setStatus(AgentExecutionState.FAILED);
+        trace.setCreatedAt(java.time.LocalDateTime.now());
+        trace.setGuardrailResultsJson("[{\"code\":\"TOOL_REQUIRES_APPROVAL\"}]");
+        AgentGuardrailResult guardrailResult = new AgentGuardrailResult(
+            AgentGuardrailStage.TOOL,
+            AgentGuardrailCode.TOOL_REQUIRES_APPROVAL,
+            AgentGuardrailAction.REJECT,
+            AgentGuardrailResolution.BLOCK_TOOL_CALL,
+            "高风险工具在审批能力落地前不能自动执行"
+        );
+
+        when(turnRepository.findByTurnId("turn-guardrail")).thenReturn(Optional.of(turn));
+        when(traceRepository.findByTurn_TurnIdOrderByStepIndexAsc("turn-guardrail")).thenReturn(java.util.List.of(trace));
+        when(objectMapper.readValue(eq("[{\"code\":\"TOOL_REQUIRES_APPROVAL\"}]"), any(tools.jackson.core.type.TypeReference.class)))
+            .thenReturn(java.util.List.of(guardrailResult));
+
+        java.util.List<AgentTraceDTO> traceDTOs = traceService.getTurnTrace("turn-guardrail");
+
+        assertThat(traceDTOs).hasSize(1);
+        assertThat(traceDTOs.getFirst().guardrailResults()).containsExactly(guardrailResult);
+    }
+
+    @Test
+    @DisplayName("should expose guardrail write failure placeholder instead of dropping it silently")
+    void shouldExposeGuardrailWriteFailurePlaceholderInsteadOfDroppingItSilently() {
+        AgentSessionEntity session = new AgentSessionEntity();
+        session.setSessionId("session-guardrail-write-failure");
+        AgentTurnEntity turn = new AgentTurnEntity();
+        turn.setTurnId("turn-guardrail-write-failure");
+        turn.setSession(session);
+        AgentStepTraceEntity trace = new AgentStepTraceEntity();
+        trace.setTurn(turn);
+        trace.setSession(session);
+        trace.setStepIndex(1);
+        trace.setStatus(AgentExecutionState.COMPLETED);
+        trace.setCreatedAt(java.time.LocalDateTime.now());
+        trace.setGuardrailResultsJson("[{\"reason\":\"guardrail_results_write_failed\"}]");
+
+        when(turnRepository.findByTurnId("turn-guardrail-write-failure")).thenReturn(Optional.of(turn));
+        when(traceRepository.findByTurn_TurnIdOrderByStepIndexAsc("turn-guardrail-write-failure")).thenReturn(java.util.List.of(trace));
+
+        java.util.List<AgentTraceDTO> traceDTOs = traceService.getTurnTrace("turn-guardrail-write-failure");
+
+        assertThat(traceDTOs).hasSize(1);
+        assertThat(traceDTOs.getFirst().guardrailResults()).hasSize(1);
+        assertThat(traceDTOs.getFirst().guardrailResults().getFirst().reason()).isEqualTo("guardrail_results_write_failed");
     }
 
     @Test

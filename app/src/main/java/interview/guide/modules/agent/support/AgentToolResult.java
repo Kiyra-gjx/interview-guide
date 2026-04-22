@@ -29,10 +29,14 @@ public record AgentToolResult(
     }
 
     public Map<String, Object> tracePayload() {
+        return tracePayload(null);
+    }
+
+    public Map<String, Object> tracePayload(String reply) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("kind", "tool_result");
         payload.put("summary", summary);
-        payload.put("reply", null);
+        payload.put("reply", reply);
         payload.put("answerPayload", answerPayload);
         payload.put("debugPayload", debugPayload);
         payload.put("confirmedFacts", confirmedFacts);

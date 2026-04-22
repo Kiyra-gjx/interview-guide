@@ -61,6 +61,9 @@ public class AgentStepTraceEntity {
     @Column(name = "memory_after_json", columnDefinition = "TEXT")
     private String memoryAfterJson;
 
+    @Column(name = "guardrail_results_json", columnDefinition = "TEXT")
+    private String guardrailResultsJson;
+
     @Enumerated(EnumType.STRING)
     @Column(length = 20, nullable = false)
     private AgentExecutionState status = AgentExecutionState.CREATED;

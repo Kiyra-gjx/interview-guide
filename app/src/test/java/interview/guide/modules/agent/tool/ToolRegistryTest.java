@@ -38,6 +38,11 @@ class ToolRegistryTest {
             }
 
             @Override
+            public AgentToolRiskLevel riskLevel() {
+                return AgentToolRiskLevel.READ_ONLY;
+            }
+
+            @Override
             public AgentToolResult execute(Map<String, Object> input, AgentToolContext context) {
                 return new AgentToolResult(
                     "summary",

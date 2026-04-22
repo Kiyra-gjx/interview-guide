@@ -43,6 +43,11 @@ public class KnowledgeBaseSearchTool implements AgentTool {
     }
 
     @Override
+    public AgentToolRiskLevel riskLevel() {
+        return AgentToolRiskLevel.READ_ONLY;
+    }
+
+    @Override
     public AgentToolResult execute(Map<String, Object> input, AgentToolContext context) {
         List<Long> knowledgeBaseIds = readLongList(input.get("knowledgeBaseIds"));
         if (knowledgeBaseIds.isEmpty() && context.knowledgeBaseIds() != null) {

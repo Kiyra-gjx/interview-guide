@@ -2,6 +2,7 @@ package interview.guide.modules.agent.service;
 
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
+import interview.guide.modules.agent.guardrail.AgentGuardrailResult;
 import interview.guide.modules.agent.model.AgentExecutionState;
 import interview.guide.modules.agent.model.AgentMemorySnapshot;
 import interview.guide.modules.agent.model.AgentSessionEntity;
@@ -16,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
@@ -33,8 +35,13 @@ public class AgentTraceService {
     private static final int SUMMARY_LIMIT = 500;
     private static final int TOOL_LIMIT = 100;
     private static final int ERROR_LIMIT = 1000;
+    private static final String GUARDRAIL_RESULTS_WRITE_FAILURE_REASON = "guardrail_results_write_failed";
+    private static final String GUARDRAIL_RESULTS_READ_FAILURE_REASON = "guardrail_results_read_failed";
     private static final String MEMORY_SNAPSHOT_WRITE_FAILURE_JSON = """
 {"userGoal":"","currentPhase":"memory_snapshot_unavailable","confirmedFacts":["memory_snapshot_write_failed"],"usedTools":[],"nextFocus":"请检查 trace 数据完整性"}
+""";
+    private static final String GUARDRAIL_RESULTS_WRITE_FAILURE_JSON = """
+[{"reason":"guardrail_results_write_failed"}]
 """;
     private static final AgentMemorySnapshot MEMORY_SNAPSHOT_READ_FAILURE = new AgentMemorySnapshot(
         "",
@@ -42,6 +49,9 @@ public class AgentTraceService {
         List.of("memory_snapshot_read_failed"),
         List.of(),
         "请检查 trace 数据完整性"
+    );
+    private static final List<AgentGuardrailResult> GUARDRAIL_RESULTS_READ_FAILURE = List.of(
+        new AgentGuardrailResult(null, null, null, null, GUARDRAIL_RESULTS_READ_FAILURE_REASON)
     );
 
     private final AgentStepTraceRepository traceRepository;
@@ -67,7 +77,8 @@ public class AgentTraceService {
         String decisionSummary,
         String reply,
         AgentMemorySnapshot memoryBefore,
-        AgentMemorySnapshot memoryAfter
+        AgentMemorySnapshot memoryAfter,
+        List<AgentGuardrailResult> guardrailResults
     ) {
         AgentStepTraceEntity trace = newTrace(turnId, decisionSummary, "direct_answer", null, memoryBefore);
         trace.setToolOutputJson(writeJson(buildReplyTracePayload(
@@ -77,7 +88,34 @@ public class AgentTraceService {
         )));
         trace.setObservationSummary(clip(reply, SUMMARY_LIMIT));
         trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
+        trace.setGuardrailResultsJson(writeGuardrailResultsJson(guardrailResults));
         trace.setStatus(AgentExecutionState.COMPLETED);
+        return traceRepository.save(trace);
+    }
+
+    /**
+     * 记录输入 Guardrail 命中后的拒绝轨迹。
+     */
+    @Transactional
+    public AgentStepTraceEntity recordInputGuardrailRejection(
+        String turnId,
+        String decisionSummary,
+        String reply,
+        AgentMemorySnapshot memoryBefore,
+        AgentMemorySnapshot memoryAfter,
+        List<AgentGuardrailResult> guardrailResults
+    ) {
+        AgentStepTraceEntity trace = newTrace(turnId, decisionSummary, "input_guardrail", null, memoryBefore);
+        trace.setToolOutputJson(writeJson(buildReplyTracePayload(
+            "input_guardrail_rejection",
+            "输入触发安全拦截，已返回安全回复",
+            reply
+        )));
+        trace.setObservationSummary("输入触发安全拦截，已返回安全回复");
+        trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
+        trace.setGuardrailResultsJson(writeGuardrailResultsJson(guardrailResults));
+        trace.setStatus(AgentExecutionState.FAILED);
+        trace.setErrorMessage(resolvePrimaryGuardrailReason(guardrailResults));
         return traceRepository.save(trace);
     }
 
@@ -93,7 +131,8 @@ public class AgentTraceService {
         String errorMessage,
         String reply,
         AgentMemorySnapshot memoryBefore,
-        AgentMemorySnapshot memoryAfter
+        AgentMemorySnapshot memoryAfter,
+        List<AgentGuardrailResult> guardrailResults
     ) {
         AgentStepTraceEntity trace = newTrace(turnId, decisionSummary, selectedTool, toolInput, memoryBefore);
         trace.setToolOutputJson(writeJson(buildReplyTracePayload(
@@ -103,6 +142,7 @@ public class AgentTraceService {
         )));
         trace.setObservationSummary("工具决策不可执行，已降级为直接回复");
         trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
+        trace.setGuardrailResultsJson(writeGuardrailResultsJson(guardrailResults));
         trace.setStatus(AgentExecutionState.FAILED);
         trace.setErrorMessage(clip(blankToEmpty(errorMessage), ERROR_LIMIT));
         return traceRepository.save(trace);
@@ -131,11 +171,14 @@ public class AgentTraceService {
     public void completeToolStep(
         AgentStepTraceEntity trace,
         AgentToolResult result,
-        AgentMemorySnapshot memoryAfter
+        AgentMemorySnapshot memoryAfter,
+        String reply,
+        List<AgentGuardrailResult> guardrailResults
     ) {
-        trace.setToolOutputJson(writeJson(result.tracePayload()));
+        trace.setToolOutputJson(writeJson(result.tracePayload(reply)));
         trace.setObservationSummary(clip(result.summary(), SUMMARY_LIMIT));
         trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
+        trace.setGuardrailResultsJson(writeGuardrailResultsJson(guardrailResults));
         trace.setStatus(AgentExecutionState.COMPLETED);
         traceRepository.save(trace);
     }
@@ -222,6 +265,7 @@ public class AgentTraceService {
             trace.getObservationSummary(),
             readMemorySnapshot(trace.getMemoryBeforeJson()),
             readMemorySnapshot(trace.getMemoryAfterJson()),
+            readGuardrailResults(trace.getGuardrailResultsJson()),
             trace.getStatus(),
             trace.getErrorMessage(),
             trace.getCreatedAt()
@@ -297,6 +341,42 @@ public class AgentTraceService {
             log.warn("Agent memory snapshot 读取失败: json={}, error={}", clip(json, 120), e.getMessage());
             return MEMORY_SNAPSHOT_READ_FAILURE;
         }
+    }
+
+    private String writeGuardrailResultsJson(List<AgentGuardrailResult> guardrailResults) {
+        if (guardrailResults == null || guardrailResults.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(guardrailResults);
+        } catch (Exception e) {
+            log.warn("Agent guardrail 结果写入失败: count={}, error={}", guardrailResults.size(), e.getMessage());
+            return GUARDRAIL_RESULTS_WRITE_FAILURE_JSON;
+        }
+    }
+
+    private List<AgentGuardrailResult> readGuardrailResults(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        if (json.contains(GUARDRAIL_RESULTS_WRITE_FAILURE_REASON)) {
+            return List.of(new AgentGuardrailResult(null, null, null, null, GUARDRAIL_RESULTS_WRITE_FAILURE_REASON));
+        }
+        try {
+            List<AgentGuardrailResult> results = objectMapper.readValue(json, new TypeReference<>() {
+            });
+            return results == null ? List.of() : List.copyOf(results);
+        } catch (Exception e) {
+            log.warn("Agent guardrail 结果读取失败: json={}, error={}", clip(json, 120), e.getMessage());
+            return GUARDRAIL_RESULTS_READ_FAILURE;
+        }
+    }
+
+    private String resolvePrimaryGuardrailReason(List<AgentGuardrailResult> guardrailResults) {
+        if (guardrailResults == null || guardrailResults.isEmpty()) {
+            return null;
+        }
+        return clip(guardrailResults.getFirst().reason(), ERROR_LIMIT);
     }
 
     /**

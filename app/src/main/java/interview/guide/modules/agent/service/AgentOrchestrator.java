@@ -2,6 +2,9 @@ package interview.guide.modules.agent.service;
 
 import interview.guide.common.ai.StructuredOutputInvoker;
 import interview.guide.common.exception.ErrorCode;
+import interview.guide.modules.agent.guardrail.AgentGuardrailCode;
+import interview.guide.modules.agent.guardrail.AgentGuardrailResult;
+import interview.guide.modules.agent.guardrail.AgentGuardrailService;
 import interview.guide.modules.agent.model.AgentChatRequest;
 import interview.guide.modules.agent.model.AgentChatResponse;
 import interview.guide.modules.agent.model.AgentCompletionMode;
@@ -9,6 +12,7 @@ import interview.guide.modules.agent.model.AgentDecisionDTO;
 import interview.guide.modules.agent.model.AgentMemorySnapshot;
 import interview.guide.modules.agent.model.AgentSessionEntity;
 import interview.guide.modules.agent.model.AgentStepTraceEntity;
+import interview.guide.modules.agent.model.AgentTraceDTO;
 import interview.guide.modules.agent.model.AgentTurnEntity;
 import interview.guide.modules.agent.support.AgentToolContext;
 import interview.guide.modules.agent.support.AgentToolResult;
@@ -43,6 +47,7 @@ public class AgentOrchestrator {
     private final AgentTraceService traceService;
     private final AgentMetricsService metricsService;
     private final AgentPromptService promptService;
+    private final AgentGuardrailService guardrailService;
     private final BeanOutputConverter<AgentDecisionDTO> decisionOutputConverter;
 
     public AgentOrchestrator(
@@ -53,7 +58,8 @@ public class AgentOrchestrator {
         AgentMemoryService memoryService,
         AgentTraceService traceService,
         AgentMetricsService metricsService,
-        AgentPromptService promptService
+        AgentPromptService promptService,
+        AgentGuardrailService guardrailService
     ) {
         this.chatClient = chatClientBuilder.build();
         this.structuredOutputInvoker = structuredOutputInvoker;
@@ -63,6 +69,7 @@ public class AgentOrchestrator {
         this.traceService = traceService;
         this.metricsService = metricsService;
         this.promptService = promptService;
+        this.guardrailService = guardrailService;
         this.decisionOutputConverter = new BeanOutputConverter<>(AgentDecisionDTO.class);
     }
 
@@ -85,13 +92,39 @@ public class AgentOrchestrator {
             metricsService.recordTurnStarted();
             metricsService.recordTurnReclaimed(startedTurn.reclaimedExpiredTurnCount());
 
-            // 2. 读取记忆并生成决策，决定是直接回复、调用工具还是走降级分支。
+            // 2. 先做输入 Guardrail，命中后直接返回安全回复，不再进入模型决策链路。
             AgentMemorySnapshot memory = memoryService.readMemory(session);
-            int stepIndexHint = traceService.estimateNextStepIndex(sessionId);
-            ResolvedDecision decision = decide(session, memory, request.message(), stepIndexHint);
+            AgentGuardrailService.InputGuardrailDecision inputGuardrail = guardrailService.evaluateInput(request.message());
+            if (inputGuardrail.blocked()) {
+                String reply = buildInputGuardrailReply(inputGuardrail.result());
+                traceService.recordInputGuardrailRejection(
+                    turnId,
+                    "输入触发安全拦截，已拒绝继续执行",
+                    reply,
+                    memory,
+                    memory,
+                    inputGuardrail.guardrailResults()
+                );
+                AgentTurnEntity completedTurn = sessionService.completeTurn(
+                    turnId,
+                    reply,
+                    memory,
+                    AgentCompletionMode.DEGRADED
+                );
+                completionMode = AgentCompletionMode.DEGRADED;
+                metricsService.recordTurnCompleted(completionMode);
+                turnTerminalPersisted = true;
+                response = buildChatResponse(completedTurn, reply, memory);
+                metricsService.stopTurnLatency(latencySample, "degraded");
+                return response;
+            }
 
-            // 3. 执行决策并在成功后提交 turn 完成态。
-            TurnExecution execution = executeDecision(turnId, session, memory, request.message(), decision);
+            // 3. 输入安全后，再读取 stepIndex 并生成决策。
+            int stepIndexHint = traceService.estimateNextStepIndex(sessionId);
+            ResolvedDecision decision = decide(session, memory, inputGuardrail.normalizedMessage(), stepIndexHint);
+
+            // 4. 执行决策并在成功后提交 turn 完成态。
+            TurnExecution execution = executeDecision(turnId, session, memory, inputGuardrail.normalizedMessage(), decision);
             AgentTurnEntity completedTurn = sessionService.completeTurn(
                 turnId,
                 execution.reply(),
@@ -107,7 +140,7 @@ public class AgentOrchestrator {
                 completionMode == AgentCompletionMode.DEGRADED ? "degraded" : "success"
             );
         } catch (Exception e) {
-            // 4. 只有 turn 已创建时才补失败终态；终态保护由 sessionService 负责。
+            // 5. 只有 turn 已创建时才补失败终态；终态保护由 sessionService 负责。
             if (turnId != null && !turnTerminalPersisted) {
                 sessionService.failTurn(turnId, e);
                 metricsService.recordTurnFailed();
@@ -162,7 +195,8 @@ public class AgentOrchestrator {
                 DECISION_FALLBACK_TOOL,
                 Map.of(),
                 buildFallbackReply(session),
-                "模型决策失败: " + safeMessage(e)
+                "模型决策失败: " + safeMessage(e),
+                List.of()
             );
         }
     }
@@ -197,7 +231,8 @@ public class AgentOrchestrator {
                 INVALID_TOOL_NAME,
                 decision.toolInput(),
                 buildDecisionFallbackReply(session),
-                "模型要求调用工具，但 toolName 为空"
+                "模型要求调用工具，但 toolName 为空",
+                List.of()
             );
         }
 
@@ -208,7 +243,8 @@ public class AgentOrchestrator {
                 decision.toolName(),
                 decision.toolInput(),
                 buildDecisionFallbackReply(session),
-                "模型返回了不可用的 toolName: " + decision.toolName()
+                "模型返回了不可用的 toolName: " + decision.toolName(),
+                List.of()
             );
         }
 
@@ -216,12 +252,32 @@ public class AgentOrchestrator {
         Map<String, Object> toolInput = enrichToolInput(tool.name(), decision.toolInput(), session, latestUserMessage);
         List<String> missingInputs = findMissingInputs(tool, toolInput);
         if (!missingInputs.isEmpty()) {
+            AgentGuardrailResult guardrailResult = new AgentGuardrailResult(
+                null,
+                AgentGuardrailCode.TOOL_MISSING_REQUIRED_INPUT,
+                interview.guide.modules.agent.guardrail.AgentGuardrailAction.REJECT,
+                interview.guide.modules.agent.guardrail.AgentGuardrailResolution.BLOCK_TOOL_CALL,
+                "调用 " + tool.name() + " 前缺少必要参数: " + String.join(", ", missingInputs)
+            );
             return ResolvedDecision.degraded(
                 decisionSummary,
                 tool.name(),
                 toolInput,
                 buildMissingInputReply(session, missingInputs),
-                "调用 " + tool.name() + " 前缺少必要参数: " + String.join(", ", missingInputs)
+                "调用 " + tool.name() + " 前缺少必要参数: " + String.join(", ", missingInputs),
+                List.of(guardrailResult)
+            );
+        }
+
+        AgentGuardrailService.ToolGuardrailDecision toolGuardrail = guardrailService.evaluateTool(tool, toolInput);
+        if (toolGuardrail.blocked()) {
+            return ResolvedDecision.degraded(
+                decisionSummary,
+                tool.name(),
+                toolGuardrail.toolInput(),
+                buildToolGuardrailReply(toolGuardrail.result()),
+                toolGuardrail.result().reason(),
+                toolGuardrail.guardrailResults()
             );
         }
 
@@ -239,7 +295,7 @@ public class AgentOrchestrator {
         ResolvedDecision decision
     ) {
         return switch (decision.route()) {
-            case DIRECT_REPLY -> executeDirectReply(turnId, memory, decision);
+            case DIRECT_REPLY -> executeDirectReply(turnId, session, memory, decision);
             case DEGRADED_REPLY -> executeDegradedReply(turnId, memory, decision);
             case TOOL_CALL -> executeToolReply(turnId, session, memory, latestUserMessage, decision);
         };
@@ -250,17 +306,27 @@ public class AgentOrchestrator {
      */
     private TurnExecution executeDirectReply(
         String turnId,
+        AgentSessionEntity session,
         AgentMemorySnapshot memory,
         ResolvedDecision decision
     ) {
+        AgentGuardrailService.OutputGuardrailDecision outputGuardrail = guardrailService.evaluateOutput(
+            decision.reply(),
+            buildFallbackReply(session)
+        );
+        String reply = outputGuardrail.reply();
         traceService.recordDirectReply(
             turnId,
             decision.decisionSummary(),
-            decision.reply(),
+            reply,
             memory,
-            memory
+            memory,
+            outputGuardrail.guardrailResults()
         );
-        return new TurnExecution(decision.reply(), memory, AgentCompletionMode.SUCCESS);
+        AgentCompletionMode completionMode = outputGuardrail.degraded()
+            ? AgentCompletionMode.DEGRADED
+            : AgentCompletionMode.SUCCESS;
+        return new TurnExecution(reply, memory, completionMode);
     }
 
     /**
@@ -280,7 +346,8 @@ public class AgentOrchestrator {
             decision.failureReason(),
             decision.reply(),
             memory,
-            memory
+            memory,
+            decision.guardrailResults()
         );
         return new TurnExecution(decision.reply(), memory, AgentCompletionMode.DEGRADED);
     }
@@ -314,7 +381,28 @@ public class AgentOrchestrator {
             AgentMemorySnapshot postProcessedMemory = memory;
             try {
                 postProcessedMemory = memoryService.updateAfterTool(memory, decision.tool().name(), result);
-                traceService.completeToolStep(trace, result, postProcessedMemory);
+                String reply = buildFinalAnswer(
+                    session,
+                    latestUserMessage,
+                    postProcessedMemory,
+                    decision.tool().name(),
+                    result
+                );
+                AgentGuardrailService.OutputGuardrailDecision outputGuardrail = guardrailService.evaluateOutput(
+                    reply,
+                    buildFallbackReply(session)
+                );
+                traceService.completeToolStep(
+                    trace,
+                    result,
+                    postProcessedMemory,
+                    outputGuardrail.reply(),
+                    outputGuardrail.guardrailResults()
+                );
+                AgentCompletionMode completionMode = outputGuardrail.degraded()
+                    ? AgentCompletionMode.DEGRADED
+                    : AgentCompletionMode.SUCCESS;
+                return new TurnExecution(outputGuardrail.reply(), postProcessedMemory, completionMode);
             } catch (Exception e) {
                 String reply = buildToolPostProcessingFailureReply(session, decision.tool().name());
                 traceService.failToolStep(
@@ -329,14 +417,6 @@ public class AgentOrchestrator {
                     session.getSessionId(), decision.tool().name(), e.getMessage());
                 return new TurnExecution(reply, memory, AgentCompletionMode.DEGRADED);
             }
-            String reply = buildFinalAnswer(
-                session,
-                latestUserMessage,
-                postProcessedMemory,
-                decision.tool().name(),
-                result
-            );
-            return new TurnExecution(reply, postProcessedMemory, AgentCompletionMode.SUCCESS);
         } catch (Exception e) {
             // 3. 工具失败时不让整轮异常扩散，而是落失败 trace 并返回降级文案。
             String reply = buildToolFailureReply(session, decision.tool().name());
@@ -363,6 +443,10 @@ public class AgentOrchestrator {
         AgentMemorySnapshot memorySnapshot
     ) {
         String turnId = completedTurn.getTurnId();
+        List<AgentTraceDTO> traceSteps = traceService.getTurnTrace(turnId);
+        List<AgentGuardrailResult> guardrailResults = traceSteps.stream()
+            .flatMap(step -> step.guardrailResults().stream())
+            .toList();
         return new AgentChatResponse(
             completedTurn.getSession().getSessionId(),
             turnId,
@@ -370,7 +454,8 @@ public class AgentOrchestrator {
             completedTurn.getCompletionMode(),
             reply,
             memorySnapshot,
-            traceService.getTurnTrace(turnId),
+            traceSteps,
+            guardrailResults,
             sessionService.getTurnMessages(turnId)
         );
     }
@@ -554,6 +639,44 @@ public class AgentOrchestrator {
     }
 
     /**
+     * 输入 Guardrail 命中后的统一安全回复。
+     */
+    private String buildInputGuardrailReply(AgentGuardrailResult guardrailResult) {
+        if (guardrailResult == null || guardrailResult.code() == null) {
+            return "这次输入没有通过安全校验，我先不继续自动执行。请换一种更直接的求职问题描述后再试。";
+        }
+        if (guardrailResult.code() == AgentGuardrailCode.INPUT_INTERNAL_DATA_REQUEST) {
+            return "我不能提供系统提示词、内部调试信息或 Memory 快照，但可以直接帮你分析简历、知识库或面试问题。";
+        }
+        if (guardrailResult.code() == AgentGuardrailCode.INPUT_MESSAGE_TOO_LONG) {
+            return "这次消息过长，我先不继续自动执行。请尽量聚焦一个具体问题，并控制在 4000 字以内。";
+        }
+        if (guardrailResult.code() == AgentGuardrailCode.INPUT_CONTROL_CHARACTERS) {
+            return "这次消息包含不可解析的控制字符，我先不继续自动执行。请清理后重试。";
+        }
+        return "这次输入没有通过安全校验，我先不继续自动执行。请换一种更直接的求职问题描述后再试。";
+    }
+
+    /**
+     * 工具 Guardrail 命中后的统一安全回复。
+     */
+    private String buildToolGuardrailReply(AgentGuardrailResult guardrailResult) {
+        if (guardrailResult == null || guardrailResult.code() == null) {
+            return "本轮工具调用没有通过安全校验，我没有继续自动执行。请换一种更直接的描述后再试。";
+        }
+        if (guardrailResult.code() == AgentGuardrailCode.TOOL_REQUIRES_APPROVAL) {
+            return "这个动作属于高风险操作，当前版本不会自动执行。后续审批能力会在 S2-03 中补齐。";
+        }
+        if (guardrailResult.code() == AgentGuardrailCode.TOOL_UNEXPECTED_INPUT) {
+            return "本轮工具参数没有通过安全校验，我没有继续自动执行。请换一种更直接的描述后再试。";
+        }
+        if (guardrailResult.code() == AgentGuardrailCode.TOOL_MISSING_REQUIRED_INPUT) {
+            return "当前工具上下文还不完整，我先不继续自动执行。请补充必要信息后再试。";
+        }
+        return "本轮工具调用没有通过安全校验，我没有继续自动执行。请换一种更直接的描述后再试。";
+    }
+
+    /**
      * 为空字符串提供统一兜底值。
      */
     private String blankToDefault(String value, String fallback) {
@@ -596,7 +719,8 @@ public class AgentOrchestrator {
         AgentTool tool,
         String selectedTool,
         Map<String, Object> toolInput,
-        String failureReason
+        String failureReason,
+        List<AgentGuardrailResult> guardrailResults
     ) {
         private static ResolvedDecision direct(String decisionSummary, String reply) {
             return new ResolvedDecision(
@@ -606,7 +730,8 @@ public class AgentOrchestrator {
                 null,
                 DIRECT_ANSWER_TOOL,
                 Map.of(),
-                null
+                null,
+                List.of()
             );
         }
 
@@ -618,7 +743,8 @@ public class AgentOrchestrator {
                 tool,
                 tool.name(),
                 immutableCopy(toolInput),
-                null
+                null,
+                List.of()
             );
         }
 
@@ -627,7 +753,8 @@ public class AgentOrchestrator {
             String selectedTool,
             Map<String, Object> toolInput,
             String reply,
-            String failureReason
+            String failureReason,
+            List<AgentGuardrailResult> guardrailResults
         ) {
             return new ResolvedDecision(
                 DecisionRoute.DEGRADED_REPLY,
@@ -636,7 +763,8 @@ public class AgentOrchestrator {
                 null,
                 selectedTool,
                 immutableCopy(toolInput),
-                failureReason
+                failureReason,
+                guardrailResults == null ? List.of() : List.copyOf(guardrailResults)
             );
         }
 
