@@ -4,8 +4,8 @@
 
 - 当前整体状态：Stage 2 进行中
 - 已完成阶段：Stage 1
-- 当前阶段已完成任务：S2-01、S2-02
-- 当前推荐下一任务：[S2-03：Runtime Approval and Policy](./agent-tasks/s2-task-03-runtime-approval-and-policy.md)
+- 当前阶段已完成任务：S2-01、S2-02、S2-03
+- 当前推荐下一任务：[S2-04：Eval and Regression](./agent-tasks/s2-task-04-eval-and-regression.md)
 - 当前最低完成线定义：完成 Stage 4 即达到完整单 Agent（Level A）
 - 更高一级目标：Stage 5 是受控多步 Agent（Level B），不是最低完成线
 
@@ -46,7 +46,7 @@
   - 高风险动作不能无条件直通
   - 能用离线样例比较改动前后的指标变化
 - 当前状态：进行中
-- 当前完成情况：S2-01、S2-02 已完成，建议进入 S2-03
+- 当前完成情况：S2-01、S2-02、S2-03 已完成，建议进入 S2-04
 - 参考文档：[Stage 2：Safe and Observable Runtime](./agent-stages/stage-2-observability-guardrails.md)
 
 ### Stage 3：Domain Tooling and Context Assembly
@@ -91,13 +91,13 @@
 
 ## 当前推荐下一任务
 
-当前建议继续推进 [S2-03：Runtime Approval and Policy](./agent-tasks/s2-task-03-runtime-approval-and-policy.md)。
+当前建议继续推进 [S2-04：Eval and Regression](./agent-tasks/s2-task-04-eval-and-regression.md)。
 
 推荐原因：
 
 - Stage 2 仍是当前主线，不能提前跳到 Stage 3
-- S2-01、S2-02 已完成，当前最短板已经从 trace / metrics 与 guardrails baseline 转到 approval policy
-- 先补 Approval Policy，再做 Eval / Regression，最后再判断 Stage 2 是否收口，链路最顺
+- S2-01、S2-02、S2-03 已完成，当前最短板已经从 approval policy 转到可重复验证的 eval / regression 基线
+- 先补 Eval / Regression，再判断 Stage 2 是否收口，链路最顺
 
 ## 评测与证据原则
 

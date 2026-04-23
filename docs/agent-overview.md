@@ -57,7 +57,8 @@ Level B 不是最低完成线，而是在 Level A 之上的增强层。
 - Stage 2 进行中
 - S2-01 已完成
 - S2-02 已完成
-- 当前推荐下一任务是 [S2-03：Runtime Approval and Policy](./agent-tasks/s2-task-03-runtime-approval-and-policy.md)
+- S2-03 已完成
+- 当前推荐下一任务是 [S2-04：Eval and Regression](./agent-tasks/s2-task-04-eval-and-regression.md)
 
 这意味着项目已经建立了单 Agent 的执行基础，但还没有达到完整单 Agent 的完成线。
 

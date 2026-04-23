@@ -51,7 +51,7 @@
 
 ## Guardrails
 
-- 当前状态：S2-02 已完成，输入 / Tool / 输出三层基础 guardrail 已落地，当前推荐下一任务是 S2-03
+- 当前状态：S2-02、S2-03 已完成，输入 / Tool / 输出三层 guardrail 与运行时审批语义已落地
 - 完成标准：输入、工具、输出至少具备基础 guardrail，高风险动作不能无条件直通，审批状态可解释
 - 对应 stage/task：
   - [Stage 2：Safe and Observable Runtime](./agent-stages/stage-2-observability-guardrails.md)
@@ -88,5 +88,5 @@
 ## 总结
 
 - “它是什么”：见 [Agent Overview](./agent-overview.md)
-- “它还差什么”：当前主要缺口集中在 Guardrails、Approval、Eval、Domain Tooling、Workbench
-- “它接下来做什么”：先完成 Stage 2，当前推荐进入 [S2-03：Runtime Approval and Policy](./agent-tasks/s2-task-03-runtime-approval-and-policy.md)
+- “它还差什么”：当前主要缺口集中在 Eval、Domain Tooling、Workbench
+- “它接下来做什么”：先完成 Stage 2，当前推荐进入 [S2-04：Eval and Regression](./agent-tasks/s2-task-04-eval-and-regression.md)
