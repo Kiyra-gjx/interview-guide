@@ -78,3 +78,15 @@ java {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+tasks.register('agentStage2Eval', Test) {
+    description = 'Runs the fixed Stage 2 agent eval regression suite.'
+    group = 'verification'
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    outputs.upToDateWhen { false }
+    filter {
+        includeTestsMatching 'interview.guide.modules.agent.eval.AgentStage2RegressionEvalTest'
+    }
+}

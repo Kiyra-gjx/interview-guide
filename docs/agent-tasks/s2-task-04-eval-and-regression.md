@@ -2,8 +2,8 @@
 
 ## 0. 任务状态
 
-- 状态：未开始
-- 当前定位：Stage 2 的收口任务
+- 状态：已完成
+- 当前定位：Stage 2 的收口任务，已落地第一版最小可用 Eval / Regression 基线
 - 前置依赖：S2-03 已完成
 
 ## 1. 任务目标
@@ -49,3 +49,13 @@
 - 一条清晰的测试或脚本入口可以跑完整套最小评测
 - 输出至少包含成功率、降级率、错误率与延迟等核心指标
 - 文档中说明如何新增样例、如何比较结果、如何解释异常波动
+
+## 8. 当前落地结果
+
+- 固定样例集：`app/src/test/java/interview/guide/modules/agent/eval/AgentStage2RegressionEvalTest.java`
+- Gradle 入口：`./gradlew.bat :app:agentStage2Eval`
+- 脚本入口：`powershell -ExecutionPolicy Bypass -File scripts/run-agent-stage2-eval.ps1`
+- 报告目录：`app/build/reports/agent-eval/`
+- 使用说明：[Stage 2 Eval / Regression 使用说明](../agent-evals/stage-2-regression.md)
+
+当前第一版固定样例覆盖成功、降级、待审批、审批拒绝和过期 turn 错误，报告包含成功率、降级率、等待审批率、错误率、延迟、guardrail 命中样例数、approval 状态分布与 case 级 diff。

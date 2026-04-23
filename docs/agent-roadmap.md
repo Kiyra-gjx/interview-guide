@@ -2,10 +2,10 @@
 
 ## 当前进度快照
 
-- 当前整体状态：Stage 2 进行中
-- 已完成阶段：Stage 1
-- 当前阶段已完成任务：S2-01、S2-02、S2-03
-- 当前推荐下一任务：[S2-04：Eval and Regression](./agent-tasks/s2-task-04-eval-and-regression.md)
+- 当前整体状态：Stage 2 已完成，建议进入 Stage 3
+- 已完成阶段：Stage 1、Stage 2
+- 当前阶段已完成任务：S2-01、S2-02、S2-03、S2-04
+- 当前推荐下一任务：[S3-01：Interview Context Tools](./agent-tasks/s3-task-01-interview-context-tools.md)
 - 当前最低完成线定义：完成 Stage 4 即达到完整单 Agent（Level A）
 - 更高一级目标：Stage 5 是受控多步 Agent（Level B），不是最低完成线
 
@@ -45,8 +45,8 @@
   - 能解释一轮执行为什么成功、降级、被拒绝或失败
   - 高风险动作不能无条件直通
   - 能用离线样例比较改动前后的指标变化
-- 当前状态：进行中
-- 当前完成情况：S2-01、S2-02、S2-03 已完成，建议进入 S2-04
+- 当前状态：已完成
+- 当前完成情况：S2-01、S2-02、S2-03、S2-04 已完成，已具备安全可观测运行时与最小 Eval / Regression 基线
 - 参考文档：[Stage 2：Safe and Observable Runtime](./agent-stages/stage-2-observability-guardrails.md)
 
 ### Stage 3：Domain Tooling and Context Assembly
@@ -59,7 +59,7 @@
   - 具备可复用的 interview domain 工具扩展模式
   - 上下文组装策略稳定、可解释、可控
   - Tool 输出结构足够统一，能稳定服务回答与调试链路
-- 当前状态：未开始
+- 当前状态：待启动
 - 参考文档：[Stage 3：Domain Tooling and Context Assembly](./agent-stages/stage-3-domain-tooling-context.md)
 
 ### Stage 4：Agent Workbench and Demo Surface
@@ -91,13 +91,13 @@
 
 ## 当前推荐下一任务
 
-当前建议继续推进 [S2-04：Eval and Regression](./agent-tasks/s2-task-04-eval-and-regression.md)。
+当前建议继续推进 [S3-01：Interview Context Tools](./agent-tasks/s3-task-01-interview-context-tools.md)。
 
 推荐原因：
 
-- Stage 2 仍是当前主线，不能提前跳到 Stage 3
-- S2-01、S2-02、S2-03 已完成，当前最短板已经从 approval policy 转到可重复验证的 eval / regression 基线
-- 先补 Eval / Regression，再判断 Stage 2 是否收口，链路最顺
+- Stage 2 已完成，Trace、Guardrails、Approval 与 Eval 已形成安全可观测运行时基线
+- Stage 3 的进入条件已经满足，可以开始补齐 interview domain 工具能力
+- S3-01 是 Stage 3 的工具扩展入口，优先做它可以为后续 context assembly 与 output normalization 提供真实领域工具基础
 
 ## 评测与证据原则
 

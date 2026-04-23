@@ -54,19 +54,19 @@ Level B 不是最低完成线，而是在 Level A 之上的增强层。
 当前真实进度如下：
 
 - Stage 1 已完成
-- Stage 2 进行中
+- Stage 2 已完成
 - S2-01 已完成
 - S2-02 已完成
 - S2-03 已完成
-- 当前推荐下一任务是 [S2-04：Eval and Regression](./agent-tasks/s2-task-04-eval-and-regression.md)
+- S2-04 已完成
+- 当前推荐下一任务是 [S3-01：Interview Context Tools](./agent-tasks/s3-task-01-interview-context-tools.md)
 
-这意味着项目已经建立了单 Agent 的执行基础，但还没有达到完整单 Agent 的完成线。
+这意味着项目已经建立了单 Agent 的执行基础与安全可观测运行时基线，但还没有达到完整单 Agent 的完成线。
 
 ## 它还差什么
 
 从顶层看，当前还缺四段收口：
 
-- Stage 2：把系统补齐为安全、可观测、可回归验证的运行时
 - Stage 3：补齐 interview domain 的工具能力与上下文组装策略
 - Stage 4：把已有能力收口成可调试、可演示的完整单 Agent 体验
 - Stage 5：在 Level A 之后，按收益评估是否进入受控多步执行

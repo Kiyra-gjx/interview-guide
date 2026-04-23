@@ -1,9 +1,9 @@
 # Stage 3: Domain Tooling and Context Assembly
 
 ## 0. 阶段状态
-- 阶段状态：未开始
+- 阶段状态：待启动
 - 已完成任务：无
-- 当前任务：待 Stage 2 完成后启动
+- 当前任务：[S3-01：Interview Context Tools](../agent-tasks/s3-task-01-interview-context-tools.md)
 - 前置条件：Stage 2 完成
 
 ## 1. 阶段目标

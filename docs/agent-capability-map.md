@@ -40,7 +40,7 @@
 
 ## Observability
 
-- 当前状态：Stage 2 进行中，S2-01 与 S2-02 已完成，trace、memory、metrics 以及 guardrail 结果暴露已有基础
+- 当前状态：Stage 2 已完成，S2-01、S2-02、S2-03、S2-04 已建立 trace、memory、metrics、guardrail、approval 与 eval 基线
 - 完成标准：能清楚解释一轮执行为何成功、降级、被拒绝或失败，并具备稳定指标入口
 - 对应 stage/task：
   - [Stage 2：Safe and Observable Runtime](./agent-stages/stage-2-observability-guardrails.md)
@@ -60,7 +60,7 @@
 
 ## Eval
 
-- 当前状态：尚未完成，仍处于 Stage 2 待推进项
+- 当前状态：已完成第一版最小基线，具备固定离线样例、统一运行入口、报告留档与前后对比能力
 - 完成标准：能用离线样例比较改动前后的关键指标与行为变化，结果可被留档与复查
 - 对应 stage/task：
   - [Stage 2：Safe and Observable Runtime](./agent-stages/stage-2-observability-guardrails.md)
@@ -88,5 +88,5 @@
 ## 总结
 
 - “它是什么”：见 [Agent Overview](./agent-overview.md)
-- “它还差什么”：当前主要缺口集中在 Eval、Domain Tooling、Workbench
-- “它接下来做什么”：先完成 Stage 2，当前推荐进入 [S2-04：Eval and Regression](./agent-tasks/s2-task-04-eval-and-regression.md)
+- “它还差什么”：当前主要缺口集中在 Domain Tooling、Workbench
+- “它接下来做什么”：Stage 2 已完成，当前推荐进入 [S3-01：Interview Context Tools](./agent-tasks/s3-task-01-interview-context-tools.md)
