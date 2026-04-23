@@ -2,6 +2,7 @@ package interview.guide.modules.agent;
 
 import interview.guide.common.result.Result;
 import interview.guide.modules.agent.model.*;
+import interview.guide.modules.agent.service.AgentApprovalService;
 import interview.guide.modules.agent.service.AgentMemoryService;
 import interview.guide.modules.agent.service.AgentOrchestrator;
 import interview.guide.modules.agent.service.AgentSessionService;
@@ -25,6 +26,7 @@ public class AgentController {
     private final AgentOrchestrator agentOrchestrator;
     private final AgentTraceService traceService;
     private final AgentMemoryService memoryService;
+    private final AgentApprovalService approvalService;
 
     @PostMapping("/api/agent/sessions")
     public Result<AgentSessionDTO> createSession(@Valid @RequestBody CreateAgentSessionRequest request) {
@@ -53,5 +55,31 @@ public class AgentController {
     @GetMapping("/api/agent/sessions/{sessionId}/memory")
     public Result<AgentMemorySnapshot> getMemory(@PathVariable String sessionId) {
         return Result.success(memoryService.readMemory(sessionService.getSessionEntity(sessionId)));
+    }
+
+    /**
+     * 查询指定会话下的全部审批记录。
+     * 主要供工作台刷新审批列表和历史状态展示使用。
+     */
+    @GetMapping("/api/agent/sessions/{sessionId}/approvals")
+    public Result<List<AgentApprovalDTO>> getApprovals(@PathVariable String sessionId) {
+        sessionService.getSessionEntity(sessionId);
+        return Result.success(approvalService.getSessionApprovals(sessionId));
+    }
+
+    /**
+     * 批准一条待审批动作，并触发后续恢复执行或结果恢复。
+     */
+    @PostMapping("/api/agent/approvals/{approvalId}/approve")
+    public Result<AgentChatResponse> approveApproval(@PathVariable String approvalId) {
+        return Result.success(agentOrchestrator.approveApproval(approvalId));
+    }
+
+    /**
+     * 拒绝一条待审批动作，并把对应 turn 收敛到降级终态。
+     */
+    @PostMapping("/api/agent/approvals/{approvalId}/reject")
+    public Result<AgentChatResponse> rejectApproval(@PathVariable String approvalId) {
+        return Result.success(agentOrchestrator.rejectApproval(approvalId));
     }
 }

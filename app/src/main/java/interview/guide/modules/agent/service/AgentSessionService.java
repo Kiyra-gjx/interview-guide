@@ -42,6 +42,10 @@ import java.util.UUID;
 public class AgentSessionService {
 
     private static final Duration TURN_LEASE_DURATION = Duration.ofMinutes(10);
+    private static final List<AgentTurnStatus> OPEN_TURN_STATUSES = List.of(
+        AgentTurnStatus.RUNNING,
+        AgentTurnStatus.WAITING_APPROVAL
+    );
 
     private final AgentSessionRepository sessionRepository;
     private final AgentMessageRepository messageRepository;
@@ -120,6 +124,73 @@ public class AgentSessionService {
     }
 
     /**
+     * 将 turn 停在等待审批状态，并先返回一条“等待审批”的 assistant 消息。
+     */
+    @Transactional
+    public AgentTurnEntity waitForApproval(
+        String turnId,
+        String reply,
+        LocalDateTime expiresAt,
+        AgentCompletionMode completionMode
+    ) {
+        AgentTurnEntity turnSnapshot = getTurnEntity(turnId);
+        ensureCompletable(turnSnapshot);
+        LockedTurn lockedTurn = lockTurnForMutation(turnId, turnSnapshot.getSession().getSessionId());
+        AgentTurnEntity turn = lockedTurn.turn();
+        ensureCompletable(turn);
+        AgentSessionEntity session = lockedTurn.session();
+        LocalDateTime now = LocalDateTime.now();
+
+        appendMessage(session, turn, AgentMessageEntity.MessageRole.ASSISTANT, reply);
+        turn.setStatus(AgentTurnStatus.WAITING_APPROVAL);
+        turn.setCompletionMode(completionMode);
+        turn.setErrorMessage(null);
+        turn.setHeartbeatAt(now);
+        turn.setLeaseExpiresAt(expiresAt);
+        turn.setFinishedAt(null);
+
+        touchSession(session, now);
+        sessionRepository.save(session);
+        return turnRepository.save(turn);
+    }
+
+    /**
+     * 将已经通过审批的 turn 从 WAITING_APPROVAL 恢复为 RUNNING。
+     * 这里只推进本地持久化状态，不在这里执行远程工具。
+     */
+    @Transactional
+    public AgentTurnEntity resumeTurnFromApproval(String turnId) {
+        AgentTurnEntity turnSnapshot = getTurnEntity(turnId);
+        ensureWaitingApproval(turnSnapshot);
+        LockedTurn lockedTurn = lockTurnForMutation(turnId, turnSnapshot.getSession().getSessionId());
+        AgentTurnEntity turn = lockedTurn.turn();
+        ensureWaitingApproval(turn);
+        AgentSessionEntity session = lockedTurn.session();
+        LocalDateTime now = LocalDateTime.now();
+
+        return activateRunningTurn(turn, session, now);
+    }
+
+    /**
+     * 为审批恢复链路尝试抢占 turn 的执行权。
+     * WAITING_APPROVAL 可以直接恢复；已经变成 RUNNING 的旧 turn 只有在租约过期后才能被回收。
+     */
+    @Transactional
+    public ApprovedTurnClaim claimTurnForApprovedExecution(String turnId) {
+        AgentTurnEntity turnSnapshot = getTurnEntity(turnId);
+        LocalDateTime now = LocalDateTime.now();
+        if (!canClaimApprovedExecution(turnSnapshot, now)) {
+            return new ApprovedTurnClaim(false, turnSnapshot);
+        }
+        LockedTurn lockedTurn = lockTurnForMutation(turnId, turnSnapshot.getSession().getSessionId());
+        AgentTurnEntity turn = lockedTurn.turn();
+        if (!canClaimApprovedExecution(turn, now)) {
+            return new ApprovedTurnClaim(false, turn);
+        }
+        return new ApprovedTurnClaim(true, activateRunningTurn(turn, lockedTurn.session(), now));
+    }
+
+    /**
      * 将 turn 标记为完成，并持久化 assistant 回复与最新记忆。
      */
     @Transactional
@@ -162,6 +233,11 @@ public class AgentSessionService {
      */
     @Transactional
     public AgentTurnEntity failTurn(String turnId, Exception error) {
+        return failTurn(turnId, error, null);
+    }
+
+    @Transactional
+    public AgentTurnEntity failTurn(String turnId, Exception error, String assistantReply) {
         AgentTurnEntity turnSnapshot = getTurnEntity(turnId);
         if (!isFailSafe(turnSnapshot)) {
             return turnSnapshot;
@@ -181,6 +257,7 @@ public class AgentSessionService {
         turn.setHeartbeatAt(now);
         turn.setLeaseExpiresAt(null);
         turn.setFinishedAt(now);
+        appendAssistantReplyIfAbsent(session, turn, assistantReply);
 
         touchSession(session, now);
         sessionRepository.save(session);
@@ -259,12 +336,9 @@ public class AgentSessionService {
      */
     private int reclaimExpiredRunningTurns(String sessionId, LocalDateTime now) {
         int reclaimedCount = 0;
-        for (AgentTurnEntity runningTurn : turnRepository.findBySession_SessionIdAndStatusOrderByCreatedAtAsc(
-            sessionId,
-            AgentTurnStatus.RUNNING
-        )) {
-            if (isLeaseExpired(runningTurn, now)) {
-                markTurnAborted(runningTurn, now, "stale_running_turn");
+        for (AgentTurnEntity openTurn : findOpenTurns(sessionId)) {
+            if (openTurn.getStatus() == AgentTurnStatus.RUNNING && isLeaseExpired(openTurn, now)) {
+                markTurnAborted(openTurn, now, "stale_running_turn");
                 reclaimedCount++;
             }
         }
@@ -275,10 +349,8 @@ public class AgentSessionService {
      * 拒绝当前仍有有效运行中 turn 的并发请求。
      */
     private void rejectActiveRunningTurns(String sessionId, LocalDateTime now) {
-        boolean hasActiveRunningTurn = turnRepository.findBySession_SessionIdAndStatusOrderByCreatedAtAsc(
-            sessionId,
-            AgentTurnStatus.RUNNING
-        ).stream().anyMatch(turn -> !isLeaseExpired(turn, now));
+        boolean hasActiveRunningTurn = findOpenTurns(sessionId).stream()
+            .anyMatch(turn -> !isLeaseExpired(turn, now));
 
         if (hasActiveRunningTurn) {
             throw new BusinessException(ErrorCode.AGENT_TURN_CONFLICT, "当前会话已有运行中的 turn");
@@ -290,6 +362,19 @@ public class AgentSessionService {
      */
     private boolean isLeaseExpired(AgentTurnEntity turn, LocalDateTime now) {
         return turn.getLeaseExpiresAt() != null && !turn.getLeaseExpiresAt().isAfter(now);
+    }
+
+    /**
+     * 判断审批恢复链路此刻是否还能安全抢占该 turn。
+     */
+    private boolean canClaimApprovedExecution(AgentTurnEntity turn, LocalDateTime now) {
+        if (turn.getStatus() == AgentTurnStatus.WAITING_APPROVAL) {
+            return true;
+        }
+        if (turn.getStatus() != AgentTurnStatus.RUNNING) {
+            return false;
+        }
+        return turn.getLeaseExpiresAt() == null || isLeaseExpired(turn, now);
     }
 
     /**
@@ -309,14 +394,28 @@ public class AgentSessionService {
      * 判断 turn 是否还允许走完成态。
      */
     private boolean isCompletable(AgentTurnEntity turn) {
-        return turn.getStatus() == AgentTurnStatus.RUNNING || turn.getStatus() == AgentTurnStatus.CREATED;
+        return turn.getStatus() == AgentTurnStatus.RUNNING
+            || turn.getStatus() == AgentTurnStatus.CREATED
+            || turn.getStatus() == AgentTurnStatus.WAITING_APPROVAL;
     }
 
     /**
      * 判断 turn 是否还允许被标记为失败。
      */
     private boolean isFailSafe(AgentTurnEntity turn) {
-        return turn.getStatus() == AgentTurnStatus.RUNNING || turn.getStatus() == AgentTurnStatus.CREATED;
+        return turn.getStatus() == AgentTurnStatus.RUNNING
+            || turn.getStatus() == AgentTurnStatus.CREATED
+            || turn.getStatus() == AgentTurnStatus.WAITING_APPROVAL;
+    }
+
+    private void ensureWaitingApproval(AgentTurnEntity turn) {
+        if (turn.getStatus() == AgentTurnStatus.WAITING_APPROVAL) {
+            return;
+        }
+        if (turn.getStatus() == AgentTurnStatus.ABORTED) {
+            throw new BusinessException(ErrorCode.AGENT_TURN_EXPIRED, "当前 turn 已过期并被回收");
+        }
+        throw new BusinessException(ErrorCode.AGENT_EXECUTION_FAILED, "turn 未处于等待审批状态: " + turn.getStatus());
     }
 
     /**
@@ -336,6 +435,26 @@ public class AgentSessionService {
     /**
      * 追加一条消息，并在短事务内分配稳定的消息顺序号。
      */
+    private void appendAssistantReplyIfAbsent(AgentSessionEntity session, AgentTurnEntity turn, String assistantReply) {
+        if (assistantReply == null || assistantReply.isBlank()) {
+            return;
+        }
+        String normalizedReply = assistantReply.trim();
+        if (normalizedReply.isEmpty()) {
+            return;
+        }
+        AgentMessageEntity latestMessage = messageRepository.findTopBySession_SessionIdOrderByMessageOrderDesc(session.getSessionId())
+            .orElse(null);
+        if (latestMessage != null
+            && latestMessage.getTurn() != null
+            && turn.getTurnId().equals(latestMessage.getTurn().getTurnId())
+            && latestMessage.getRole() == AgentMessageEntity.MessageRole.ASSISTANT
+            && normalizedReply.equals(latestMessage.getContent())) {
+            return;
+        }
+        appendMessage(session, turn, AgentMessageEntity.MessageRole.ASSISTANT, normalizedReply);
+    }
+
     private void appendMessage(
         AgentSessionEntity session,
         AgentTurnEntity turn,
@@ -361,10 +480,33 @@ public class AgentSessionService {
     }
 
     /**
+     * 统一读取会话下仍占用执行权的 turn。
+     */
+    private List<AgentTurnEntity> findOpenTurns(String sessionId) {
+        return turnRepository.findBySession_SessionIdAndStatusInOrderByCreatedAtAsc(sessionId, OPEN_TURN_STATUSES);
+    }
+
+    /**
      * 刷新会话更新时间。
      */
     private void touchSession(AgentSessionEntity session, LocalDateTime now) {
         session.setUpdatedAt(now);
+    }
+
+    /**
+     * 将 turn 激活为新的 RUNNING 租约。
+     */
+    private AgentTurnEntity activateRunningTurn(AgentTurnEntity turn, AgentSessionEntity session, LocalDateTime now) {
+        turn.setStatus(AgentTurnStatus.RUNNING);
+        turn.setCompletionMode(null);
+        turn.setErrorMessage(null);
+        turn.setHeartbeatAt(now);
+        turn.setLeaseExpiresAt(now.plus(TURN_LEASE_DURATION));
+        turn.setFinishedAt(null);
+
+        touchSession(session, now);
+        sessionRepository.save(session);
+        return turnRepository.save(turn);
     }
 
     /**
@@ -481,6 +623,13 @@ public class AgentSessionService {
         public StartedTurn(AgentSessionEntity session, String turnId) {
             this(session, turnId, 0);
         }
+    }
+
+    /**
+     * 审批恢复场景下的抢占结果。
+     * `claimed=true` 表示当前调用方拿到了继续执行该 turn 的权利。
+     */
+    public record ApprovedTurnClaim(boolean claimed, AgentTurnEntity turn) {
     }
 
     private record LockedTurn(AgentSessionEntity session, AgentTurnEntity turn) {

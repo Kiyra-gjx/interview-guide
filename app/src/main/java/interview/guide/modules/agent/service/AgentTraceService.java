@@ -3,6 +3,8 @@ package interview.guide.modules.agent.service;
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
 import interview.guide.modules.agent.guardrail.AgentGuardrailResult;
+import interview.guide.modules.agent.model.AgentApprovalDTO;
+import interview.guide.modules.agent.model.AgentCompletionMode;
 import interview.guide.modules.agent.model.AgentExecutionState;
 import interview.guide.modules.agent.model.AgentMemorySnapshot;
 import interview.guide.modules.agent.model.AgentSessionEntity;
@@ -165,6 +167,134 @@ public class AgentTraceService {
     }
 
     /**
+     * 将工具步骤推进到等待审批状态。
+     */
+    @Transactional
+    public void markToolStepWaitingApproval(
+        AgentStepTraceEntity trace,
+        AgentApprovalDTO approval,
+        String reply,
+        AgentMemorySnapshot memoryAfter,
+        List<AgentGuardrailResult> guardrailResults
+    ) {
+        trace.setToolOutputJson(writeJson(buildApprovalTracePayload(
+            "approval_pending",
+            "高风险工具已进入审批，等待显式决策",
+            reply,
+            approval
+        )));
+        trace.setObservationSummary("高风险工具已进入审批，等待显式决策");
+        trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
+        trace.setGuardrailResultsJson(writeGuardrailResultsJson(guardrailResults));
+        trace.setStatus(AgentExecutionState.WAITING_APPROVAL);
+        trace.setErrorMessage(null);
+        traceRepository.save(trace);
+    }
+
+    /**
+     * 将等待审批的工具步骤推进到 rejected 终态。
+     */
+    @Transactional
+    public void markToolStepApprovalRejected(
+        AgentStepTraceEntity trace,
+        AgentApprovalDTO approval,
+        String reply,
+        AgentMemorySnapshot memoryAfter
+    ) {
+        markToolStepApprovalTerminal(
+            trace,
+            approval,
+            reply,
+            memoryAfter,
+            "approval_rejected",
+            "审批已拒绝，本轮未执行高风险工具"
+        );
+    }
+
+    /**
+     * 将等待审批的工具步骤推进到 expired 终态。
+     */
+    @Transactional
+    public void markToolStepApprovalExpired(
+        AgentStepTraceEntity trace,
+        AgentApprovalDTO approval,
+        String reply,
+        AgentMemorySnapshot memoryAfter
+    ) {
+        markToolStepApprovalTerminal(
+            trace,
+            approval,
+            reply,
+            memoryAfter,
+            "approval_expired",
+            "审批已过期，本轮未执行高风险工具"
+        );
+    }
+
+    /**
+     * 将审批通过后的工具执行结果回填到原 trace。
+     */
+    @Transactional
+    public void markApprovedToolExecutionStarted(AgentStepTraceEntity trace, AgentApprovalDTO approval) {
+        trace.setToolOutputJson(writeJson(buildApprovalTracePayload(
+            "approval_execution_started",
+            "审批已通过，开始执行高风险工具",
+            "",
+            approval
+        )));
+        trace.setObservationSummary("审批已通过，开始执行高风险工具");
+        trace.setStatus(AgentExecutionState.RUNNING);
+        trace.setErrorMessage(null);
+        traceRepository.save(trace);
+    }
+
+    @Transactional
+    public void completeApprovedToolStep(
+        AgentStepTraceEntity trace,
+        AgentApprovalDTO approval,
+        AgentToolResult result,
+        AgentMemorySnapshot memoryAfter,
+        String reply,
+        List<AgentGuardrailResult> guardrailResults,
+        AgentCompletionMode completionMode
+    ) {
+        trace.setToolOutputJson(writeJson(buildApprovedToolTracePayload(result, reply, approval, completionMode)));
+        trace.setObservationSummary(clip(result.summary(), SUMMARY_LIMIT));
+        trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
+        trace.setGuardrailResultsJson(writeGuardrailResultsJson(guardrailResults));
+        trace.setStatus(AgentExecutionState.COMPLETED);
+        trace.setErrorMessage(null);
+        traceRepository.save(trace);
+    }
+
+    /**
+     * 审批通过后如果工具执行或后处理失败，也要保留审批结果与失败原因。
+     */
+    @Transactional
+    public void failApprovedToolStep(
+        AgentStepTraceEntity trace,
+        AgentApprovalDTO approval,
+        Exception error,
+        String reply,
+        AgentMemorySnapshot memoryAfter,
+        String failureKind,
+        String observationSummary
+    ) {
+        trace.setToolOutputJson(writeJson(buildApprovalTracePayload(
+            failureKind,
+            observationSummary,
+            reply,
+            approval,
+            AgentCompletionMode.DEGRADED
+        )));
+        trace.setObservationSummary(observationSummary);
+        trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
+        trace.setStatus(AgentExecutionState.FAILED);
+        trace.setErrorMessage(sanitize(error));
+        traceRepository.save(trace);
+    }
+
+    /**
      * 将工具执行结果回填到 trace。
      */
     @Transactional
@@ -231,6 +361,28 @@ public class AgentTraceService {
      * 构造一条新的 trace 实体，并在持久化阶段分配 stepIndex。
      * 这样可以把远程调用放在事务外，只在真正落库时做顺序控制。
      */
+    public String readLatestReply(String turnId) {
+        getTurnEntity(turnId);
+        return traceRepository.findByTurn_TurnIdOrderByStepIndexAsc(turnId).stream()
+            .map(AgentStepTraceEntity::getToolOutputJson)
+            .map(this::readReplyFromToolOutput)
+            .filter(reply -> reply != null && !reply.isBlank())
+            .reduce((first, second) -> second)
+            .orElse("");
+    }
+
+    public ApprovedExecutionRecovery readApprovedExecutionRecovery(AgentStepTraceEntity trace) {
+        if (trace == null) {
+            return new ApprovedExecutionRecovery(AgentExecutionState.CREATED, "", null, null);
+        }
+        return new ApprovedExecutionRecovery(
+            trace.getStatus(),
+            readReplyFromToolOutput(trace.getToolOutputJson()),
+            readMemorySnapshot(trace.getMemoryAfterJson()),
+            readCompletionMode(trace.getToolOutputJson())
+        );
+    }
+
     private AgentStepTraceEntity newTrace(
         String turnId,
         String decisionSummary,
@@ -410,6 +562,40 @@ public class AgentTraceService {
         return value == null ? "" : value.trim();
     }
 
+    private String readReplyFromToolOutput(String json) {
+        if (json == null || json.isBlank()) {
+            return "";
+        }
+        try {
+            Map<String, Object> payload = objectMapper.readValue(json, new TypeReference<>() {
+            });
+            Object reply = payload.get("reply");
+            return reply == null ? "" : reply.toString().trim();
+        } catch (Exception e) {
+            log.warn("Agent trace reply read failed: json={}, error={}", clip(json, 120), e.getMessage());
+            return "";
+        }
+    }
+
+    private AgentCompletionMode readCompletionMode(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            Map<String, Object> payload = objectMapper.readValue(json, new TypeReference<>() {
+            });
+            Object completionMode = payload.get("completionMode");
+            if (completionMode == null) {
+                return null;
+            }
+            String normalized = completionMode.toString().trim();
+            return normalized.isEmpty() ? null : AgentCompletionMode.valueOf(normalized);
+        } catch (Exception e) {
+            log.warn("Agent trace completionMode read failed: json={}, error={}", clip(json, 120), e.getMessage());
+            return null;
+        }
+    }
+
     private Map<String, Object> buildReplyTracePayload(
         String kind,
         String summary,
@@ -423,5 +609,85 @@ public class AgentTraceService {
             "debugPayload", Map.of(),
             "confirmedFacts", List.of()
         );
+    }
+
+    private Map<String, Object> buildApprovalTracePayload(
+        String kind,
+        String summary,
+        String reply,
+        AgentApprovalDTO approval
+    ) {
+        return buildApprovalTracePayload(kind, summary, reply, approval, null);
+    }
+
+    private Map<String, Object> buildApprovalTracePayload(
+        String kind,
+        String summary,
+        String reply,
+        AgentApprovalDTO approval,
+        AgentCompletionMode completionMode
+    ) {
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("kind", kind);
+        payload.put("summary", blankToEmpty(summary));
+        payload.put("reply", blankToEmpty(reply));
+        payload.put("approval", approvalPayload(approval));
+        payload.put("answerPayload", Map.of());
+        payload.put("debugPayload", Map.of());
+        payload.put("confirmedFacts", List.of());
+        if (completionMode != null) {
+            payload.put("completionMode", completionMode.name());
+        }
+        return payload;
+    }
+
+    private Map<String, Object> buildApprovedToolTracePayload(
+        AgentToolResult result,
+        String reply,
+        AgentApprovalDTO approval,
+        AgentCompletionMode completionMode
+    ) {
+        Map<String, Object> payload = new java.util.LinkedHashMap<>(result.tracePayload(reply));
+        payload.put("approval", approvalPayload(approval));
+        if (completionMode != null) {
+            payload.put("completionMode", completionMode.name());
+        }
+        return payload;
+    }
+
+    private Map<String, Object> approvalPayload(AgentApprovalDTO approval) {
+        if (approval == null) {
+            return Map.of();
+        }
+        return Map.of(
+            "approvalId", blankToEmpty(approval.approvalId()),
+            "status", approval.status() == null ? "" : approval.status().name(),
+            "riskLevel", approval.riskLevel() == null ? "" : approval.riskLevel().name(),
+            "expiresAt", approval.expiresAt() == null ? "" : approval.expiresAt().toString()
+        );
+    }
+
+    private void markToolStepApprovalTerminal(
+        AgentStepTraceEntity trace,
+        AgentApprovalDTO approval,
+        String reply,
+        AgentMemorySnapshot memoryAfter,
+        String kind,
+        String summary
+    ) {
+        trace.setToolOutputJson(writeJson(buildApprovalTracePayload(kind, summary, reply, approval)));
+        trace.setObservationSummary(summary);
+        trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
+        trace.setStatus(AgentExecutionState.FAILED);
+        trace.setErrorMessage(approval == null ? null : clip(approval.reason(), ERROR_LIMIT));
+        traceRepository.save(trace);
+    }
+
+    public record ApprovedExecutionRecovery(
+        AgentExecutionState status,
+        String reply,
+        AgentMemorySnapshot memoryAfter,
+        AgentCompletionMode completionMode
+    ) {
     }
 }

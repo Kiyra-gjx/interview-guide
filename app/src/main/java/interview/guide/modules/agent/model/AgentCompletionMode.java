@@ -5,5 +5,6 @@ package interview.guide.modules.agent.model;
  */
 public enum AgentCompletionMode {
     SUCCESS,
-    DEGRADED
+    DEGRADED,
+    WAITING_APPROVAL
 }

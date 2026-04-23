@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,6 +22,11 @@ public interface AgentTurnRepository extends JpaRepository<AgentTurnEntity, Long
     Optional<AgentTurnEntity> findByTurnId(String turnId);
 
     List<AgentTurnEntity> findBySession_SessionIdAndStatusOrderByCreatedAtAsc(String sessionId, AgentTurnStatus status);
+
+    List<AgentTurnEntity> findBySession_SessionIdAndStatusInOrderByCreatedAtAsc(
+        String sessionId,
+        Collection<AgentTurnStatus> statuses
+    );
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select t from AgentTurnEntity t where t.turnId = :turnId")

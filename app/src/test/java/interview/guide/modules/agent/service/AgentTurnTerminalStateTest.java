@@ -4,6 +4,7 @@ import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
 import interview.guide.modules.agent.model.AgentCompletionMode;
 import interview.guide.modules.agent.model.AgentMemorySnapshot;
+import interview.guide.modules.agent.model.AgentMessageEntity;
 import interview.guide.modules.agent.model.AgentSessionEntity;
 import interview.guide.modules.agent.model.AgentTurnEntity;
 import interview.guide.modules.agent.model.AgentTurnStatus;
@@ -141,6 +142,93 @@ class AgentTurnTerminalStateTest {
     }
 
     @Test
+    @DisplayName("should lock session before turn when parking a turn for approval")
+    void shouldLockSessionBeforeTurnWhenParkingTurnForApproval() {
+        AgentSessionEntity session = createSession("session-approval");
+        AgentTurnEntity runningTurn = createTurn("turn-approval", AgentTurnStatus.RUNNING, session);
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(10);
+
+        when(turnRepository.findByTurnId("turn-approval")).thenReturn(Optional.of(runningTurn));
+        when(sessionRepository.findBySessionIdForUpdate("session-approval")).thenReturn(Optional.of(session));
+        when(turnRepository.findByTurnIdForUpdate("turn-approval")).thenReturn(Optional.of(runningTurn));
+        when(messageRepository.findTopBySession_SessionIdOrderByMessageOrderDesc("session-approval")).thenReturn(Optional.empty());
+        when(messageRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(sessionRepository.save(session)).thenReturn(session);
+        when(turnRepository.save(runningTurn)).thenReturn(runningTurn);
+
+        AgentTurnEntity waitingTurn = sessionService.waitForApproval(
+            "turn-approval",
+            "这个动作需要先审批。",
+            expiresAt,
+            AgentCompletionMode.WAITING_APPROVAL
+        );
+
+        InOrder inOrder = inOrder(turnRepository, sessionRepository);
+        inOrder.verify(turnRepository).findByTurnId("turn-approval");
+        inOrder.verify(sessionRepository).findBySessionIdForUpdate("session-approval");
+        inOrder.verify(turnRepository).findByTurnIdForUpdate("turn-approval");
+
+        assertThat(waitingTurn.getStatus()).isEqualTo(AgentTurnStatus.WAITING_APPROVAL);
+        assertThat(waitingTurn.getCompletionMode()).isEqualTo(AgentCompletionMode.WAITING_APPROVAL);
+        assertThat(waitingTurn.getLeaseExpiresAt()).isEqualTo(expiresAt);
+        verify(memoryService, never()).writeMemory(any(), any());
+        verify(messageRepository).save(any());
+    }
+
+    @Test
+    @DisplayName("should lock session before turn when resuming an approved turn")
+    void shouldLockSessionBeforeTurnWhenResumingApprovedTurn() {
+        AgentSessionEntity session = createSession("session-resume");
+        AgentTurnEntity waitingTurn = createTurn("turn-resume", AgentTurnStatus.WAITING_APPROVAL, session);
+
+        when(turnRepository.findByTurnId("turn-resume")).thenReturn(Optional.of(waitingTurn));
+        when(sessionRepository.findBySessionIdForUpdate("session-resume")).thenReturn(Optional.of(session));
+        when(turnRepository.findByTurnIdForUpdate("turn-resume")).thenReturn(Optional.of(waitingTurn));
+        when(sessionRepository.save(session)).thenReturn(session);
+        when(turnRepository.save(waitingTurn)).thenReturn(waitingTurn);
+
+        AgentTurnEntity resumedTurn = sessionService.resumeTurnFromApproval("turn-resume");
+
+        InOrder inOrder = inOrder(turnRepository, sessionRepository);
+        inOrder.verify(turnRepository).findByTurnId("turn-resume");
+        inOrder.verify(sessionRepository).findBySessionIdForUpdate("session-resume");
+        inOrder.verify(turnRepository).findByTurnIdForUpdate("turn-resume");
+
+        assertThat(resumedTurn.getStatus()).isEqualTo(AgentTurnStatus.RUNNING);
+        assertThat(resumedTurn.getCompletionMode()).isNull();
+        assertThat(resumedTurn.getLeaseExpiresAt()).isNotNull();
+        verify(messageRepository, never()).save(any());
+        verify(memoryService, never()).writeMemory(any(), any());
+    }
+
+    @Test
+    @DisplayName("should reclaim an approved turn when the previous execution lease has expired")
+    void shouldReclaimApprovedTurnWhenPreviousExecutionLeaseExpired() {
+        AgentSessionEntity session = createSession("session-approved-reclaim");
+        AgentTurnEntity runningTurn = createTurn("turn-approved-reclaim", AgentTurnStatus.RUNNING, session);
+        runningTurn.setLeaseExpiresAt(LocalDateTime.now().minusMinutes(1));
+
+        when(turnRepository.findByTurnId("turn-approved-reclaim")).thenReturn(Optional.of(runningTurn));
+        when(sessionRepository.findBySessionIdForUpdate("session-approved-reclaim")).thenReturn(Optional.of(session));
+        when(turnRepository.findByTurnIdForUpdate("turn-approved-reclaim")).thenReturn(Optional.of(runningTurn));
+        when(sessionRepository.save(session)).thenReturn(session);
+        when(turnRepository.save(runningTurn)).thenReturn(runningTurn);
+
+        AgentSessionService.ApprovedTurnClaim claim = sessionService.claimTurnForApprovedExecution("turn-approved-reclaim");
+
+        InOrder inOrder = inOrder(turnRepository, sessionRepository);
+        inOrder.verify(turnRepository).findByTurnId("turn-approved-reclaim");
+        inOrder.verify(sessionRepository).findBySessionIdForUpdate("session-approved-reclaim");
+        inOrder.verify(turnRepository).findByTurnIdForUpdate("turn-approved-reclaim");
+
+        assertThat(claim.claimed()).isTrue();
+        assertThat(claim.turn().getStatus()).isEqualTo(AgentTurnStatus.RUNNING);
+        assertThat(claim.turn().getLeaseExpiresAt()).isAfter(LocalDateTime.now());
+        verify(messageRepository, never()).save(any());
+        verify(memoryService, never()).writeMemory(any(), any());
+    }
+
+    @Test
     @DisplayName("should lock session before turn when failing a running turn")
     void shouldLockSessionBeforeTurnWhenFailingRunningTurn() {
         AgentSessionEntity session = createSession("session-fail");
@@ -161,6 +249,60 @@ class AgentTurnTerminalStateTest {
 
         assertThat(failedTurn.getStatus()).isEqualTo(AgentTurnStatus.FAILED);
         assertThat(failedTurn.getErrorMessage()).isEqualTo("boom");
+    }
+
+    @Test
+    @DisplayName("should persist a fallback assistant reply when failing a running turn")
+    void shouldPersistFallbackAssistantReplyWhenFailingRunningTurn() {
+        AgentSessionEntity session = createSession("session-fail-reply");
+        AgentTurnEntity runningTurn = createTurn("turn-fail-reply", AgentTurnStatus.RUNNING, session);
+
+        when(turnRepository.findByTurnId("turn-fail-reply")).thenReturn(Optional.of(runningTurn));
+        when(sessionRepository.findBySessionIdForUpdate("session-fail-reply")).thenReturn(Optional.of(session));
+        when(turnRepository.findByTurnIdForUpdate("turn-fail-reply")).thenReturn(Optional.of(runningTurn));
+        when(messageRepository.findTopBySession_SessionIdOrderByMessageOrderDesc("session-fail-reply")).thenReturn(Optional.empty());
+        when(messageRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(sessionRepository.save(session)).thenReturn(session);
+        when(turnRepository.save(runningTurn)).thenReturn(runningTurn);
+
+        AgentTurnEntity failedTurn = sessionService.failTurn(
+            "turn-fail-reply",
+            new RuntimeException("boom"),
+            "approved replay blocked"
+        );
+
+        assertThat(failedTurn.getStatus()).isEqualTo(AgentTurnStatus.FAILED);
+        verify(messageRepository).save(any());
+    }
+
+    @Test
+    @DisplayName("should not duplicate a fallback assistant reply when it already exists on the turn")
+    void shouldNotDuplicateFallbackAssistantReplyWhenItAlreadyExistsOnTheTurn() {
+        AgentSessionEntity session = createSession("session-fail-reply-existing");
+        AgentTurnEntity runningTurn = createTurn("turn-fail-reply-existing", AgentTurnStatus.RUNNING, session);
+        AgentMessageEntity existingReply = new AgentMessageEntity();
+        existingReply.setSession(session);
+        existingReply.setTurn(runningTurn);
+        existingReply.setRole(AgentMessageEntity.MessageRole.ASSISTANT);
+        existingReply.setContent("approved replay blocked");
+        existingReply.setMessageOrder(2);
+
+        when(turnRepository.findByTurnId("turn-fail-reply-existing")).thenReturn(Optional.of(runningTurn));
+        when(sessionRepository.findBySessionIdForUpdate("session-fail-reply-existing")).thenReturn(Optional.of(session));
+        when(turnRepository.findByTurnIdForUpdate("turn-fail-reply-existing")).thenReturn(Optional.of(runningTurn));
+        when(messageRepository.findTopBySession_SessionIdOrderByMessageOrderDesc("session-fail-reply-existing"))
+            .thenReturn(Optional.of(existingReply));
+        when(sessionRepository.save(session)).thenReturn(session);
+        when(turnRepository.save(runningTurn)).thenReturn(runningTurn);
+
+        AgentTurnEntity failedTurn = sessionService.failTurn(
+            "turn-fail-reply-existing",
+            new RuntimeException("boom"),
+            "approved replay blocked"
+        );
+
+        assertThat(failedTurn.getStatus()).isEqualTo(AgentTurnStatus.FAILED);
+        verify(messageRepository, never()).save(any());
     }
 
     private AgentSessionEntity createSession(String sessionId) {

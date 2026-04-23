@@ -6,6 +6,7 @@ package interview.guide.modules.agent.model;
 public enum AgentTurnStatus {
     CREATED,
     RUNNING,
+    WAITING_APPROVAL,
     COMPLETED,
     FAILED,
     ABORTED

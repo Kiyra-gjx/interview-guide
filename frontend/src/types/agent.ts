@@ -1,6 +1,8 @@
-export type AgentExecutionState = 'CREATED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-export type AgentTurnStatus = 'CREATED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'ABORTED';
-export type AgentCompletionMode = 'SUCCESS' | 'DEGRADED';
+export type AgentExecutionState = 'CREATED' | 'RUNNING' | 'WAITING_APPROVAL' | 'COMPLETED' | 'FAILED';
+export type AgentTurnStatus = 'CREATED' | 'RUNNING' | 'WAITING_APPROVAL' | 'COMPLETED' | 'FAILED' | 'ABORTED';
+export type AgentCompletionMode = 'SUCCESS' | 'DEGRADED' | 'WAITING_APPROVAL';
+export type AgentApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
+export type AgentToolRiskLevel = 'READ_ONLY' | 'REQUIRES_APPROVAL';
 
 export interface AgentMessage {
   role: 'user' | 'assistant';
@@ -54,11 +56,25 @@ export interface AgentChatRequest {
   message: string;
 }
 
+export interface AgentApproval {
+  approvalId: string;
+  sessionId: string;
+  turnId: string;
+  selectedTool: string;
+  riskLevel: AgentToolRiskLevel;
+  status: AgentApprovalStatus;
+  reason: string | null;
+  expiresAt: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+}
+
 export interface AgentChatResponse {
   sessionId: string;
   turnId: string;
   turnStatus: AgentTurnStatus;
   completionMode: AgentCompletionMode;
+  approval?: AgentApproval | null;
   reply: string;
   memory: AgentMemorySnapshot;
   traceSteps: AgentTraceStep[];

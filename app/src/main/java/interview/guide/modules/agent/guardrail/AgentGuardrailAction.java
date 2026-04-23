@@ -5,5 +5,6 @@ package interview.guide.modules.agent.guardrail;
  */
 public enum AgentGuardrailAction {
     REJECT,
-    DEGRADE
+    DEGRADE,
+    REQUIRE_APPROVAL
 }

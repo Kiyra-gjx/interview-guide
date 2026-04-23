@@ -6,5 +6,6 @@ package interview.guide.modules.agent.guardrail;
 public enum AgentGuardrailResolution {
     RETURN_SAFE_REPLY,
     BLOCK_TOOL_CALL,
-    REPLACE_WITH_FALLBACK_REPLY
+    REPLACE_WITH_FALLBACK_REPLY,
+    WAIT_FOR_APPROVAL
 }

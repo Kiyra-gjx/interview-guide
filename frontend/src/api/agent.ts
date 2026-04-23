@@ -1,5 +1,6 @@
 import { request } from './request';
 import type {
+  AgentApproval,
   AgentChatRequest,
   AgentChatResponse,
   AgentMemorySnapshot,
@@ -29,5 +30,17 @@ export const agentApi = {
 
   async getMemory(sessionId: string): Promise<AgentMemorySnapshot> {
     return request.get<AgentMemorySnapshot>(`/api/agent/sessions/${sessionId}/memory`);
+  },
+
+  async getApprovals(sessionId: string): Promise<AgentApproval[]> {
+    return request.get<AgentApproval[]>(`/api/agent/sessions/${sessionId}/approvals`);
+  },
+
+  async approveApproval(approvalId: string): Promise<AgentChatResponse> {
+    return request.post<AgentChatResponse>(`/api/agent/approvals/${approvalId}/approve`);
+  },
+
+  async rejectApproval(approvalId: string): Promise<AgentChatResponse> {
+    return request.post<AgentChatResponse>(`/api/agent/approvals/${approvalId}/reject`);
   },
 };

@@ -50,8 +50,8 @@ class AgentGuardrailServiceTest {
     }
 
     @Test
-    @DisplayName("should fail safe when a tool does not declare a risk level")
-    void shouldFailSafeWhenToolDoesNotDeclareRiskLevel() {
+    @DisplayName("should leave undeclared risk tools to the approval policy instead of blocking in guardrail")
+    void shouldLeaveUndeclaredRiskToolsToApprovalPolicy() {
         AgentGuardrailService.ToolGuardrailDecision decision = guardrailService.evaluateTool(
             new AgentTool() {
                 @Override
@@ -82,8 +82,8 @@ class AgentGuardrailServiceTest {
             Map.of("resumeId", 42L)
         );
 
-        assertThat(decision.blocked()).isTrue();
-        assertThat(decision.result().code()).isEqualTo(AgentGuardrailCode.TOOL_REQUIRES_APPROVAL);
+        assertThat(decision.blocked()).isFalse();
+        assertThat(decision.guardrailResults()).isEmpty();
     }
 
     private AgentTool readOnlyTool(List<String> requiredInputs) {

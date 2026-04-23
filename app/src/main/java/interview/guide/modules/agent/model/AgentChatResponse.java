@@ -12,6 +12,7 @@ public record AgentChatResponse(
     String turnId,
     AgentTurnStatus turnStatus,
     AgentCompletionMode completionMode,
+    AgentApprovalDTO approval,
     String reply,
     AgentMemorySnapshot memory,
     List<AgentTraceDTO> traceSteps,

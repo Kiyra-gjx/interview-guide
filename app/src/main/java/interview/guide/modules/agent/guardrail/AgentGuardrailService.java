@@ -1,7 +1,6 @@
 package interview.guide.modules.agent.guardrail;
 
 import interview.guide.modules.agent.tool.AgentTool;
-import interview.guide.modules.agent.tool.AgentToolRiskLevel;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
@@ -79,38 +78,13 @@ public class AgentGuardrailService {
 
     /**
      * 评估工具 Guardrail。
-     * 当前先覆盖最小可用能力：高风险工具阻断，以及未声明参数拦截。
+     * 当前只负责工具输入面的安全校验，例如未声明参数拦截；
+     * “高风险但可审批”的策略已经移动到 orchestrator 层统一处理。
      */
     public ToolGuardrailDecision evaluateTool(AgentTool tool, Map<String, Object> toolInput) {
         Map<String, Object> normalizedInput = toolInput == null
             ? Map.of()
             : immutableToolInput(toolInput);
-        AgentToolRiskLevel riskLevel = tool.riskLevel();
-        if (riskLevel == null) {
-            return ToolGuardrailDecision.blocked(
-                normalizedInput,
-                new AgentGuardrailResult(
-                    AgentGuardrailStage.TOOL,
-                    AgentGuardrailCode.TOOL_REQUIRES_APPROVAL,
-                    AgentGuardrailAction.REJECT,
-                    AgentGuardrailResolution.BLOCK_TOOL_CALL,
-                    "工具未声明风险等级，已按高风险动作阻断"
-                )
-            );
-        }
-        if (riskLevel == AgentToolRiskLevel.REQUIRES_APPROVAL) {
-            return ToolGuardrailDecision.blocked(
-                normalizedInput,
-                new AgentGuardrailResult(
-                    AgentGuardrailStage.TOOL,
-                    AgentGuardrailCode.TOOL_REQUIRES_APPROVAL,
-                    AgentGuardrailAction.REJECT,
-                    AgentGuardrailResolution.BLOCK_TOOL_CALL,
-                    "高风险工具在审批能力落地前不能自动执行"
-                )
-            );
-        }
-
         List<String> allowedInputs = tool.allowedInputs();
         if (allowedInputs == null || allowedInputs.isEmpty()) {
             allowedInputs = tool.requiredInputs() == null ? List.of() : List.copyOf(tool.requiredInputs());

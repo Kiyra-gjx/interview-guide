@@ -40,6 +40,11 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class AgentSessionServiceTest {
 
+    private static final List<AgentTurnStatus> OPEN_TURN_STATUSES = List.of(
+        AgentTurnStatus.RUNNING,
+        AgentTurnStatus.WAITING_APPROVAL
+    );
+
     @Mock
     private AgentSessionRepository sessionRepository;
     @Mock
@@ -78,7 +83,7 @@ class AgentSessionServiceTest {
         AgentTurnEntity runningTurn = createRunningTurn("turn-running", LocalDateTime.now().plusMinutes(1));
 
         when(sessionRepository.findBySessionIdForUpdate(sessionId)).thenReturn(Optional.of(session));
-        when(turnRepository.findBySession_SessionIdAndStatusOrderByCreatedAtAsc(sessionId, AgentTurnStatus.RUNNING))
+        when(turnRepository.findBySession_SessionIdAndStatusInOrderByCreatedAtAsc(sessionId, OPEN_TURN_STATUSES))
             .thenReturn(List.of(runningTurn), List.of(runningTurn));
 
         assertThatThrownBy(() -> sessionService.startTurn(sessionId, "hello"))
@@ -98,7 +103,7 @@ class AgentSessionServiceTest {
         AgentTurnEntity expiredTurn = createRunningTurn("turn-expired", LocalDateTime.now().minusMinutes(1));
 
         when(sessionRepository.findBySessionIdForUpdate(sessionId)).thenReturn(Optional.of(session));
-        when(turnRepository.findBySession_SessionIdAndStatusOrderByCreatedAtAsc(sessionId, AgentTurnStatus.RUNNING))
+        when(turnRepository.findBySession_SessionIdAndStatusInOrderByCreatedAtAsc(sessionId, OPEN_TURN_STATUSES))
             .thenReturn(List.of(expiredTurn), List.of());
         when(turnRepository.save(any(AgentTurnEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(messageRepository.findTopBySession_SessionIdOrderByMessageOrderDesc(sessionId)).thenReturn(Optional.empty());
@@ -115,6 +120,26 @@ class AgentSessionServiceTest {
         assertThat(messageCaptor.getValue().getTurn()).isNotNull();
         assertThat(messageCaptor.getValue().getRole()).isEqualTo(AgentMessageEntity.MessageRole.USER);
         verify(turnRepository, atLeastOnce()).save(eq(expiredTurn));
+    }
+
+    @Test
+    @DisplayName("should reject a new turn when the session still has a waiting approval turn")
+    void shouldRejectNewTurnWhenWaitingApprovalTurnExists() {
+        String sessionId = "session-waiting-approval";
+        AgentSessionEntity session = createSession(sessionId);
+        AgentTurnEntity waitingTurn = createWaitingApprovalTurn("turn-waiting-approval", LocalDateTime.now().plusMinutes(10));
+
+        when(sessionRepository.findBySessionIdForUpdate(sessionId)).thenReturn(Optional.of(session));
+        when(turnRepository.findBySession_SessionIdAndStatusInOrderByCreatedAtAsc(sessionId, OPEN_TURN_STATUSES))
+            .thenReturn(List.of(waitingTurn), List.of(waitingTurn));
+
+        assertThatThrownBy(() -> sessionService.startTurn(sessionId, "hello"))
+            .isInstanceOf(BusinessException.class)
+            .satisfies(error -> assertThat(((BusinessException) error).getCode())
+                .isEqualTo(ErrorCode.AGENT_TURN_CONFLICT.getCode()));
+
+        verify(turnRepository, never()).save(any(AgentTurnEntity.class));
+        verify(messageRepository, never()).save(any(AgentMessageEntity.class));
     }
 
     @Test
@@ -198,6 +223,14 @@ class AgentSessionServiceTest {
         AgentTurnEntity turn = new AgentTurnEntity();
         turn.setTurnId(turnId);
         turn.setStatus(AgentTurnStatus.RUNNING);
+        turn.setLeaseExpiresAt(leaseExpiresAt);
+        return turn;
+    }
+
+    private AgentTurnEntity createWaitingApprovalTurn(String turnId, LocalDateTime leaseExpiresAt) {
+        AgentTurnEntity turn = new AgentTurnEntity();
+        turn.setTurnId(turnId);
+        turn.setStatus(AgentTurnStatus.WAITING_APPROVAL);
         turn.setLeaseExpiresAt(leaseExpiresAt);
         return turn;
     }

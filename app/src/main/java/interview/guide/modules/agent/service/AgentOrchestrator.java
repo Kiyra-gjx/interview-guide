@@ -5,18 +5,24 @@ import interview.guide.common.exception.ErrorCode;
 import interview.guide.modules.agent.guardrail.AgentGuardrailCode;
 import interview.guide.modules.agent.guardrail.AgentGuardrailResult;
 import interview.guide.modules.agent.guardrail.AgentGuardrailService;
+import interview.guide.modules.agent.model.AgentApprovalDTO;
+import interview.guide.modules.agent.model.AgentApprovalEntity;
+import interview.guide.modules.agent.model.AgentApprovalStatus;
 import interview.guide.modules.agent.model.AgentChatRequest;
 import interview.guide.modules.agent.model.AgentChatResponse;
 import interview.guide.modules.agent.model.AgentCompletionMode;
 import interview.guide.modules.agent.model.AgentDecisionDTO;
+import interview.guide.modules.agent.model.AgentExecutionState;
 import interview.guide.modules.agent.model.AgentMemorySnapshot;
 import interview.guide.modules.agent.model.AgentSessionEntity;
 import interview.guide.modules.agent.model.AgentStepTraceEntity;
 import interview.guide.modules.agent.model.AgentTraceDTO;
 import interview.guide.modules.agent.model.AgentTurnEntity;
+import interview.guide.modules.agent.model.AgentTurnStatus;
 import interview.guide.modules.agent.support.AgentToolContext;
 import interview.guide.modules.agent.support.AgentToolResult;
 import interview.guide.modules.agent.tool.AgentTool;
+import interview.guide.modules.agent.tool.AgentToolRiskLevel;
 import interview.guide.modules.agent.tool.ToolRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -24,12 +30,14 @@ import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.stereotype.Service;
 import io.micrometer.core.instrument.Timer;
 
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Agent 执行编排器。
+ * Agent 运行时编排器。
+ * 负责串联一轮 chat、工具执行、审批挂起、审批恢复、trace 写入和 turn 收口。
  */
 @Slf4j
 @Service
@@ -48,6 +56,8 @@ public class AgentOrchestrator {
     private final AgentMetricsService metricsService;
     private final AgentPromptService promptService;
     private final AgentGuardrailService guardrailService;
+    private final AgentApprovalService approvalService;
+    private final AgentApprovalRuntimeService approvalRuntimeService;
     private final BeanOutputConverter<AgentDecisionDTO> decisionOutputConverter;
 
     public AgentOrchestrator(
@@ -59,7 +69,9 @@ public class AgentOrchestrator {
         AgentTraceService traceService,
         AgentMetricsService metricsService,
         AgentPromptService promptService,
-        AgentGuardrailService guardrailService
+        AgentGuardrailService guardrailService,
+        AgentApprovalService approvalService,
+        AgentApprovalRuntimeService approvalRuntimeService
     ) {
         this.chatClient = chatClientBuilder.build();
         this.structuredOutputInvoker = structuredOutputInvoker;
@@ -70,6 +82,8 @@ public class AgentOrchestrator {
         this.metricsService = metricsService;
         this.promptService = promptService;
         this.guardrailService = guardrailService;
+        this.approvalService = approvalService;
+        this.approvalRuntimeService = approvalRuntimeService;
         this.decisionOutputConverter = new BeanOutputConverter<>(AgentDecisionDTO.class);
     }
 
@@ -85,6 +99,7 @@ public class AgentOrchestrator {
         AgentChatResponse response;
 
         try {
+            expirePendingApprovals(sessionId);
             // 1. 创建 turn，并先把用户消息落库，确保本轮执行有唯一归属。
             AgentSessionService.StartedTurn startedTurn = sessionService.startTurn(sessionId, request.message());
             turnId = startedTurn.turnId();
@@ -114,7 +129,7 @@ public class AgentOrchestrator {
                 completionMode = AgentCompletionMode.DEGRADED;
                 metricsService.recordTurnCompleted(completionMode);
                 turnTerminalPersisted = true;
-                response = buildChatResponse(completedTurn, reply, memory);
+                response = buildChatResponse(completedTurn, null, reply, memory);
                 metricsService.stopTurnLatency(latencySample, "degraded");
                 return response;
             }
@@ -125,20 +140,19 @@ public class AgentOrchestrator {
 
             // 4. 执行决策并在成功后提交 turn 完成态。
             TurnExecution execution = executeDecision(turnId, session, memory, inputGuardrail.normalizedMessage(), decision);
-            AgentTurnEntity completedTurn = sessionService.completeTurn(
-                turnId,
-                execution.reply(),
-                execution.memorySnapshot(),
-                execution.completionMode()
-            );
+            AgentTurnEntity completedTurn = execution.persistedTurn() != null
+                ? execution.persistedTurn()
+                : sessionService.completeTurn(
+                    turnId,
+                    execution.reply(),
+                    execution.memorySnapshot(),
+                    execution.completionMode()
+                );
             completionMode = execution.completionMode();
             metricsService.recordTurnCompleted(completionMode);
             turnTerminalPersisted = true;
-            response = buildChatResponse(completedTurn, execution.reply(), execution.memorySnapshot());
-            metricsService.stopTurnLatency(
-                latencySample,
-                completionMode == AgentCompletionMode.DEGRADED ? "degraded" : "success"
-            );
+            response = buildChatResponse(completedTurn, execution.approval(), execution.reply(), execution.memorySnapshot());
+            metricsService.stopTurnLatency(latencySample, resolveLatencyOutcome(completionMode));
         } catch (Exception e) {
             // 5. 只有 turn 已创建时才补失败终态；终态保护由 sessionService 负责。
             if (turnId != null && !turnTerminalPersisted) {
@@ -152,6 +166,187 @@ public class AgentOrchestrator {
         }
 
         return response;
+    }
+
+    /**
+     * 拒绝一条待审批动作，并把对应 turn 收敛到降级终态。
+     */
+    public AgentChatResponse rejectApproval(String approvalId) {
+        ApprovalTransition transition = approvalService.withLockedApproval(approvalId, approval -> {
+            if (approval.getStatus() != AgentApprovalStatus.PENDING) {
+                return ApprovalTransition.snapshot(approvalId, approval.getTurn());
+            }
+            if (approvalService.isExpired(approval, LocalDateTime.now())) {
+                return finalizeExpiredApproval(approval);
+            }
+
+            AgentApprovalDTO rejectedApproval = approvalService.markRejected(approval);
+            AgentMemorySnapshot memory = memoryService.readMemory(approval.getSession());
+            String reply = buildApprovalRejectedReply(approval.getSelectedTool());
+            traceService.markToolStepApprovalRejected(approval.getTrace(), rejectedApproval, reply, memory);
+            AgentTurnEntity completedTurn = sessionService.completeTurn(
+                approval.getTurn().getTurnId(),
+                reply,
+                memory,
+                AgentCompletionMode.DEGRADED
+            );
+            return ApprovalTransition.finalized(completedTurn, rejectedApproval, reply, memory);
+        });
+        return resolveApprovalTransition(transition);
+    }
+
+    /**
+     * 批准一条待审批动作，并根据当前恢复语义决定后续处理策略。
+     * 这里不会盲目重放工具，而是先判断该审批对应的 turn 和 trace 是否还能安全恢复。
+     */
+    public AgentChatResponse approveApproval(String approvalId) {
+        ApprovalTransition transition = approvalService.withLockedApproval(approvalId, approval -> {
+            LocalDateTime now = LocalDateTime.now();
+
+            // 1. 如果审批还未决定，但已经超时，则直接按过期收口，不再允许批准。
+            if (approval.getStatus() == AgentApprovalStatus.PENDING && approvalService.isExpired(approval, now)) {
+                return finalizeExpiredApproval(approval);
+            }
+
+            // 2. 第一次批准时，先把审批状态推进到 APPROVED，再尝试抢占对应 turn 的恢复执行权。
+            if (approval.getStatus() == AgentApprovalStatus.PENDING) {
+                return claimApprovedRecovery(approval, approvalService.markApproved(approval));
+            }
+
+            // 3. 如果审批之前已经批准过，则按“重复点击批准”处理。
+            //    这里不重复写状态，只尝试判断当前应该返回快照、恢复结果，还是继续执行。
+            if (approval.getStatus() == AgentApprovalStatus.APPROVED) {
+                return claimApprovedRecovery(approval, approvalService.toDTO(approval));
+            }
+
+            // 4. REJECTED / EXPIRED 等终态不再进入恢复执行，只返回当前持久化快照。
+            return ApprovalTransition.snapshot(approvalId, approval.getTurn());
+        });
+
+        // 5. 没有拿到执行 claim 时，说明这次请求不应该继续执行工具。
+        //    可能的情况包括：
+        //    - 审批已在本次调用内直接终结，例如 expire
+        //    - 审批已经是终态，只能返回快照
+        //    - turn 执行权没有被当前请求抢到，只能返回当前状态快照
+        if (transition.claim() == null) {
+            return resolveApprovalTransition(transition);
+        }
+
+        // 6. 只有拿到 claim，才说明当前请求拿到了继续推进该审批的资格。
+        ApprovalExecutionClaim claim = transition.claim();
+        AgentApprovalEntity approval = claim.approval();
+        AgentSessionEntity session = approval.getSession();
+
+        // 7. 三种恢复模式分别对应三种不同策略：
+        //    - FINALIZE_FROM_TRACE：工具结果已经落在 trace 里，只需要恢复结果，不再执行工具
+        //    - BLOCK_REPLAY：之前可能已经开始执行工具，但状态不明确，为避免重复副作用，禁止自动重放
+        //    - EXECUTE_TOOL：工具尚未真正开始执行，现在可以安全按冻结输入执行一次
+        if (claim.mode() == ApprovedExecutionMode.FINALIZE_FROM_TRACE) {
+            return finalizeApprovedTraceRecovery(claim, session);
+        }
+
+        AgentMemorySnapshot memory = readApprovalMemory(session);
+        if (claim.mode() == ApprovedExecutionMode.BLOCK_REPLAY) {
+            return finalizeApprovedFailure(
+                claim,
+                session,
+                memory,
+                new IllegalStateException("approved_tool_execution_replay_blocked"),
+                buildApprovedReplayBlockedReply(approval.getSelectedTool()),
+                "approved_tool_execution_replay_blocked",
+                "审批通过后执行状态已不明确，为避免重复副作用，本次不再自动重放",
+                false
+            );
+        }
+
+        String toolName = approval.getSelectedTool();
+
+        AgentTool tool;
+        Map<String, Object> toolInput;
+        try {
+            // 8. 恢复执行前，必须重新解析工具实现，并读取审批冻结下来的输入。
+            //    同时把原 trace 从 WAITING_APPROVAL 推进到 RUNNING，表示工具真正开始执行。
+            tool = toolRegistry.getRequiredTool(toolName);
+            toolInput = approvalService.readToolInput(approval);
+            traceService.markApprovedToolExecutionStarted(approval.getTrace(), claim.approvedApproval());
+        } catch (Exception e) {
+            return finalizeApprovedFailure(
+                claim,
+                session,
+                memory,
+                e,
+                buildToolFailureReply(session, toolName),
+                "approved_tool_resume_failure",
+                "Approval recovery failed before the tool could continue",
+                false
+            );
+        }
+
+        try {
+            // 9. 真正执行工具时，只使用审批冻结输入和冻结时刻的 latestUserMessage。
+            AgentToolResult result = tool.execute(
+                toolInput,
+                buildToolContext(session, memory, approval.getLatestUserMessage())
+            );
+            metricsService.recordToolExecution(tool.name(), true);
+
+            try {
+                // 10. 工具执行成功后，继续完成 memory 更新、答案生成、输出 guardrail 和 turn 收口。
+                AgentMemorySnapshot updatedMemory = memoryService.updateAfterTool(memory, tool.name(), result);
+                String reply = buildFinalAnswer(
+                    session,
+                    approval.getLatestUserMessage(),
+                    updatedMemory,
+                    tool.name(),
+                    result
+                );
+                AgentGuardrailService.OutputGuardrailDecision outputGuardrail = guardrailService.evaluateOutput(
+                    reply,
+                    buildFallbackReply(session)
+                );
+                AgentCompletionMode completionMode = outputGuardrail.degraded()
+                    ? AgentCompletionMode.DEGRADED
+                    : AgentCompletionMode.SUCCESS;
+                traceService.completeApprovedToolStep(
+                    approval.getTrace(),
+                    claim.approvedApproval(),
+                    result,
+                    updatedMemory,
+                    outputGuardrail.reply(),
+                    outputGuardrail.guardrailResults(),
+                    completionMode
+                );
+                AgentTurnEntity completedTurn = sessionService.completeTurn(
+                    approval.getTurn().getTurnId(),
+                    outputGuardrail.reply(),
+                    updatedMemory,
+                    completionMode
+                );
+                return buildChatResponse(completedTurn, claim.approvedApproval(), outputGuardrail.reply(), updatedMemory);
+            } catch (Exception e) {
+                return finalizeApprovedFailure(
+                    claim,
+                    session,
+                    memory,
+                    e,
+                    buildToolPostProcessingFailureReply(session, tool.name()),
+                    "approved_tool_post_processing_failure",
+                    "审批通过后工具后处理失败，已回退为直接回复",
+                    false
+                );
+            }
+        } catch (Exception e) {
+            return finalizeApprovedFailure(
+                claim,
+                session,
+                memory,
+                e,
+                buildToolFailureReply(session, tool.name()),
+                "approved_tool_execution_failure",
+                "审批通过后工具执行失败，已回退为直接回复",
+                true
+            );
+        }
     }
 
     /**
@@ -281,6 +476,16 @@ public class AgentOrchestrator {
             );
         }
 
+        ApprovalRequirement approvalRequirement = resolveApprovalRequirement(tool);
+        if (approvalRequirement.required()) {
+            return ResolvedDecision.approval(
+                decisionSummary,
+                tool,
+                toolInput,
+                approvalRequirement.guardrailResult()
+            );
+        }
+
         return ResolvedDecision.tool(decisionSummary, tool, toolInput);
     }
 
@@ -297,6 +502,7 @@ public class AgentOrchestrator {
         return switch (decision.route()) {
             case DIRECT_REPLY -> executeDirectReply(turnId, session, memory, decision);
             case DEGRADED_REPLY -> executeDegradedReply(turnId, memory, decision);
+            case PENDING_APPROVAL -> executePendingApproval(turnId, session, memory, latestUserMessage, decision);
             case TOOL_CALL -> executeToolReply(turnId, session, memory, latestUserMessage, decision);
         };
     }
@@ -350,6 +556,34 @@ public class AgentOrchestrator {
             decision.guardrailResults()
         );
         return new TurnExecution(decision.reply(), memory, AgentCompletionMode.DEGRADED);
+    }
+
+    /**
+     * 高风险工具不再直接拒绝，而是进入待审批状态，等待显式 approve / reject。
+     */
+    private TurnExecution executePendingApproval(
+        String turnId,
+        AgentSessionEntity session,
+        AgentMemorySnapshot memory,
+        String latestUserMessage,
+        ResolvedDecision decision
+    ) {
+        String reply = buildApprovalPendingReply(decision.selectedTool());
+        AgentApprovalRuntimeService.PendingApprovalTransition transition = approvalRuntimeService.parkTurnForApproval(
+            new AgentApprovalRuntimeService.ParkTurnForApprovalRequest(
+                turnId,
+                session,
+                memory,
+                latestUserMessage,
+                decision.decisionSummary(),
+                decision.selectedTool(),
+                effectiveRiskLevel(decision.tool()),
+                decision.toolInput(),
+                reply,
+                decision.guardrailResults()
+            )
+        );
+        return TurnExecution.waitingApproval(reply, memory, transition.approval(), transition.persistedTurn());
     }
 
     /**
@@ -439,6 +673,7 @@ public class AgentOrchestrator {
      */
     private AgentChatResponse buildChatResponse(
         AgentTurnEntity completedTurn,
+        AgentApprovalDTO approval,
         String reply,
         AgentMemorySnapshot memorySnapshot
     ) {
@@ -452,6 +687,7 @@ public class AgentOrchestrator {
             turnId,
             completedTurn.getStatus(),
             completedTurn.getCompletionMode(),
+            approval,
             reply,
             memorySnapshot,
             traceSteps,
@@ -665,7 +901,7 @@ public class AgentOrchestrator {
             return "本轮工具调用没有通过安全校验，我没有继续自动执行。请换一种更直接的描述后再试。";
         }
         if (guardrailResult.code() == AgentGuardrailCode.TOOL_REQUIRES_APPROVAL) {
-            return "这个动作属于高风险操作，当前版本不会自动执行。后续审批能力会在 S2-03 中补齐。";
+            return "这个动作属于高风险操作，需要审批后才能继续执行。";
         }
         if (guardrailResult.code() == AgentGuardrailCode.TOOL_UNEXPECTED_INPUT) {
             return "本轮工具参数没有通过安全校验，我没有继续自动执行。请换一种更直接的描述后再试。";
@@ -701,10 +937,395 @@ public class AgentOrchestrator {
     }
 
     /**
-     * 本轮决策的三种执行路径。
+     * 在新 turn 开始前清理当前会话下已经过期的审批。
+     * 这样可以及时释放 WAITING_APPROVAL 的旧 turn，避免它们长期占住会话。
      */
+    private void expirePendingApprovals(String sessionId) {
+        LocalDateTime now = LocalDateTime.now();
+        for (var approval : approvalService.getPendingApprovals(sessionId)) {
+            if (!approvalService.isExpired(approval, now)) {
+                continue;
+            }
+            approvalService.withLockedApproval(approval.getApprovalId(), lockedApproval -> {
+                if (lockedApproval.getStatus() != AgentApprovalStatus.PENDING
+                    || !approvalService.isExpired(lockedApproval, LocalDateTime.now())) {
+                    return null;
+                }
+                finalizeExpiredApproval(lockedApproval);
+                return null;
+            });
+        }
+    }
+
+    /**
+     * 审批策略只看工具风险等级，不把策略散落在 if / else 分支里。
+     */
+    private ApprovalRequirement resolveApprovalRequirement(AgentTool tool) {
+        AgentToolRiskLevel riskLevel = effectiveRiskLevel(tool);
+        if (riskLevel != AgentToolRiskLevel.REQUIRES_APPROVAL) {
+            return ApprovalRequirement.notRequired();
+        }
+        String reason = tool.riskLevel() == null
+            ? "工具未声明风险等级，已按高风险动作进入审批"
+            : "高风险工具必须先审批后执行";
+        return ApprovalRequirement.required(new AgentGuardrailResult(
+            null,
+            AgentGuardrailCode.TOOL_REQUIRES_APPROVAL,
+            interview.guide.modules.agent.guardrail.AgentGuardrailAction.REQUIRE_APPROVAL,
+            interview.guide.modules.agent.guardrail.AgentGuardrailResolution.WAIT_FOR_APPROVAL,
+            reason
+        ));
+    }
+
+    private AgentToolRiskLevel effectiveRiskLevel(AgentTool tool) {
+        return tool == null || tool.riskLevel() == null
+            ? AgentToolRiskLevel.REQUIRES_APPROVAL
+            : tool.riskLevel();
+    }
+
+    private String buildApprovalPendingReply(String toolName) {
+        if ("delete_resume".equals(toolName)) {
+            return "这个动作属于高风险操作，需要审批后才能继续执行。我已经先停在等待审批状态。";
+        }
+        return "这个动作属于高风险操作，需要审批后才能继续执行。我已经先停在等待审批状态。";
+    }
+
+    private String buildApprovalRejectedReply(String toolName) {
+        if ("delete_resume".equals(toolName)) {
+            return "审批已拒绝，这个高风险动作不会执行。";
+        }
+        return "审批已拒绝，这个高风险动作不会执行。";
+    }
+
+    private String buildApprovalExpiredReply(String toolName) {
+        if ("delete_resume".equals(toolName)) {
+            return "审批已过期，这个高风险动作不会继续执行。";
+        }
+        return "审批已过期，这个高风险动作不会继续执行。";
+    }
+
+    private String resolveLatencyOutcome(AgentCompletionMode completionMode) {
+        if (completionMode == AgentCompletionMode.DEGRADED) {
+            return "degraded";
+        }
+        if (completionMode == AgentCompletionMode.WAITING_APPROVAL) {
+            return "waiting_approval";
+        }
+        return "success";
+    }
+
+    /**
+     * 将已过期审批正式收敛为终态。
+     * 这里会同时推进 approval、trace 和 turn，保证三者语义一致。
+     */
+    private ApprovalTransition finalizeExpiredApproval(AgentApprovalEntity approval) {
+        AgentApprovalDTO expiredApproval = approvalService.markExpired(approval);
+        AgentMemorySnapshot memory = memoryService.readMemory(approval.getSession());
+        String reply = buildApprovalExpiredReply(approval.getSelectedTool());
+        traceService.markToolStepApprovalExpired(approval.getTrace(), expiredApproval, reply, memory);
+        AgentTurnEntity completedTurn = sessionService.completeTurn(
+            approval.getTurn().getTurnId(),
+            reply,
+            memory,
+            AgentCompletionMode.DEGRADED
+        );
+        return ApprovalTransition.finalized(completedTurn, expiredApproval, reply, memory);
+    }
+
+    /**
+     * 在审批已经是 APPROVED 的前提下，尝试为当前请求抢占恢复执行权。
+     * 抢占成功后，还要根据 trace 状态决定到底是执行工具、恢复结果，还是阻止重放。
+     */
+    private ApprovalTransition claimApprovedRecovery(AgentApprovalEntity approval, AgentApprovalDTO approvedApproval) {
+        AgentSessionService.ApprovedTurnClaim turnClaim = sessionService.claimTurnForApprovedExecution(
+            approval.getTurn().getTurnId()
+        );
+        if (turnClaim.claimed()) {
+            return ApprovalTransition.claimed(new ApprovalExecutionClaim(
+                approval,
+                approvedApproval,
+                resolveApprovedExecutionMode(approval.getTrace())
+            ));
+        }
+        return ApprovalTransition.snapshot(approvedApproval.approvalId(), turnClaim.turn());
+    }
+
+    /**
+     * 根据审批关联 trace 的状态，推导批准后的恢复模式。
+     */
+    private ApprovedExecutionMode resolveApprovedExecutionMode(AgentStepTraceEntity trace) {
+        if (trace == null || trace.getStatus() == null || trace.getStatus() == AgentExecutionState.WAITING_APPROVAL) {
+            return ApprovedExecutionMode.EXECUTE_TOOL;
+        }
+        if (trace.getStatus() == AgentExecutionState.RUNNING) {
+            return ApprovedExecutionMode.BLOCK_REPLAY;
+        }
+        if (trace.getStatus() == AgentExecutionState.COMPLETED || trace.getStatus() == AgentExecutionState.FAILED) {
+            return ApprovedExecutionMode.FINALIZE_FROM_TRACE;
+        }
+        return ApprovedExecutionMode.EXECUTE_TOOL;
+    }
+
+    /**
+     * 从已持久化的 trace 恢复批准后的最终结果，而不是重新执行工具。
+     * 适用于工具结果已经落盘，但 turn 还没有最终收口的场景。
+     */
+    private AgentChatResponse finalizeApprovedTraceRecovery(ApprovalExecutionClaim claim, AgentSessionEntity session) {
+        AgentTraceService.ApprovedExecutionRecovery recovery = traceService.readApprovedExecutionRecovery(
+            claim.approval().getTrace()
+        );
+        AgentMemorySnapshot memory = recovery.memoryAfter() == null ? readApprovalMemory(session) : recovery.memoryAfter();
+        String reply = recovery.reply() == null || recovery.reply().isBlank()
+            ? buildApprovedReplayBlockedReply(claim.approval().getSelectedTool())
+            : recovery.reply();
+        AgentCompletionMode completionMode = recovery.completionMode();
+        if (completionMode == null) {
+            completionMode = recovery.status() == AgentExecutionState.FAILED
+                ? AgentCompletionMode.DEGRADED
+                : AgentCompletionMode.SUCCESS;
+        }
+        try {
+            AgentTurnEntity completedTurn = sessionService.completeTurn(
+                claim.approval().getTurn().getTurnId(),
+                reply,
+                memory,
+                completionMode
+            );
+            return buildChatResponse(completedTurn, claim.approvedApproval(), reply, memory);
+        } catch (Exception e) {
+            AgentTurnEntity failedTurn = sessionService.failTurn(
+                claim.approval().getTurn().getTurnId(),
+                e,
+                reply
+            );
+            return buildChatResponse(failedTurn, claim.approvedApproval(), reply, memory);
+        }
+    }
+
+    /**
+     * 解析没有执行 claim 的审批过渡结果。
+     * 这里只会返回两类结果：
+     * 1. `finalized`：审批已经在本次调用里收口为终态
+     * 2. `snapshot`：本次调用不拥有继续执行的资格，只返回当前快照
+     */
+    private AgentChatResponse resolveApprovalTransition(ApprovalTransition transition) {
+        if (transition.finalized() != null) {
+            FinalizedApproval finalized = transition.finalized();
+            return buildChatResponse(finalized.turn(), finalized.approval(), finalized.reply(), finalized.memory());
+        }
+        return buildApprovalSnapshotResponse(
+            approvalService.getApproval(transition.snapshotApprovalId()),
+            transition.snapshotTurn()
+        );
+    }
+
+    /**
+     * 读取审批恢复阶段使用的 memory。
+     * 如果 memory 存储异常，则退回初始快照，避免整个恢复链路被读错误打断。
+     */
+    private AgentMemorySnapshot readApprovalMemory(AgentSessionEntity session) {
+        try {
+            return memoryService.readMemory(session);
+        } catch (Exception e) {
+            log.warn("Failed to read approval memory, falling back to initial snapshot. sessionId={}, error={}",
+                session.getSessionId(), e.getMessage());
+            return memoryService.createInitialSnapshot(session.getGoal());
+        }
+    }
+
+    /**
+     * 统一处理审批通过后的失败收口。
+     * 这里优先把失败结果回填到原 trace，再把 turn 收敛成 DEGRADED；
+     * 如果连正常收口都失败，才退回 `failTurn`。
+     */
+    private AgentChatResponse finalizeApprovedFailure(
+        ApprovalExecutionClaim claim,
+        AgentSessionEntity session,
+        AgentMemorySnapshot memory,
+        Exception error,
+        String reply,
+        String failureKind,
+        String observationSummary,
+        boolean recordToolFailure
+    ) {
+        if (recordToolFailure) {
+            metricsService.recordToolExecution(claim.approval().getSelectedTool(), false);
+        }
+        try {
+            traceService.failApprovedToolStep(
+                claim.approval().getTrace(),
+                claim.approvedApproval(),
+                error,
+                reply,
+                memory,
+                failureKind,
+                observationSummary
+            );
+            AgentTurnEntity completedTurn = sessionService.completeTurn(
+                claim.approval().getTurn().getTurnId(),
+                reply,
+                memory,
+                AgentCompletionMode.DEGRADED
+            );
+            return buildChatResponse(completedTurn, claim.approvedApproval(), reply, memory);
+        } catch (Exception finalizeError) {
+            try {
+                AgentTurnEntity failedTurn = sessionService.failTurn(
+                    claim.approval().getTurn().getTurnId(),
+                    error,
+                    reply
+                );
+                return buildChatResponse(failedTurn, claim.approvedApproval(), reply, memory);
+            } catch (Exception failTurnError) {
+                finalizeError.addSuppressed(failTurnError);
+            }
+            throw finalizeError;
+        }
+    }
+
+    /**
+     * 为审批快照场景选择一条最合理的回复文案。
+     * 优先级是：最新 assistant 回复 -> trace 中的终态回复 -> 按审批状态生成兜底文案。
+     */
+    private String resolveApprovalSnapshotReply(AgentApprovalDTO approval, AgentTurnEntity turn) {
+        String assistantReply = resolveLatestReply(turn.getTurnId());
+        String traceReply = traceService.readLatestReply(turn.getTurnId());
+        traceReply = traceReply == null ? "" : traceReply;
+        if (approval.status() == AgentApprovalStatus.APPROVED) {
+            if (turn.getStatus() == AgentTurnStatus.RUNNING) {
+                return buildApprovedExecutionInProgressReply(approval.selectedTool());
+            }
+            if (!traceReply.isBlank()) {
+                return traceReply;
+            }
+            String pendingReply = buildApprovalPendingReply(approval.selectedTool());
+            if (!assistantReply.isBlank() && !assistantReply.equals(pendingReply)) {
+                return assistantReply;
+            }
+            return buildApprovedReplayBlockedReply(approval.selectedTool());
+        }
+        if (!assistantReply.isBlank()) {
+            return assistantReply;
+        }
+        if (!traceReply.isBlank()) {
+            return traceReply;
+        }
+        if (approval.status() == AgentApprovalStatus.REJECTED) {
+            return buildApprovalRejectedReply(approval.selectedTool());
+        }
+        if (approval.status() == AgentApprovalStatus.EXPIRED) {
+            return buildApprovalExpiredReply(approval.selectedTool());
+        }
+        return buildApprovalPendingReply(approval.selectedTool());
+    }
+
+    private String buildApprovedExecutionInProgressReply(String toolName) {
+        if ("delete_resume".equals(toolName)) {
+            return "审批已通过，这个高风险动作仍在处理中。请稍后刷新结果，不要重复批准。";
+        }
+        return "审批已通过，这个高风险动作仍在处理中。请稍后刷新结果，不要重复批准。";
+    }
+
+    private String buildApprovedReplayBlockedReply(String toolName) {
+        if ("delete_resume".equals(toolName)) {
+            return "审批已通过，但上一次执行状态已不明确。为避免重复副作用，本次不再自动重放。请先确认外部系统结果，必要时重新发起新请求。";
+        }
+        return "审批已通过，但上一次执行状态已不明确。为避免重复副作用，本次不再自动重放。请先确认外部系统结果，必要时重新发起新请求。";
+    }
+
+    /**
+     * 用审批 DTO 和当前 turn 快照组装审批查询响应。
+     */
+    private AgentChatResponse buildApprovalSnapshotResponse(AgentApprovalDTO approval, AgentTurnEntity turn) {
+        AgentMemorySnapshot memory = readApprovalMemory(turn.getSession());
+        return buildChatResponse(turn, approval, resolveApprovalSnapshotReply(approval, turn), memory);
+    }
+
+    /**
+     * 从当前 turn 的消息增量中读取最后一条 assistant 回复。
+     */
+    private String resolveLatestReply(String turnId) {
+        return sessionService.getTurnMessages(turnId).stream()
+            .filter(message -> "assistant".equalsIgnoreCase(message.role()))
+            .reduce((first, second) -> second)
+            .map(message -> message.content() == null ? "" : message.content())
+            .orElse("");
+    }
+
+    /**
+     * 一次审批请求在编排器里的过渡结果。
+     * 同一时刻只会命中三种形态之一：
+     * - snapshot：本次请求只返回快照，不继续推进执行
+     * - claim：本次请求拿到了继续推进审批恢复链路的资格
+     * - finalized：本次请求已经把审批收口成终态
+     */
+    private record ApprovalTransition(
+        String snapshotApprovalId,
+        AgentTurnEntity snapshotTurn,
+        ApprovalExecutionClaim claim,
+        FinalizedApproval finalized
+    ) {
+        private static ApprovalTransition snapshot(String approvalId, AgentTurnEntity turn) {
+            return new ApprovalTransition(approvalId, turn, null, null);
+        }
+
+        private static ApprovalTransition claimed(ApprovalExecutionClaim claim) {
+            return new ApprovalTransition(null, null, claim, null);
+        }
+
+        private static ApprovalTransition finalized(
+            AgentTurnEntity turn,
+            AgentApprovalDTO approval,
+            String reply,
+            AgentMemorySnapshot memory
+        ) {
+            return new ApprovalTransition(null, null, null, new FinalizedApproval(turn, approval, reply, memory));
+        }
+    }
+
+    /**
+     * 当前请求拿到审批恢复执行权后的上下文。
+     */
+    private record ApprovalExecutionClaim(
+        AgentApprovalEntity approval,
+        AgentApprovalDTO approvedApproval,
+        ApprovedExecutionMode mode
+    ) {
+    }
+
+    /**
+     * 审批已经在本次调用内收口后的最终结果。
+     */
+    private record FinalizedApproval(
+        AgentTurnEntity turn,
+        AgentApprovalDTO approval,
+        String reply,
+        AgentMemorySnapshot memory
+    ) {
+    }
+
+    /**
+     * 审批通过后的三种恢复模式。
+     */
+    private enum ApprovedExecutionMode {
+        /**
+         * 工具尚未真正执行，可以按冻结输入执行一次。
+         */
+        EXECUTE_TOOL,
+        /**
+         * 工具结果已经落在 trace 里，只需要恢复结果，不再执行工具。
+         */
+        FINALIZE_FROM_TRACE,
+        /**
+         * 工具可能已经开始执行，但状态不明确。
+         * 为避免重复副作用，禁止自动重放。
+         */
+        BLOCK_REPLAY
+    }
+
     private enum DecisionRoute {
         DIRECT_REPLY,
+        PENDING_APPROVAL,
         TOOL_CALL,
         DEGRADED_REPLY
     }
@@ -748,6 +1369,24 @@ public class AgentOrchestrator {
             );
         }
 
+        private static ResolvedDecision approval(
+            String decisionSummary,
+            AgentTool tool,
+            Map<String, Object> toolInput,
+            AgentGuardrailResult guardrailResult
+        ) {
+            return new ResolvedDecision(
+                DecisionRoute.PENDING_APPROVAL,
+                decisionSummary,
+                null,
+                tool,
+                tool.name(),
+                immutableCopy(toolInput),
+                null,
+                guardrailResult == null ? List.of() : List.of(guardrailResult)
+            );
+        }
+
         private static ResolvedDecision degraded(
             String decisionSummary,
             String selectedTool,
@@ -782,7 +1421,37 @@ public class AgentOrchestrator {
     private record TurnExecution(
         String reply,
         AgentMemorySnapshot memorySnapshot,
-        AgentCompletionMode completionMode
+        AgentCompletionMode completionMode,
+        AgentApprovalDTO approval,
+        AgentTurnEntity persistedTurn
     ) {
+        private TurnExecution(String reply, AgentMemorySnapshot memorySnapshot, AgentCompletionMode completionMode) {
+            this(reply, memorySnapshot, completionMode, null, null);
+        }
+
+        private static TurnExecution waitingApproval(
+            String reply,
+            AgentMemorySnapshot memorySnapshot,
+            AgentApprovalDTO approval,
+            AgentTurnEntity persistedTurn
+        ) {
+            return new TurnExecution(reply, memorySnapshot, AgentCompletionMode.WAITING_APPROVAL, approval, persistedTurn);
+        }
+    }
+
+    /**
+     * 工具审批需求。
+     */
+    private record ApprovalRequirement(
+        boolean required,
+        AgentGuardrailResult guardrailResult
+    ) {
+        private static ApprovalRequirement notRequired() {
+            return new ApprovalRequirement(false, null);
+        }
+
+        private static ApprovalRequirement required(AgentGuardrailResult guardrailResult) {
+            return new ApprovalRequirement(true, guardrailResult);
+        }
     }
 }
