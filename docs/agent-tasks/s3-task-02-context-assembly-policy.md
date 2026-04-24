@@ -2,9 +2,15 @@
 
 ## 0. 任务状态
 
-- 状态：未开始
-- 当前定位：Stage 3 的上下文治理任务
+- 状态：已完成
+- 当前定位：Stage 3 已完成的上下文治理任务
 - 前置依赖：S3-01 已完成或达到可消费状态
+
+## 0.1 完成结果
+
+- 已落地统一的 `AgentContextAssemblyService`，把 Prompt、Tool 和审批恢复链路收口到同一套上下文装配入口
+- 已引入 `AgentAssembledContext`、`AgentContextSection`、`AgentContextBudget`，让来源优先级、预算和裁剪结果可解释
+- 已补齐审批恢复时的上下文快照持久化与兼容回退，减少恢复执行时的上下文漂移
 
 ## 1. 任务目标
 

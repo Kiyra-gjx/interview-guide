@@ -2,10 +2,10 @@
 
 ## 当前进度快照
 
-- 当前整体状态：Stage 3 进行中，S3-01 已完成
+- 当前整体状态：Stage 3 进行中，S3-01、S3-02 已完成
 - 已完成阶段：Stage 1、Stage 2
-- 当前阶段已完成任务：S3-01
-- 当前推荐下一任务：[S3-02：Context Assembly Policy](./agent-tasks/s3-task-02-context-assembly-policy.md)
+- 当前阶段已完成任务：S3-01、S3-02
+- 当前推荐下一任务：[S3-03：Tool Output Normalization](./agent-tasks/s3-task-03-tool-output-normalization.md)
 - 当前最低完成线定义：完成 Stage 4 即达到完整单 Agent（Level A）
 - 更高一级目标：Stage 5 是受控多步 Agent（Level B），不是最低完成线
 
@@ -60,7 +60,7 @@
   - 上下文组装策略稳定、可解释、可控
   - Tool 输出结构足够统一，能稳定服务回答与调试链路
 - 当前状态：进行中
-- 当前完成情况：S3-01 已完成，已形成首批 interview context tools；下一步进入 S3-02，继续收口 context assembly 策略
+- 当前完成情况：S3-01、S3-02 已完成，已形成首批 interview context tools 与统一 context assembly 策略；下一步进入 S3-03，继续收口 tool output normalization
 - 参考文档：[Stage 3：Domain Tooling and Context Assembly](./agent-stages/stage-3-domain-tooling-context.md)
 
 ### Stage 4：Agent Workbench and Demo Surface
@@ -92,13 +92,13 @@
 
 ## 当前推荐下一任务
 
-当前建议继续推进 [S3-02：Context Assembly Policy](./agent-tasks/s3-task-02-context-assembly-policy.md)。
+当前建议继续推进 [S3-03：Tool Output Normalization](./agent-tasks/s3-task-03-tool-output-normalization.md)。
 
 推荐原因：
 
-- S3-01 已完成，Stage 3 已具备可消费的首批 interview domain 工具基础
-- 当前最主要缺口不再是“有没有工具”，而是如何稳定装配简历、知识库、历史记录与工具结果上下文
-- 先完成 S3-02，可以为后续 S3-03 的输出归一化提供稳定输入边界
+- S3-01、S3-02 已完成，Stage 3 已具备可消费的首批 interview domain 工具与统一上下文装配基础
+- 当前最主要缺口已经从“如何装配上下文”转向“如何稳定归一化工具输出”，避免回答层与调试层字段继续漂移
+- S3-02 已为 S3-03 提供稳定输入边界，继续推进 S3-03 才能把工具结果更稳定地服务回答与调试链路
 
 ## 评测与证据原则
 

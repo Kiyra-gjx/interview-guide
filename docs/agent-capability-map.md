@@ -20,7 +20,7 @@
 
 ## Tooling
 
-- 当前状态：已有基础 Tool 契约，且 S3-01 已落地首批 interview domain 工具；剩余缺口主要集中在 context assembly 与 tool output normalization
+- 当前状态：已有基础 Tool 契约，S3-01 已落地首批 interview domain 工具，S3-02 已建立统一 context assembly 策略；剩余缺口主要集中在 tool output normalization
 - 完成标准：工具输入、执行、输出边界清晰，可扩展且能稳定服务单 Agent 主链路
 - 对应 stage/task：
   - [Stage 1：Execution Foundation](./agent-stages/stage-1-turn-foundation.md)
@@ -31,7 +31,7 @@
 
 ## Memory
 
-- 当前状态：Stage 2 已完成 S2-01，memory before / after 与快照稳定性已有基础
+- 当前状态：Stage 2 已完成 S2-01，S3-02 已把 memory 装配到统一上下文快照中，memory before / after 与消费边界已有基础
 - 完成标准：memory 能稳定表达跨轮上下文变化，并能被 trace、回放和工作台解释
 - 对应 stage/task：
   - [Stage 2：Safe and Observable Runtime](./agent-stages/stage-2-observability-guardrails.md)
@@ -88,5 +88,5 @@
 ## 总结
 
 - “它是什么”：见 [Agent Overview](./agent-overview.md)
-- “它还差什么”：当前主要缺口集中在 Context Assembly、Tool Output Normalization、Workbench
-- “它接下来做什么”：当前推荐进入 [S3-02：Context Assembly Policy](./agent-tasks/s3-task-02-context-assembly-policy.md)
+- “它还差什么”：当前主要缺口集中在 Tool Output Normalization、Workbench
+- “它接下来做什么”：当前推荐进入 [S3-03：Tool Output Normalization](./agent-tasks/s3-task-03-tool-output-normalization.md)

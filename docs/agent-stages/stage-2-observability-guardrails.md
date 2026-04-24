@@ -3,7 +3,7 @@
 ## 0. 阶段状态
 - 阶段状态：已完成
 - 已完成任务：S2-01、S2-02、S2-03、S2-04
-- 后续承接任务：Stage 3 进行中，当前推荐继续推进 [S3-02：Context Assembly Policy](../agent-tasks/s3-task-02-context-assembly-policy.md)
+- 后续承接任务：Stage 3 进行中，当前推荐继续推进 [S3-03：Tool Output Normalization](../agent-tasks/s3-task-03-tool-output-normalization.md)
 - 前置条件：Stage 1 已完成
 
 ## 1. 阶段目标
