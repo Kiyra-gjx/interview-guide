@@ -2,9 +2,26 @@
 
 ## 0. 任务状态
 
-- 状态：未开始
-- 当前定位：Stage 3 的工具扩展入口
+- 状态：已完成
+- 当前定位：Stage 3 已完成任务，作为首批 interview context tools 基线已落地
 - 前置依赖：Stage 2 完成
+
+## 0.1 已完成项
+
+- 已新增 `get_interview_history_summary`、`analyze_interview_gaps`、`suggest_follow_up_questions` 3 个只读 interview domain 工具
+- 已新增 `InterviewToolContextService`，统一解析 `resumeId` / `sessionId`、fallback、归属校验与稳定空结果语义
+- 已新增 `InterviewGapAnalyzer` 与 `FollowUpQuestionPlanner`，把短板分析与追问规划下沉为本地规则层
+- 已补 `AgentTool` 的必填输入与二选一输入契约，`AgentOrchestrator` 会在缺少 `sessionId` / `resumeId` 时前置降级，不再等到工具执行期抛错
+- `get_interview_history_summary` 已改为使用全量历史统计，并补齐 spec 承诺的“最近一次有效结论”输出
+- 显式 `sessionId` 路径已改为预加载 `resume` 归属，降低 interview 工具链路对 LAZY 关联与 OSIV 的隐式依赖
+- 已收紧 confirmed facts 写入范围，避免把短期运行态信息持续污染长期 memory
+- 已补齐工具专项测试、`AgentOrchestrator` 回归测试与最小 Stage 2 回归验证
+
+## 0.2 本轮复核结论
+
+- S3-01 范围内的首批 interview context tools 已具备可消费状态
+- 当前未发现阻塞 S3-01 达标的已知正确性缺口
+- Stage 3 下一步应进入 [S3-02：Context Assembly Policy](./s3-task-02-context-assembly-policy.md)
 
 ## 1. 任务目标
 

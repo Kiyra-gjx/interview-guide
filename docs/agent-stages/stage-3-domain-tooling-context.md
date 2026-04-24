@@ -1,10 +1,15 @@
 # Stage 3: Domain Tooling and Context Assembly
 
 ## 0. 阶段状态
-- 阶段状态：待启动
-- 已完成任务：无
-- 当前任务：[S3-01：Interview Context Tools](../agent-tasks/s3-task-01-interview-context-tools.md)
+- 阶段状态：进行中
+- 已完成任务：S3-01
+- 当前任务：[S3-02：Context Assembly Policy](../agent-tasks/s3-task-02-context-assembly-policy.md)
 - 前置条件：Stage 2 完成
+
+## 0.1 当前进展
+
+- 已落地首批 interview domain 读型 / 轻量分析型工具，覆盖历史概况、短板分析与追问建议
+- Stage 3 当前剩余重点转向上下文装配策略与工具输出归一化，分别由 S3-02、S3-03 承接
 
 ## 1. 阶段目标
 

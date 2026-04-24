@@ -2,10 +2,10 @@
 
 ## 当前进度快照
 
-- 当前整体状态：Stage 2 已完成，建议进入 Stage 3
+- 当前整体状态：Stage 3 进行中，S3-01 已完成
 - 已完成阶段：Stage 1、Stage 2
-- 当前阶段已完成任务：S2-01、S2-02、S2-03、S2-04
-- 当前推荐下一任务：[S3-01：Interview Context Tools](./agent-tasks/s3-task-01-interview-context-tools.md)
+- 当前阶段已完成任务：S3-01
+- 当前推荐下一任务：[S3-02：Context Assembly Policy](./agent-tasks/s3-task-02-context-assembly-policy.md)
 - 当前最低完成线定义：完成 Stage 4 即达到完整单 Agent（Level A）
 - 更高一级目标：Stage 5 是受控多步 Agent（Level B），不是最低完成线
 
@@ -59,7 +59,8 @@
   - 具备可复用的 interview domain 工具扩展模式
   - 上下文组装策略稳定、可解释、可控
   - Tool 输出结构足够统一，能稳定服务回答与调试链路
-- 当前状态：待启动
+- 当前状态：进行中
+- 当前完成情况：S3-01 已完成，已形成首批 interview context tools；下一步进入 S3-02，继续收口 context assembly 策略
 - 参考文档：[Stage 3：Domain Tooling and Context Assembly](./agent-stages/stage-3-domain-tooling-context.md)
 
 ### Stage 4：Agent Workbench and Demo Surface
@@ -91,13 +92,13 @@
 
 ## 当前推荐下一任务
 
-当前建议继续推进 [S3-01：Interview Context Tools](./agent-tasks/s3-task-01-interview-context-tools.md)。
+当前建议继续推进 [S3-02：Context Assembly Policy](./agent-tasks/s3-task-02-context-assembly-policy.md)。
 
 推荐原因：
 
-- Stage 2 已完成，Trace、Guardrails、Approval 与 Eval 已形成安全可观测运行时基线
-- Stage 3 的进入条件已经满足，可以开始补齐 interview domain 工具能力
-- S3-01 是 Stage 3 的工具扩展入口，优先做它可以为后续 context assembly 与 output normalization 提供真实领域工具基础
+- S3-01 已完成，Stage 3 已具备可消费的首批 interview domain 工具基础
+- 当前最主要缺口不再是“有没有工具”，而是如何稳定装配简历、知识库、历史记录与工具结果上下文
+- 先完成 S3-02，可以为后续 S3-03 的输出归一化提供稳定输入边界
 
 ## 评测与证据原则
 

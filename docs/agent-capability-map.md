@@ -20,7 +20,7 @@
 
 ## Tooling
 
-- 当前状态：已有基础 Tool 契约，但 interview domain 的工具覆盖、上下文依赖与输出统一性仍不足
+- 当前状态：已有基础 Tool 契约，且 S3-01 已落地首批 interview domain 工具；剩余缺口主要集中在 context assembly 与 tool output normalization
 - 完成标准：工具输入、执行、输出边界清晰，可扩展且能稳定服务单 Agent 主链路
 - 对应 stage/task：
   - [Stage 1：Execution Foundation](./agent-stages/stage-1-turn-foundation.md)
@@ -88,5 +88,5 @@
 ## 总结
 
 - “它是什么”：见 [Agent Overview](./agent-overview.md)
-- “它还差什么”：当前主要缺口集中在 Domain Tooling、Workbench
-- “它接下来做什么”：Stage 2 已完成，当前推荐进入 [S3-01：Interview Context Tools](./agent-tasks/s3-task-01-interview-context-tools.md)
+- “它还差什么”：当前主要缺口集中在 Context Assembly、Tool Output Normalization、Workbench
+- “它接下来做什么”：当前推荐进入 [S3-02：Context Assembly Policy](./agent-tasks/s3-task-02-context-assembly-policy.md)
