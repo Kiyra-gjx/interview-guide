@@ -65,6 +65,9 @@ public class AgentApprovalEntity {
     @Column(name = "latest_user_message", columnDefinition = "TEXT")
     private String latestUserMessage;
 
+    @Column(name = "assembled_context_json", columnDefinition = "TEXT")
+    private String assembledContextJson;
+
     @Column(name = "reason", length = 1000)
     private String reason;
 

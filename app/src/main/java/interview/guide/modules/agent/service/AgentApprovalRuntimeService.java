@@ -7,6 +7,7 @@ import interview.guide.modules.agent.model.AgentMemorySnapshot;
 import interview.guide.modules.agent.model.AgentSessionEntity;
 import interview.guide.modules.agent.model.AgentStepTraceEntity;
 import interview.guide.modules.agent.model.AgentTurnEntity;
+import interview.guide.modules.agent.support.AgentAssembledContext;
 import interview.guide.modules.agent.tool.AgentToolRiskLevel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -56,6 +57,7 @@ public class AgentApprovalRuntimeService {
                 request.riskLevel(),
                 request.toolInput(),
                 request.latestUserMessage(),
+                request.assembledContext(),
                 request.decisionSummary(),
                 primaryGuardrail == null ? null : primaryGuardrail.reason()
             )
@@ -85,6 +87,7 @@ public class AgentApprovalRuntimeService {
         AgentSessionEntity session,
         AgentMemorySnapshot memory,
         String latestUserMessage,
+        AgentAssembledContext assembledContext,
         String decisionSummary,
         String selectedTool,
         AgentToolRiskLevel riskLevel,

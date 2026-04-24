@@ -9,10 +9,15 @@ import interview.guide.modules.agent.model.AgentSessionEntity;
 import interview.guide.modules.agent.model.AgentStepTraceEntity;
 import interview.guide.modules.agent.model.AgentTurnEntity;
 import interview.guide.modules.agent.model.AgentTurnStatus;
+import interview.guide.modules.agent.support.AgentAssembledContext;
+import interview.guide.modules.agent.support.AgentContextBudget;
+import interview.guide.modules.agent.support.AgentContextSection;
+import interview.guide.modules.agent.support.AgentContextSectionStatus;
 import interview.guide.modules.agent.tool.AgentToolRiskLevel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
@@ -57,6 +62,7 @@ class AgentApprovalRuntimeServiceTest {
         AgentStepTraceEntity trace = new AgentStepTraceEntity();
         trace.setTurn(runningTurn);
         AgentMemorySnapshot memory = createMemory();
+        AgentAssembledContext assembledContext = createAssembledContext(session, memory, "delete my resume");
         AgentGuardrailResult guardrailResult = new AgentGuardrailResult(null, null, null, null, "approval required");
         AgentApprovalDTO approval = new AgentApprovalDTO(
             "approval-1",
@@ -75,7 +81,7 @@ class AgentApprovalRuntimeServiceTest {
             eq(runningTurn.getTurnId()),
             eq("need risky tool"),
             eq("delete_resume"),
-            eq(Map.of("resumeId", 42L)),
+            eq(Map.<String, Object>of("resumeId", 42L)),
             eq(memory)
         )).thenReturn(trace);
         when(approvalService.createPendingApproval(any())).thenReturn(approval);
@@ -92,24 +98,28 @@ class AgentApprovalRuntimeServiceTest {
                 session,
                 memory,
                 "delete my resume",
+                assembledContext,
                 "need risky tool",
                 "delete_resume",
                 AgentToolRiskLevel.REQUIRES_APPROVAL,
-                Map.of("resumeId", 42L),
+                Map.<String, Object>of("resumeId", 42L),
                 "waiting approval",
                 List.of(guardrailResult)
             )
         );
 
+        ArgumentCaptor<AgentApprovalService.CreateApprovalRequest> approvalRequestCaptor = ArgumentCaptor.forClass(
+            AgentApprovalService.CreateApprovalRequest.class
+        );
         InOrder inOrder = inOrder(traceService, approvalService, sessionService);
         inOrder.verify(traceService).startToolStep(
             eq(runningTurn.getTurnId()),
             eq("need risky tool"),
             eq("delete_resume"),
-            eq(Map.of("resumeId", 42L)),
+            eq(Map.<String, Object>of("resumeId", 42L)),
             eq(memory)
         );
-        inOrder.verify(approvalService).createPendingApproval(any());
+        inOrder.verify(approvalService).createPendingApproval(approvalRequestCaptor.capture());
         inOrder.verify(traceService).markToolStepWaitingApproval(
             eq(trace),
             eq(approval),
@@ -124,6 +134,7 @@ class AgentApprovalRuntimeServiceTest {
             eq(AgentCompletionMode.WAITING_APPROVAL)
         );
 
+        assertThat(approvalRequestCaptor.getValue().assembledContext()).isEqualTo(assembledContext);
         assertThat(transition.approval()).isEqualTo(approval);
         assertThat(transition.persistedTurn()).isEqualTo(waitingTurn);
     }
@@ -136,6 +147,7 @@ class AgentApprovalRuntimeServiceTest {
         AgentStepTraceEntity trace = new AgentStepTraceEntity();
         trace.setTurn(runningTurn);
         AgentMemorySnapshot memory = createMemory();
+        AgentAssembledContext assembledContext = createAssembledContext(session, memory, "delete my resume");
         AgentApprovalDTO approval = new AgentApprovalDTO(
             "approval-2",
             session.getSessionId(),
@@ -160,10 +172,11 @@ class AgentApprovalRuntimeServiceTest {
                 session,
                 memory,
                 "delete my resume",
+                assembledContext,
                 "need risky tool",
                 "delete_resume",
                 AgentToolRiskLevel.REQUIRES_APPROVAL,
-                Map.of("resumeId", 42L),
+                Map.<String, Object>of("resumeId", 42L),
                 "waiting approval",
                 List.of()
             )
@@ -202,6 +215,35 @@ class AgentApprovalRuntimeServiceTest {
             List.of("fact"),
             List.of(),
             "focus"
+        );
+    }
+
+    private AgentAssembledContext createAssembledContext(
+        AgentSessionEntity session,
+        AgentMemorySnapshot memory,
+        String latestUserMessage
+    ) {
+        return new AgentAssembledContext(
+            session.getSessionId(),
+            session.getGoal(),
+            latestUserMessage,
+            null,
+            List.of(),
+            memory,
+            "上下文摘要",
+            new AgentContextBudget(320, 180, 140),
+            List.of(
+                new AgentContextSection(
+                    "latest_user_message",
+                    "最新用户消息",
+                    100,
+                    latestUserMessage,
+                    AgentContextSectionStatus.INCLUDED,
+                    "included",
+                    latestUserMessage.length(),
+                    latestUserMessage.length()
+                )
+            )
         );
     }
 }

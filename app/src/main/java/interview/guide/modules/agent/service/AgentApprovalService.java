@@ -9,6 +9,7 @@ import interview.guide.modules.agent.model.AgentSessionEntity;
 import interview.guide.modules.agent.model.AgentStepTraceEntity;
 import interview.guide.modules.agent.model.AgentTurnEntity;
 import interview.guide.modules.agent.repository.AgentApprovalRepository;
+import interview.guide.modules.agent.support.AgentAssembledContext;
 import interview.guide.modules.agent.tool.AgentToolRiskLevel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -53,6 +54,7 @@ public class AgentApprovalService {
         approval.setDecisionSummary(request.decisionSummary());
         approval.setToolInputJson(writeJson(request.toolInput()));
         approval.setLatestUserMessage(normalize(request.latestUserMessage()));
+        approval.setAssembledContextJson(writeJson(request.assembledContext()));
         approval.setReason(normalize(request.reason()));
         approval.setExpiresAt(LocalDateTime.now().plus(APPROVAL_TTL));
         return toDTO(approvalRepository.save(approval), LocalDateTime.now());
@@ -176,6 +178,21 @@ public class AgentApprovalService {
     }
 
     /**
+     * 读取审批冻结下来的统一上下文快照。
+     * 旧审批如果还没有持久化该字段，这里返回 null，由调用方决定回退策略。
+     */
+    public AgentAssembledContext readAssembledContext(AgentApprovalEntity approval) {
+        if (approval == null || approval.getAssembledContextJson() == null || approval.getAssembledContextJson().isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(approval.getAssembledContextJson(), AgentAssembledContext.class);
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.AGENT_EXECUTION_FAILED, "读取审批上下文快照失败");
+        }
+    }
+
+    /**
      * 统一推进审批状态并记录决定时间。
      */
     private AgentApprovalDTO updateStatus(AgentApprovalEntity approval, AgentApprovalStatus status) {
@@ -214,8 +231,11 @@ public class AgentApprovalService {
     /**
      * 序列化审批恢复所需的工具输入。
      */
-    private String writeJson(Map<String, Object> value) {
-        if (value == null || value.isEmpty()) {
+    private String writeJson(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Map<?, ?> map && map.isEmpty()) {
             return null;
         }
         try {
@@ -247,6 +267,7 @@ public class AgentApprovalService {
         AgentToolRiskLevel riskLevel,
         Map<String, Object> toolInput,
         String latestUserMessage,
+        AgentAssembledContext assembledContext,
         String decisionSummary,
         String reason
     ) {

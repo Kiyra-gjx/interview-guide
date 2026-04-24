@@ -25,12 +25,17 @@ import interview.guide.modules.agent.model.AgentTurnEntity;
 import interview.guide.modules.agent.model.AgentTurnStatus;
 import interview.guide.modules.agent.service.AgentApprovalRuntimeService;
 import interview.guide.modules.agent.service.AgentApprovalService;
+import interview.guide.modules.agent.service.AgentContextAssemblyService;
 import interview.guide.modules.agent.service.AgentMemoryService;
 import interview.guide.modules.agent.service.AgentMetricsService;
 import interview.guide.modules.agent.service.AgentOrchestrator;
 import interview.guide.modules.agent.service.AgentPromptService;
 import interview.guide.modules.agent.service.AgentSessionService;
 import interview.guide.modules.agent.service.AgentTraceService;
+import interview.guide.modules.agent.support.AgentAssembledContext;
+import interview.guide.modules.agent.support.AgentContextBudget;
+import interview.guide.modules.agent.support.AgentContextSection;
+import interview.guide.modules.agent.support.AgentContextSectionStatus;
 import interview.guide.modules.agent.support.AgentToolResult;
 import interview.guide.modules.agent.tool.AgentTool;
 import interview.guide.modules.agent.tool.AgentToolRiskLevel;
@@ -56,6 +61,7 @@ import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -892,6 +898,7 @@ class AgentStage2RegressionEvalTest {
         private final AgentTraceService traceService = mock(AgentTraceService.class);
         private final AgentMetricsService metricsService = mock(AgentMetricsService.class);
         private final AgentPromptService promptService = mock(AgentPromptService.class);
+        private final AgentContextAssemblyService contextAssemblyService = mock(AgentContextAssemblyService.class);
         private final AgentApprovalService approvalService = mock(AgentApprovalService.class);
         private final AgentApprovalRuntimeService approvalRuntimeService = mock(AgentApprovalRuntimeService.class);
         private final AgentTool tool = mock(AgentTool.class);
@@ -901,6 +908,39 @@ class AgentStage2RegressionEvalTest {
             when(chatClientBuilder.build()).thenReturn(chatClient);
             when(metricsService.startTurnLatency()).thenReturn(Timer.start(new SimpleMeterRegistry()));
             when(tool.riskLevel()).thenReturn(AgentToolRiskLevel.READ_ONLY);
+            when(promptService.buildDecisionSystemPrompt(anyString(), anyString())).thenReturn("decision-system");
+            when(promptService.buildDecisionUserPrompt(any(AgentAssembledContext.class), anyInt()))
+                .thenReturn("decision-user");
+            when(promptService.buildAnswerSystemPrompt()).thenReturn("answer-system");
+            when(promptService.buildAnswerUserPrompt(any(AgentAssembledContext.class), anyString(), any()))
+                .thenReturn("answer-user");
+            when(contextAssemblyService.assemble(any(), any(), anyString())).thenAnswer(invocation -> {
+                AgentSessionEntity session = invocation.getArgument(0);
+                AgentMemorySnapshot memory = invocation.getArgument(1);
+                String latestUserMessage = invocation.getArgument(2);
+                return new AgentAssembledContext(
+                    session.getSessionId(),
+                    session.getGoal(),
+                    latestUserMessage,
+                    session.getResumeId(),
+                    List.of(),
+                    memory,
+                    "上下文摘要",
+                    new AgentContextBudget(320, 16, 304),
+                    List.of(
+                        new AgentContextSection(
+                            "latest_user_message",
+                            "最新用户消息",
+                            100,
+                            latestUserMessage,
+                            AgentContextSectionStatus.INCLUDED,
+                            "included",
+                            latestUserMessage == null ? 0 : latestUserMessage.length(),
+                            latestUserMessage == null ? 0 : latestUserMessage.length()
+                        )
+                    )
+                );
+            });
             orchestrator = new AgentOrchestrator(
                 chatClientBuilder,
                 structuredOutputInvoker,
@@ -910,6 +950,7 @@ class AgentStage2RegressionEvalTest {
                 traceService,
                 metricsService,
                 promptService,
+                contextAssemblyService,
                 new AgentGuardrailService(),
                 approvalService,
                 approvalRuntimeService

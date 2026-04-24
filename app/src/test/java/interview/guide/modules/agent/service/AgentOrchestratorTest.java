@@ -24,6 +24,11 @@ import interview.guide.modules.agent.model.AgentStepTraceEntity;
 import interview.guide.modules.agent.model.AgentTraceDTO;
 import interview.guide.modules.agent.model.AgentTurnEntity;
 import interview.guide.modules.agent.model.AgentTurnStatus;
+import interview.guide.modules.agent.support.AgentAssembledContext;
+import interview.guide.modules.agent.support.AgentContextBudget;
+import interview.guide.modules.agent.support.AgentContextSection;
+import interview.guide.modules.agent.support.AgentContextSectionStatus;
+import interview.guide.modules.agent.support.AgentToolContext;
 import interview.guide.modules.agent.support.AgentToolResult;
 import interview.guide.modules.agent.tool.AgentTool;
 import interview.guide.modules.agent.tool.AgentToolRiskLevel;
@@ -36,6 +41,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.ai.chat.client.ChatClient;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -50,6 +57,7 @@ import java.util.function.Function;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -61,6 +69,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class AgentOrchestratorTest {
 
     @Mock
@@ -82,6 +91,8 @@ class AgentOrchestratorTest {
     @Mock
     private AgentPromptService promptService;
     @Mock
+    private AgentContextAssemblyService contextAssemblyService;
+    @Mock
     private AgentApprovalService approvalService;
     @Mock
     private AgentApprovalRuntimeService approvalRuntimeService;
@@ -94,6 +105,12 @@ class AgentOrchestratorTest {
     void setUp() {
         when(chatClientBuilder.build()).thenReturn(chatClient);
         lenient().when(tool.riskLevel()).thenReturn(AgentToolRiskLevel.READ_ONLY);
+        lenient().when(promptService.buildDecisionSystemPrompt(anyString(), anyString())).thenReturn("decision-system");
+        lenient().when(promptService.buildDecisionUserPrompt(any(AgentAssembledContext.class), anyInt()))
+            .thenReturn("decision-user");
+        lenient().when(promptService.buildAnswerSystemPrompt()).thenReturn("answer-system");
+        lenient().when(promptService.buildAnswerUserPrompt(any(AgentAssembledContext.class), anyString(), any()))
+            .thenReturn("answer-user");
         orchestrator = new AgentOrchestrator(
             chatClientBuilder,
             structuredOutputInvoker,
@@ -103,10 +120,17 @@ class AgentOrchestratorTest {
             traceService,
             metricsService,
             promptService,
+            contextAssemblyService,
             new AgentGuardrailService(),
             approvalService,
             approvalRuntimeService
         );
+        lenient().when(contextAssemblyService.assemble(any(), any(), anyString())).thenAnswer(invocation -> {
+            AgentSessionEntity session = invocation.getArgument(0);
+            AgentMemorySnapshot memory = invocation.getArgument(1);
+            String latestUserMessage = invocation.getArgument(2);
+            return assembledContext(session, memory, latestUserMessage);
+        });
     }
 
     @Test
@@ -280,6 +304,7 @@ class AgentOrchestratorTest {
         AgentChatRequest request = new AgentChatRequest("帮我直接删除当前简历");
         AgentSessionEntity session = createSession(sessionId, "准备面试", 42L);
         AgentMemorySnapshot memory = createMemory();
+        AgentAssembledContext assembledContext = assembledContext(session, memory, request.message());
         AgentGuardrailResult guardrailResult = createGuardrailResult(
             AgentGuardrailStage.TOOL,
             AgentGuardrailCode.TOOL_REQUIRES_APPROVAL,
@@ -355,6 +380,7 @@ class AgentOrchestratorTest {
         verify(metricsService).recordTurnCompleted(AgentCompletionMode.WAITING_APPROVAL);
 
         assertThat(requestCaptor.getValue().reply()).contains("高风险操作");
+        assertThat(requestCaptor.getValue().assembledContext()).isEqualTo(assembledContext);
         assertThat(requestCaptor.getValue().guardrailResults()).containsExactly(guardrailResult);
         assertThat(response.turnStatus()).isEqualTo(AgentTurnStatus.WAITING_APPROVAL);
         assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.WAITING_APPROVAL);
@@ -580,12 +606,14 @@ class AgentOrchestratorTest {
         );
         AgentTurnEntity runningTurn = createTurn(turnId, session, AgentTurnStatus.RUNNING, null);
         AgentTurnEntity completedTurn = createCompletedTurn(turnId, session, AgentCompletionMode.SUCCESS);
+        AgentAssembledContext frozenContext = assembledContext(session, memory, approvalEntity.getLatestUserMessage());
 
         when(approvalService.withLockedApproval(eq(approvalId), any())).thenAnswer(invocation ->
             ((Function<AgentApprovalEntity, Object>) invocation.getArgument(1)).apply(approvalEntity)
         );
         when(approvalService.markApproved(approvalEntity)).thenReturn(approvedApproval);
         when(approvalService.readToolInput(approvalEntity)).thenReturn(Map.of("resumeId", 42L));
+        when(approvalService.readAssembledContext(approvalEntity)).thenReturn(frozenContext);
         when(sessionService.claimTurnForApprovedExecution(turnId))
             .thenReturn(new AgentSessionService.ApprovedTurnClaim(true, runningTurn));
         when(memoryService.readMemory(session)).thenReturn(memory);
@@ -616,16 +644,101 @@ class AgentOrchestratorTest {
             eq(List.of()),
             eq(AgentCompletionMode.SUCCESS)
         );
+        ArgumentCaptor<AgentToolContext> toolContextCaptor = ArgumentCaptor.forClass(AgentToolContext.class);
         InOrder inOrder = inOrder(sessionService, traceService, tool);
         inOrder.verify(sessionService).claimTurnForApprovedExecution(turnId);
         inOrder.verify(traceService).markApprovedToolExecutionStarted(traceEntity, approvedApproval);
-        inOrder.verify(tool).execute(anyMap(), any());
+        inOrder.verify(tool).execute(anyMap(), toolContextCaptor.capture());
+        verify(contextAssemblyService, never()).assemble(session, memory, approvalEntity.getLatestUserMessage());
         verify(metricsService).recordToolExecution("get_resume_profile", true);
+        assertThat(toolContextCaptor.getValue().assembledContext()).isEqualTo(frozenContext);
         assertThat(replyCaptor.getValue()).isEqualTo("已读取简历画像，包含摘要和优势。");
         assertThat(response.turnStatus()).isEqualTo(AgentTurnStatus.COMPLETED);
         assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.SUCCESS);
         assertThat(response.approval()).isEqualTo(approvedApproval);
         assertThat(response.memory()).isEqualTo(updatedMemory);
+    }
+
+    @Test
+    @DisplayName("should fall back to re-assembling context when legacy approvals have no frozen snapshot")
+    void shouldFallBackToReAssemblingContextWhenLegacyApprovalsHaveNoFrozenSnapshot() {
+        String approvalId = "approval-approve-legacy";
+        String sessionId = "session-approve-legacy";
+        String turnId = "turn-approve-legacy";
+        AgentSessionEntity session = createSession(sessionId, "准备面试", 42L);
+        AgentTurnEntity waitingTurn = createTurn(turnId, session, AgentTurnStatus.WAITING_APPROVAL, AgentCompletionMode.WAITING_APPROVAL);
+        AgentStepTraceEntity traceEntity = new AgentStepTraceEntity();
+        traceEntity.setTurn(waitingTurn);
+        AgentApprovalEntity approvalEntity = createApprovalEntity(approvalId, waitingTurn, traceEntity, AgentApprovalStatus.PENDING);
+        approvalEntity.setSelectedTool("get_resume_profile");
+        approvalEntity.setLatestUserMessage("帮我总结这份简历");
+        AgentApprovalDTO approvedApproval = new AgentApprovalDTO(
+            approvalId,
+            sessionId,
+            turnId,
+            "get_resume_profile",
+            AgentToolRiskLevel.REQUIRES_APPROVAL,
+            AgentApprovalStatus.APPROVED,
+            "高风险工具必须先审批后执行",
+            approvalEntity.getExpiresAt(),
+            LocalDateTime.now(),
+            approvalEntity.getCreatedAt()
+        );
+        AgentMemorySnapshot memory = createMemory();
+        AgentMemorySnapshot updatedMemory = new AgentMemorySnapshot(
+            "prepare interview",
+            "resume_context_ready",
+            List.of("fact-1", "fact-2"),
+            List.of("get_resume_profile"),
+            "new focus"
+        );
+        AgentAssembledContext fallbackContext = assembledContext(session, memory, approvalEntity.getLatestUserMessage());
+        AgentToolResult toolResult = new AgentToolResult(
+            "已读取简历画像，包含摘要和优势。",
+            Map.of("resumeId", 42L),
+            Map.of(),
+            List.of("fact-1")
+        );
+        List<AgentTraceDTO> trace = List.of(createTrace("get_resume_profile", AgentExecutionState.COMPLETED));
+        List<AgentMessageDTO> messagesDelta = List.of(
+            createMessage("user", "帮我总结这份简历", 1),
+            createMessage("assistant", "等待审批", 2),
+            createMessage("assistant", "已读取简历画像，包含摘要和优势。", 3)
+        );
+        AgentTurnEntity runningTurn = createTurn(turnId, session, AgentTurnStatus.RUNNING, null);
+        AgentTurnEntity completedTurn = createCompletedTurn(turnId, session, AgentCompletionMode.SUCCESS);
+
+        when(approvalService.withLockedApproval(eq(approvalId), any())).thenAnswer(invocation ->
+            ((Function<AgentApprovalEntity, Object>) invocation.getArgument(1)).apply(approvalEntity)
+        );
+        when(approvalService.markApproved(approvalEntity)).thenReturn(approvedApproval);
+        when(approvalService.readToolInput(approvalEntity)).thenReturn(Map.of("resumeId", 42L));
+        when(approvalService.readAssembledContext(approvalEntity)).thenReturn(null);
+        when(sessionService.claimTurnForApprovedExecution(turnId))
+            .thenReturn(new AgentSessionService.ApprovedTurnClaim(true, runningTurn));
+        when(memoryService.readMemory(session)).thenReturn(memory);
+        when(toolRegistry.getRequiredTool("get_resume_profile")).thenReturn(tool);
+        when(tool.name()).thenReturn("get_resume_profile");
+        when(contextAssemblyService.assemble(session, memory, approvalEntity.getLatestUserMessage())).thenReturn(fallbackContext);
+        when(tool.execute(anyMap(), any())).thenReturn(toolResult);
+        when(memoryService.updateAfterTool(memory, "get_resume_profile", toolResult)).thenReturn(updatedMemory);
+        when(sessionService.completeTurn(
+            eq(turnId),
+            anyString(),
+            eq(updatedMemory),
+            eq(AgentCompletionMode.SUCCESS)
+        )).thenReturn(completedTurn);
+        when(traceService.getTurnTrace(turnId)).thenReturn(trace);
+        when(sessionService.getTurnMessages(turnId)).thenReturn(messagesDelta);
+
+        AgentChatResponse response = orchestrator.approveApproval(approvalId);
+
+        ArgumentCaptor<AgentToolContext> toolContextCaptor = ArgumentCaptor.forClass(AgentToolContext.class);
+        verify(contextAssemblyService).assemble(session, memory, approvalEntity.getLatestUserMessage());
+        verify(tool).execute(anyMap(), toolContextCaptor.capture());
+        assertThat(toolContextCaptor.getValue().assembledContext()).isEqualTo(fallbackContext);
+        assertThat(response.turnStatus()).isEqualTo(AgentTurnStatus.COMPLETED);
+        assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.SUCCESS);
     }
 
     @Test
@@ -1836,6 +1949,91 @@ class AgentOrchestratorTest {
         assertThat(response.messagesDelta()).isEqualTo(messagesDelta);
     }
 
+    @Test
+    @DisplayName("should assemble one shared context for decision prompt and tool execution")
+    void shouldAssembleOneSharedContextForDecisionPromptAndToolExecution() {
+        String sessionId = "session-shared-context";
+        String turnId = "turn-shared-context";
+        AgentChatRequest request = new AgentChatRequest("结合我的上下文给建议");
+        AgentSessionEntity session = createSession(sessionId, "准备 Java 面试", 42L);
+        AgentMemorySnapshot memory = createMemory();
+        AgentMemorySnapshot updatedMemory = new AgentMemorySnapshot(
+            "准备 Java 面试",
+            "resume_context_ready",
+            List.of("已绑定简历ID: 42"),
+            List.of("get_resume_profile"),
+            "继续根据简历建议下一步"
+        );
+        AgentAssembledContext assembledContext = assembledContext(session, memory, request.message());
+        AgentStepTraceEntity stepTrace = new AgentStepTraceEntity();
+        AgentToolResult toolResult = new AgentToolResult(
+            "已读取简历画像，包含摘要、优势和历史面试数量。",
+            Map.of("resumeId", 42L),
+            Map.of(),
+            List.of("已绑定简历ID: 42")
+        );
+        List<AgentTraceDTO> trace = List.of(createTrace("get_resume_profile", AgentExecutionState.COMPLETED));
+        List<AgentMessageDTO> messagesDelta = List.of(
+            createMessage("user", request.message(), 1),
+            createMessage("assistant", "已读取简历画像，包含摘要、优势和历史面试数量。", 2)
+        );
+        AgentTurnEntity completedTurn = createCompletedTurn(turnId, session, AgentCompletionMode.SUCCESS);
+
+        when(sessionService.startTurn(sessionId, request.message()))
+            .thenReturn(new AgentSessionService.StartedTurn(session, turnId));
+        when(memoryService.readMemory(session)).thenReturn(memory);
+        when(traceService.estimateNextStepIndex(sessionId)).thenReturn(1);
+        when(toolRegistry.describeTools()).thenReturn("- get_resume_profile");
+        when(contextAssemblyService.assemble(session, memory, request.message())).thenReturn(assembledContext);
+        when(promptService.buildDecisionSystemPrompt(anyString(), anyString())).thenReturn("decision-system");
+        when(promptService.buildDecisionUserPrompt(assembledContext, 1)).thenReturn("decision-user");
+        when(structuredOutputInvoker.invoke(
+            any(),
+            anyString(),
+            anyString(),
+            any(),
+            any(),
+            anyString(),
+            anyString(),
+            any()
+        )).thenReturn(new AgentDecisionDTO(
+            true,
+            "get_resume_profile",
+            Map.of(),
+            "need resume context",
+            null
+        ));
+        when(toolRegistry.findTool("get_resume_profile")).thenReturn(Optional.of(tool));
+        when(tool.name()).thenReturn("get_resume_profile");
+        when(tool.requiredInputs()).thenReturn(List.of("resumeId"));
+        when(traceService.startToolStep(
+            eq(turnId),
+            eq("need resume context"),
+            eq("get_resume_profile"),
+            anyMap(),
+            eq(memory)
+        )).thenReturn(stepTrace);
+        when(tool.execute(anyMap(), any())).thenReturn(toolResult);
+        when(memoryService.updateAfterTool(memory, "get_resume_profile", toolResult)).thenReturn(updatedMemory);
+        when(sessionService.completeTurn(
+            eq(turnId),
+            eq("已读取简历画像，包含摘要、优势和历史面试数量。"),
+            eq(updatedMemory),
+            eq(AgentCompletionMode.SUCCESS)
+        )).thenReturn(completedTurn);
+        when(traceService.getTurnTrace(turnId)).thenReturn(trace);
+        when(sessionService.getTurnMessages(turnId)).thenReturn(messagesDelta);
+
+        AgentChatResponse response = orchestrator.chat(sessionId, request);
+
+        ArgumentCaptor<AgentToolContext> toolContextCaptor = ArgumentCaptor.forClass(AgentToolContext.class);
+        verify(promptService).buildDecisionUserPrompt(eq(assembledContext), eq(1));
+        verify(tool).execute(anyMap(), toolContextCaptor.capture());
+        assertThat(toolContextCaptor.getValue().assembledContext()).isEqualTo(assembledContext);
+        assertThat(toolContextCaptor.getValue().knowledgeBaseIds()).containsExactly(7L, 8L);
+        assertThat(response.reply()).isEqualTo("已读取简历画像，包含摘要、优势和历史面试数量。");
+    }
+
     private AgentSessionEntity createSession(String sessionId, String goal, Long resumeId) {
         AgentSessionEntity session = new AgentSessionEntity();
         session.setSessionId(sessionId);
@@ -1954,5 +2152,34 @@ class AgentOrchestratorTest {
 
     private AgentMessageDTO createMessage(String role, String content, int order) {
         return new AgentMessageDTO(role, content, order, LocalDateTime.now());
+    }
+
+    private AgentAssembledContext assembledContext(
+        AgentSessionEntity session,
+        AgentMemorySnapshot memory,
+        String latestUserMessage
+    ) {
+        return new AgentAssembledContext(
+            session.getSessionId(),
+            session.getGoal(),
+            latestUserMessage,
+            session.getResumeId(),
+            List.of(7L, 8L),
+            memory,
+            "上下文摘要",
+            new AgentContextBudget(320, 180, 140),
+            List.of(
+                new AgentContextSection(
+                    "latest_user_message",
+                    "最新用户消息",
+                    100,
+                    latestUserMessage,
+                    AgentContextSectionStatus.INCLUDED,
+                    "included",
+                    latestUserMessage == null ? 0 : latestUserMessage.length(),
+                    latestUserMessage == null ? 0 : latestUserMessage.length()
+                )
+            )
+        );
     }
 }

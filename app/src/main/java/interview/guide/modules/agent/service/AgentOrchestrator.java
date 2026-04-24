@@ -19,6 +19,7 @@ import interview.guide.modules.agent.model.AgentStepTraceEntity;
 import interview.guide.modules.agent.model.AgentTraceDTO;
 import interview.guide.modules.agent.model.AgentTurnEntity;
 import interview.guide.modules.agent.model.AgentTurnStatus;
+import interview.guide.modules.agent.support.AgentAssembledContext;
 import interview.guide.modules.agent.support.AgentToolContext;
 import interview.guide.modules.agent.support.AgentToolResult;
 import interview.guide.modules.agent.tool.AgentTool;
@@ -56,6 +57,7 @@ public class AgentOrchestrator {
     private final AgentTraceService traceService;
     private final AgentMetricsService metricsService;
     private final AgentPromptService promptService;
+    private final AgentContextAssemblyService contextAssemblyService;
     private final AgentGuardrailService guardrailService;
     private final AgentApprovalService approvalService;
     private final AgentApprovalRuntimeService approvalRuntimeService;
@@ -70,6 +72,7 @@ public class AgentOrchestrator {
         AgentTraceService traceService,
         AgentMetricsService metricsService,
         AgentPromptService promptService,
+        AgentContextAssemblyService contextAssemblyService,
         AgentGuardrailService guardrailService,
         AgentApprovalService approvalService,
         AgentApprovalRuntimeService approvalRuntimeService
@@ -82,6 +85,7 @@ public class AgentOrchestrator {
         this.traceService = traceService;
         this.metricsService = metricsService;
         this.promptService = promptService;
+        this.contextAssemblyService = contextAssemblyService;
         this.guardrailService = guardrailService;
         this.approvalService = approvalService;
         this.approvalRuntimeService = approvalRuntimeService;
@@ -137,10 +141,15 @@ public class AgentOrchestrator {
 
             // 3. 输入安全后，再读取 stepIndex 并生成决策。
             int stepIndexHint = traceService.estimateNextStepIndex(sessionId);
-            ResolvedDecision decision = decide(session, memory, inputGuardrail.normalizedMessage(), stepIndexHint);
+            AgentAssembledContext assembledContext = contextAssemblyService.assemble(
+                session,
+                memory,
+                inputGuardrail.normalizedMessage()
+            );
+            ResolvedDecision decision = decide(session, assembledContext, stepIndexHint);
 
             // 4. 执行决策并在成功后提交 turn 完成态。
-            TurnExecution execution = executeDecision(turnId, session, memory, inputGuardrail.normalizedMessage(), decision);
+            TurnExecution execution = executeDecision(turnId, session, memory, assembledContext, decision);
             AgentTurnEntity completedTurn = execution.persistedTurn() != null
                 ? execution.persistedTurn()
                 : sessionService.completeTurn(
@@ -264,11 +273,13 @@ public class AgentOrchestrator {
 
         AgentTool tool;
         Map<String, Object> toolInput;
+        AgentAssembledContext frozenAssembledContext;
         try {
             // 8. 恢复执行前，必须重新解析工具实现，并读取审批冻结下来的输入。
             //    同时把原 trace 从 WAITING_APPROVAL 推进到 RUNNING，表示工具真正开始执行。
             tool = toolRegistry.getRequiredTool(toolName);
             toolInput = approvalService.readToolInput(approval);
+            frozenAssembledContext = approvalService.readAssembledContext(approval);
             traceService.markApprovedToolExecutionStarted(approval.getTrace(), claim.approvedApproval());
         } catch (Exception e) {
             return finalizeApprovedFailure(
@@ -284,10 +295,19 @@ public class AgentOrchestrator {
         }
 
         try {
-            // 9. 真正执行工具时，只使用审批冻结输入和冻结时刻的 latestUserMessage。
+            // 9. 真正执行工具时，优先复用审批冻结时的统一上下文快照。
+            //    只有旧审批没有该快照时，才回退到重新装配，兼容历史数据。
+            AgentAssembledContext assembledContext = frozenAssembledContext;
+            if (assembledContext == null) {
+                assembledContext = contextAssemblyService.assemble(
+                    session,
+                    memory,
+                    approval.getLatestUserMessage()
+                );
+            }
             AgentToolResult result = tool.execute(
                 toolInput,
-                buildToolContext(session, memory, approval.getLatestUserMessage())
+                buildToolContext(assembledContext)
             );
             metricsService.recordToolExecution(tool.name(), true);
 
@@ -355,8 +375,7 @@ public class AgentOrchestrator {
      */
     private ResolvedDecision decide(
         AgentSessionEntity session,
-        AgentMemorySnapshot memory,
-        String latestUserMessage,
+        AgentAssembledContext assembledContext,
         int stepIndex
     ) {
         try {
@@ -365,12 +384,7 @@ public class AgentOrchestrator {
                 toolRegistry.describeTools(),
                 decisionOutputConverter.getFormat()
             );
-            String userPrompt = promptService.buildDecisionUserPrompt(
-                session.getGoal(),
-                latestUserMessage,
-                memory,
-                stepIndex
-            );
+            String userPrompt = promptService.buildDecisionUserPrompt(assembledContext, stepIndex);
             AgentDecisionDTO decision = structuredOutputInvoker.invoke(
                 chatClient,
                 systemPrompt,
@@ -383,7 +397,7 @@ public class AgentOrchestrator {
             );
 
             // 2. 模型输出只是提案，真正执行前还要做本地校验与参数补齐。
-            return resolveDecision(session, latestUserMessage, decision);
+            return resolveDecision(session, assembledContext, decision);
         } catch (Exception e) {
             log.warn("Agent 决策失败，已降级为直接回复: sessionId={}, error={}", session.getSessionId(), e.getMessage());
             return ResolvedDecision.degraded(
@@ -403,7 +417,7 @@ public class AgentOrchestrator {
      */
     private ResolvedDecision resolveDecision(
         AgentSessionEntity session,
-        String latestUserMessage,
+        AgentAssembledContext assembledContext,
         AgentDecisionDTO decision
     ) {
         String decisionSummary = blankToDefault(
@@ -444,8 +458,8 @@ public class AgentOrchestrator {
             );
         }
 
-        // 2. 根据会话上下文补齐常见入参，再检查是否还有必填项缺失。
-        Map<String, Object> toolInput = enrichToolInput(tool.name(), decision.toolInput(), session, latestUserMessage);
+        // 2. 根据统一装配后的上下文补齐常见入参，再检查是否还有必填项缺失。
+        Map<String, Object> toolInput = enrichToolInput(tool.name(), decision.toolInput(), assembledContext);
         List<String> missingInputs = findMissingInputs(tool, toolInput);
         if (!missingInputs.isEmpty()) {
             AgentGuardrailResult guardrailResult = new AgentGuardrailResult(
@@ -497,14 +511,14 @@ public class AgentOrchestrator {
         String turnId,
         AgentSessionEntity session,
         AgentMemorySnapshot memory,
-        String latestUserMessage,
+        AgentAssembledContext assembledContext,
         ResolvedDecision decision
     ) {
         return switch (decision.route()) {
             case DIRECT_REPLY -> executeDirectReply(turnId, session, memory, decision);
             case DEGRADED_REPLY -> executeDegradedReply(turnId, memory, decision);
-            case PENDING_APPROVAL -> executePendingApproval(turnId, session, memory, latestUserMessage, decision);
-            case TOOL_CALL -> executeToolReply(turnId, session, memory, latestUserMessage, decision);
+            case PENDING_APPROVAL -> executePendingApproval(turnId, session, memory, assembledContext, decision);
+            case TOOL_CALL -> executeToolReply(turnId, session, memory, assembledContext, decision);
         };
     }
 
@@ -566,7 +580,7 @@ public class AgentOrchestrator {
         String turnId,
         AgentSessionEntity session,
         AgentMemorySnapshot memory,
-        String latestUserMessage,
+        AgentAssembledContext assembledContext,
         ResolvedDecision decision
     ) {
         String reply = buildApprovalPendingReply(decision.selectedTool());
@@ -575,7 +589,8 @@ public class AgentOrchestrator {
                 turnId,
                 session,
                 memory,
-                latestUserMessage,
+                assembledContext.latestUserMessage(),
+                assembledContext,
                 decision.decisionSummary(),
                 decision.selectedTool(),
                 effectiveRiskLevel(decision.tool()),
@@ -594,7 +609,7 @@ public class AgentOrchestrator {
         String turnId,
         AgentSessionEntity session,
         AgentMemorySnapshot memory,
-        String latestUserMessage,
+        AgentAssembledContext assembledContext,
         ResolvedDecision decision
     ) {
         // 1. 先记录一个 RUNNING 状态的 trace，保证后续成功或失败都能闭环。
@@ -610,7 +625,7 @@ public class AgentOrchestrator {
             // 2. 先执行工具本身，再单独处理 memory / trace 后处理，避免污染 tool 成功率。
             AgentToolResult result = decision.tool().execute(
                 decision.toolInput(),
-                buildToolContext(session, memory, latestUserMessage)
+                buildToolContext(assembledContext)
             );
             metricsService.recordToolExecution(decision.tool().name(), true);
             AgentMemorySnapshot postProcessedMemory = memory;
@@ -618,7 +633,7 @@ public class AgentOrchestrator {
                 postProcessedMemory = memoryService.updateAfterTool(memory, decision.tool().name(), result);
                 String reply = buildFinalAnswer(
                     session,
-                    latestUserMessage,
+                    assembledContext.latestUserMessage(),
                     postProcessedMemory,
                     decision.tool().name(),
                     result
@@ -700,19 +715,8 @@ public class AgentOrchestrator {
     /**
      * 为工具执行构造统一上下文，避免工具重复查询会话信息。
      */
-    private AgentToolContext buildToolContext(
-        AgentSessionEntity session,
-        AgentMemorySnapshot memory,
-        String latestUserMessage
-    ) {
-        List<Long> knowledgeBaseIds = sessionService.readKnowledgeBaseIds(session);
-        return new AgentToolContext(
-            session.getSessionId(),
-            session.getResumeId(),
-            knowledgeBaseIds,
-            memory,
-            latestUserMessage
-        );
+    private AgentToolContext buildToolContext(AgentAssembledContext assembledContext) {
+        return new AgentToolContext(assembledContext);
     }
 
     /**
@@ -721,24 +725,26 @@ public class AgentOrchestrator {
     private Map<String, Object> enrichToolInput(
         String toolName,
         Map<String, Object> rawInput,
-        AgentSessionEntity session,
-        String latestUserMessage
+        AgentAssembledContext assembledContext
     ) {
         Map<String, Object> input = new LinkedHashMap<>();
         if (rawInput != null) {
             input.putAll(rawInput);
         }
+        Long resumeId = assembledContext == null ? null : assembledContext.resumeId();
+        List<Long> knowledgeBaseIds = assembledContext == null ? List.of() : assembledContext.knowledgeBaseIds();
+        String latestUserMessage = assembledContext == null ? null : assembledContext.latestUserMessage();
         if (("get_resume_profile".equals(toolName)
             || "get_interview_history_summary".equals(toolName)
             || "analyze_interview_gaps".equals(toolName)
             || "suggest_follow_up_questions".equals(toolName))
             && !input.containsKey("resumeId")
-            && session.getResumeId() != null) {
-            input.put("resumeId", session.getResumeId());
+            && resumeId != null) {
+            input.put("resumeId", resumeId);
         }
         if ("search_knowledge_base".equals(toolName)) {
             if (!input.containsKey("knowledgeBaseIds")) {
-                input.put("knowledgeBaseIds", sessionService.readKnowledgeBaseIds(session));
+                input.put("knowledgeBaseIds", knowledgeBaseIds);
             }
             if (!input.containsKey("question")) {
                 input.put("question", latestUserMessage);
@@ -809,15 +815,14 @@ public class AgentOrchestrator {
         AgentToolResult toolResult
     ) {
         try {
+            AgentAssembledContext assembledContext = contextAssemblyService.assemble(
+                session,
+                updatedMemory,
+                latestUserMessage
+            );
             String content = chatClient.prompt()
                 .system(promptService.buildAnswerSystemPrompt())
-                .user(promptService.buildAnswerUserPrompt(
-                    session.getGoal(),
-                    latestUserMessage,
-                    updatedMemory,
-                    toolName,
-                    toolResult
-                ))
+                .user(promptService.buildAnswerUserPrompt(assembledContext, toolName, toolResult))
                 .call()
                 .content();
             return blankToDefault(content, blankToDefault(toolResult.summary(), buildFallbackReply(session)));

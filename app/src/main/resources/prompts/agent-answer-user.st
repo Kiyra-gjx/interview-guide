@@ -4,8 +4,8 @@
 最新用户消息:
 {latestUserMessage}
 
-当前 Memory 摘要:
-{memorySummary}
+当前上下文装配:
+{contextSummary}
 
 刚执行的工具:
 {toolName}
