@@ -46,6 +46,7 @@ public class AgentOrchestrator {
     private static final String DIRECT_ANSWER_TOOL = "direct_answer";
     private static final String DECISION_FALLBACK_TOOL = "decision_fallback";
     private static final String INVALID_TOOL_NAME = "invalid_tool";
+    private static final String SESSION_OR_RESUME_INPUT = "sessionId/resumeId";
 
     private final ChatClient chatClient;
     private final StructuredOutputInvoker structuredOutputInvoker;
@@ -727,7 +728,12 @@ public class AgentOrchestrator {
         if (rawInput != null) {
             input.putAll(rawInput);
         }
-        if ("get_resume_profile".equals(toolName) && !input.containsKey("resumeId") && session.getResumeId() != null) {
+        if (("get_resume_profile".equals(toolName)
+            || "get_interview_history_summary".equals(toolName)
+            || "analyze_interview_gaps".equals(toolName)
+            || "suggest_follow_up_questions".equals(toolName))
+            && !input.containsKey("resumeId")
+            && session.getResumeId() != null) {
             input.put("resumeId", session.getResumeId());
         }
         if ("search_knowledge_base".equals(toolName)) {
@@ -745,9 +751,23 @@ public class AgentOrchestrator {
      * 找出工具仍缺失的必填参数。
      */
     private List<String> findMissingInputs(AgentTool tool, Map<String, Object> toolInput) {
-        return tool.requiredInputs().stream()
-            .filter(key -> isMissing(toolInput.get(key)))
-            .toList();
+        List<String> missingInputs = new java.util.ArrayList<>();
+        for (String key : safeList(tool.requiredInputs())) {
+            if (isMissing(toolInput.get(key))) {
+                missingInputs.add(key);
+            }
+        }
+        for (List<String> group : safeListOfLists(tool.requiredAnyOfInputs())) {
+            List<String> normalizedGroup = safeList(group);
+            if (normalizedGroup.isEmpty()) {
+                continue;
+            }
+            boolean satisfied = normalizedGroup.stream().anyMatch(key -> !isMissing(toolInput.get(key)));
+            if (!satisfied) {
+                missingInputs.add(String.join("/", normalizedGroup));
+            }
+        }
+        return missingInputs;
     }
 
     /**
@@ -767,6 +787,14 @@ public class AgentOrchestrator {
             return map.isEmpty();
         }
         return false;
+    }
+
+    private List<String> safeList(List<String> values) {
+        return values == null ? List.of() : values;
+    }
+
+    private List<List<String>> safeListOfLists(List<List<String>> values) {
+        return values == null ? List.of() : values;
     }
 
     /**
@@ -822,6 +850,9 @@ public class AgentOrchestrator {
      * 针对缺失的关键参数返回更具体的引导文案。
      */
     private String buildMissingInputReply(AgentSessionEntity session, List<String> missingInputs) {
+        if (missingInputs.contains(SESSION_OR_RESUME_INPUT)) {
+            return "当前缺少可用的面试上下文。请提供 sessionId，或先绑定一份简历让系统拿到 resumeId 后再继续。";
+        }
         // 按缺失参数类型返回更贴近场景的提示，帮助用户补齐上下文。
         if (missingInputs.contains("resumeId")) {
             return "当前缺少可用的简历上下文。请先绑定一份简历后再继续。";

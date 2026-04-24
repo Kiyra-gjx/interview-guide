@@ -85,6 +85,9 @@ public class AgentMemoryService {
         return switch (toolName) {
             case "get_resume_profile" -> "resume_context_ready";
             case "search_knowledge_base" -> "knowledge_context_ready";
+            case "get_interview_history_summary" -> "interview_history_ready";
+            case "analyze_interview_gaps" -> "interview_gap_ready";
+            case "suggest_follow_up_questions" -> "follow_up_ready";
             default -> "context_ready";
         };
     }

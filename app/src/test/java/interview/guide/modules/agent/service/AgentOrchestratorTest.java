@@ -1096,6 +1096,90 @@ class AgentOrchestratorTest {
     }
 
     @Test
+    @DisplayName("should degrade interview tool calls before execution when neither sessionId nor resumeId is available")
+    void shouldDegradeInterviewToolCallsBeforeExecutionWhenNeitherSessionIdNorResumeIdIsAvailable() {
+        String sessionId = "session-missing-interview-context";
+        String turnId = "turn-missing-interview-context";
+        AgentChatRequest request = new AgentChatRequest("分析我的最近面试短板");
+        AgentSessionEntity session = createSession(sessionId, "准备面试", null);
+        AgentMemorySnapshot memory = createMemory();
+        AgentGuardrailResult guardrailResult = createGuardrailResult(
+            AgentGuardrailStage.TOOL,
+            AgentGuardrailCode.TOOL_MISSING_REQUIRED_INPUT,
+            AgentGuardrailAction.REJECT,
+            AgentGuardrailResolution.BLOCK_TOOL_CALL,
+            "调用 analyze_interview_gaps 前缺少必要参数: sessionId/resumeId"
+        );
+        List<AgentTraceDTO> trace = List.of(createTrace(
+            "analyze_interview_gaps",
+            AgentExecutionState.FAILED,
+            List.of(guardrailResult)
+        ));
+        List<AgentMessageDTO> messagesDelta = List.of(
+            createMessage("user", request.message(), 1),
+            createMessage("assistant", "missing interview context", 2)
+        );
+        AgentTurnEntity completedTurn = createCompletedTurn(turnId, session, AgentCompletionMode.DEGRADED);
+
+        when(sessionService.startTurn(sessionId, request.message()))
+            .thenReturn(new AgentSessionService.StartedTurn(session, turnId));
+        when(memoryService.readMemory(session)).thenReturn(memory);
+        when(traceService.estimateNextStepIndex(sessionId)).thenReturn(2);
+        when(toolRegistry.describeTools()).thenReturn("- analyze_interview_gaps");
+        when(promptService.buildDecisionSystemPrompt(anyString(), anyString())).thenReturn("decision-system");
+        when(promptService.buildDecisionUserPrompt(session.getGoal(), request.message(), memory, 2)).thenReturn("decision-user");
+        when(structuredOutputInvoker.invoke(
+            any(),
+            anyString(),
+            anyString(),
+            any(),
+            any(),
+            anyString(),
+            anyString(),
+            any()
+        )).thenReturn(new AgentDecisionDTO(
+            true,
+            "analyze_interview_gaps",
+            Map.of(),
+            "need interview gap analysis",
+            null
+        ));
+        when(toolRegistry.findTool("analyze_interview_gaps")).thenReturn(Optional.of(tool));
+        when(tool.name()).thenReturn("analyze_interview_gaps");
+        when(tool.requiredInputs()).thenReturn(List.of());
+        when(tool.requiredAnyOfInputs()).thenReturn(List.of(List.of("sessionId", "resumeId")));
+        when(sessionService.completeTurn(
+            eq(turnId),
+            anyString(),
+            eq(memory),
+            eq(AgentCompletionMode.DEGRADED)
+        )).thenReturn(completedTurn);
+        when(traceService.getTurnTrace(turnId)).thenReturn(trace);
+        when(sessionService.getTurnMessages(turnId)).thenReturn(messagesDelta);
+
+        AgentChatResponse response = orchestrator.chat(sessionId, request);
+
+        ArgumentCaptor<String> errorCaptor = ArgumentCaptor.forClass(String.class);
+        verify(traceService).recordRejectedToolDecision(
+            eq(turnId),
+            eq("need interview gap analysis"),
+            eq("analyze_interview_gaps"),
+            eq(Map.of()),
+            errorCaptor.capture(),
+            anyString(),
+            eq(memory),
+            eq(memory),
+            eq(List.of(guardrailResult))
+        );
+        verify(tool, never()).execute(anyMap(), any());
+        assertThat(errorCaptor.getValue()).contains("sessionId/resumeId");
+        assertThat(response.reply()).contains("sessionId");
+        assertThat(response.reply()).contains("resumeId");
+        assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.DEGRADED);
+        assertThat(response.guardrailResults()).containsExactly(guardrailResult);
+    }
+
+    @Test
     @DisplayName("should degrade raw json direct answers through output guardrail")
     void shouldDegradeRawJsonDirectAnswersThroughOutputGuardrail() {
         String sessionId = "session-output-guardrail";
@@ -1653,6 +1737,103 @@ class AgentOrchestratorTest {
         verify(sessionService).failTurn(eq(turnId), any(Exception.class));
         verify(metricsService).recordTurnFailed();
         verify(sessionService, never()).getSessionEntity(sessionId);
+    }
+
+    @Test
+    @DisplayName("should execute analyze interview gaps and persist the dedicated memory phase")
+    void shouldExecuteAnalyzeInterviewGapsAndPersistTheDedicatedMemoryPhase() {
+        String sessionId = "session-gap";
+        String turnId = "turn-gap";
+        AgentChatRequest request = new AgentChatRequest("我最近面试的短板是什么");
+        AgentSessionEntity session = createSession(sessionId, "准备 Java 面试", 42L);
+        AgentMemorySnapshot memory = createMemory();
+        AgentMemorySnapshot updatedMemory = new AgentMemorySnapshot(
+            "准备 Java 面试",
+            "interview_gap_ready",
+            List.of("最近一次已评估分数: 68", "低分维度: 数据库"),
+            List.of("analyze_interview_gaps"),
+            "已提炼主要短板和练习优先级"
+        );
+        AgentStepTraceEntity stepTrace = new AgentStepTraceEntity();
+        AgentToolResult toolResult = new AgentToolResult(
+            "已提炼主要短板和练习优先级",
+            Map.of("available", true, "selectedSessionId", "interview-session-1"),
+            Map.of("fallbackReason", "latest_evaluated_session"),
+            List.of("最近一次已评估分数: 68", "低分维度: 数据库")
+        );
+        List<AgentTraceDTO> trace = List.of(createTrace("analyze_interview_gaps", AgentExecutionState.COMPLETED));
+        List<AgentMessageDTO> messagesDelta = List.of(
+            createMessage("user", request.message(), 1),
+            createMessage("assistant", "已提炼主要短板和练习优先级", 2)
+        );
+        AgentTurnEntity completedTurn = createCompletedTurn(turnId, session, AgentCompletionMode.SUCCESS);
+
+        when(sessionService.startTurn(sessionId, request.message()))
+            .thenReturn(new AgentSessionService.StartedTurn(session, turnId));
+        when(memoryService.readMemory(session)).thenReturn(memory);
+        when(traceService.estimateNextStepIndex(sessionId)).thenReturn(1);
+        when(toolRegistry.describeTools()).thenReturn("- analyze_interview_gaps");
+        when(promptService.buildDecisionSystemPrompt(anyString(), anyString())).thenReturn("decision-system");
+        when(promptService.buildDecisionUserPrompt(session.getGoal(), request.message(), memory, 1)).thenReturn("decision-user");
+        when(structuredOutputInvoker.invoke(
+            any(),
+            anyString(),
+            anyString(),
+            any(),
+            any(),
+            anyString(),
+            anyString(),
+            any()
+        )).thenReturn(new AgentDecisionDTO(
+            true,
+            "analyze_interview_gaps",
+            Map.of(),
+            "need interview gap analysis",
+            null
+        ));
+        when(toolRegistry.findTool("analyze_interview_gaps")).thenReturn(Optional.of(tool));
+        when(tool.name()).thenReturn("analyze_interview_gaps");
+        when(tool.requiredInputs()).thenReturn(List.of());
+        when(tool.requiredAnyOfInputs()).thenReturn(List.of(List.of("sessionId", "resumeId")));
+        when(tool.allowedInputs()).thenReturn(List.of("sessionId", "resumeId"));
+        when(traceService.startToolStep(
+            eq(turnId),
+            eq("need interview gap analysis"),
+            eq("analyze_interview_gaps"),
+            anyMap(),
+            eq(memory)
+        )).thenReturn(stepTrace);
+        when(sessionService.readKnowledgeBaseIds(session)).thenReturn(List.of());
+        when(tool.execute(anyMap(), any())).thenReturn(toolResult);
+        when(memoryService.updateAfterTool(memory, "analyze_interview_gaps", toolResult)).thenReturn(updatedMemory);
+        when(sessionService.completeTurn(
+            eq(turnId),
+            eq("已提炼主要短板和练习优先级"),
+            eq(updatedMemory),
+            eq(AgentCompletionMode.SUCCESS)
+        )).thenReturn(completedTurn);
+        when(traceService.getTurnTrace(turnId)).thenReturn(trace);
+        when(sessionService.getTurnMessages(turnId)).thenReturn(messagesDelta);
+
+        AgentChatResponse response = orchestrator.chat(sessionId, request);
+
+        verify(traceService).completeToolStep(
+            eq(stepTrace),
+            eq(toolResult),
+            eq(updatedMemory),
+            eq("已提炼主要短板和练习优先级"),
+            eq(List.of())
+        );
+        verify(sessionService).completeTurn(
+            eq(turnId),
+            eq("已提炼主要短板和练习优先级"),
+            eq(updatedMemory),
+            eq(AgentCompletionMode.SUCCESS)
+        );
+        assertThat(response.memory()).isEqualTo(updatedMemory);
+        assertThat(response.reply()).isEqualTo("已提炼主要短板和练习优先级");
+        assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.SUCCESS);
+        assertThat(response.messagesDelta()).isEqualTo(messagesDelta);
     }
 
     private AgentSessionEntity createSession(String sessionId, String goal, Long resumeId) {

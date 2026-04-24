@@ -240,6 +240,13 @@ public class InterviewPersistenceService {
     public Optional<InterviewSessionEntity> findBySessionId(String sessionId) {
         return sessionRepository.findBySessionId(sessionId);
     }
+
+    /**
+     * 根据会话ID获取会话，并预加载所属简历
+     */
+    public Optional<InterviewSessionEntity> findBySessionIdWithResume(String sessionId) {
+        return sessionRepository.findBySessionIdWithResume(sessionId);
+    }
     
     /**
      * 获取简历的所有面试记录
