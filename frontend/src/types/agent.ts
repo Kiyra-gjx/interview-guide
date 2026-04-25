@@ -19,12 +19,30 @@ export interface AgentMemorySnapshot {
   nextFocus: string;
 }
 
+export interface AgentToolOutputNormalization {
+  summaryTruncated: boolean;
+  answerTruncated: boolean;
+  debugTruncated: boolean;
+  factsTruncated: boolean;
+}
+
+export interface AgentToolOutput {
+  kind: string;
+  summary: string;
+  reply: string;
+  answer: Record<string, unknown>;
+  debug: Record<string, unknown>;
+  facts: string[];
+  normalization: AgentToolOutputNormalization;
+}
+
 export interface AgentTraceStep {
   stepIndex: number;
   decisionSummary: string | null;
   selectedTool: string | null;
   toolInputJson: string | null;
   toolOutputJson: string | null;
+  toolOutput: AgentToolOutput | null;
   observationSummary: string | null;
   memoryBefore: AgentMemorySnapshot | null;
   memoryAfter: AgentMemorySnapshot | null;

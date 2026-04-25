@@ -10,8 +10,8 @@
 刚执行的工具:
 {toolName}
 
-工具回答载荷(JSON):
-{answerPayloadJson}
+工具归一化回答视图(JSON):
+{toolAnswerJson}
 
 请给出最终回复。
 要求:

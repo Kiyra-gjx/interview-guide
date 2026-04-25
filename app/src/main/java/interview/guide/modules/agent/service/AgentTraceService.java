@@ -9,6 +9,8 @@ import interview.guide.modules.agent.model.AgentExecutionState;
 import interview.guide.modules.agent.model.AgentMemorySnapshot;
 import interview.guide.modules.agent.model.AgentSessionEntity;
 import interview.guide.modules.agent.model.AgentStepTraceEntity;
+import interview.guide.modules.agent.model.AgentToolOutputDTO;
+import interview.guide.modules.agent.model.AgentToolOutputNormalizationDTO;
 import interview.guide.modules.agent.model.AgentTraceDTO;
 import interview.guide.modules.agent.model.AgentTurnEntity;
 import interview.guide.modules.agent.repository.AgentSessionRepository;
@@ -22,6 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -414,6 +419,7 @@ public class AgentTraceService {
             trace.getSelectedTool(),
             trace.getToolInputJson(),
             trace.getToolOutputJson(),
+            readToolOutput(trace.getToolOutputJson()),
             trace.getObservationSummary(),
             readMemorySnapshot(trace.getMemoryBeforeJson()),
             readMemorySnapshot(trace.getMemoryAfterJson()),
@@ -577,6 +583,45 @@ public class AgentTraceService {
         }
     }
 
+    /**
+     * 从持久化的 trace JSON 中恢复统一 Tool 输出视图。
+     * 兼容新字段名与历史 legacy 字段名，避免旧 trace 无法读取。
+     */
+    private AgentToolOutputDTO readToolOutput(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            // .1 先读取原始 JSON，并优先按新字段名解析；历史字段名作为兼容回退。
+            Map<String, Object> payload = objectMapper.readValue(json, new TypeReference<>() {
+            });
+            if (payload == null || payload.isEmpty()) {
+                return null;
+            }
+            return new AgentToolOutputDTO(
+                readString(payload.get("kind")),
+                readString(payload.get("summary")),
+                readString(payload.get("reply")),
+                readObjectMap(firstNonNull(payload.get("answer"), payload.get("answerPayload"))),
+                readObjectMap(firstNonNull(payload.get("debug"), payload.get("debugPayload"))),
+                readStringList(firstNonNull(payload.get("facts"), payload.get("confirmedFacts"))),
+                readNormalization(payload.get("normalization"))
+            );
+        } catch (Exception e) {
+            // .2 解析失败时返回显式占位结构，避免上层把“读取失败”误判成“没有输出”。
+            log.warn("Agent trace toolOutput read failed: json={}, error={}", clip(json, 120), e.getMessage());
+            return new AgentToolOutputDTO(
+                "tool_output_unavailable",
+                "tool_output_read_failed",
+                "",
+                Map.of(),
+                Map.of(),
+                List.of(),
+                new AgentToolOutputNormalizationDTO(false, false, false, false)
+            );
+        }
+    }
+
     private AgentCompletionMode readCompletionMode(String json) {
         if (json == null || json.isBlank()) {
             return null;
@@ -601,14 +646,15 @@ public class AgentTraceService {
         String summary,
         String reply
     ) {
-        return Map.of(
-            "kind", kind,
-            "summary", blankToEmpty(summary),
-            "reply", blankToEmpty(reply),
-            "answerPayload", Map.of(),
-            "debugPayload", Map.of(),
-            "confirmedFacts", List.of()
-        );
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("kind", kind);
+        payload.put("summary", blankToEmpty(summary));
+        payload.put("reply", blankToEmpty(reply));
+        payload.put("answer", Map.of());
+        payload.put("debug", Map.of());
+        payload.put("facts", List.of());
+        payload.put("normalization", emptyNormalizationPayload());
+        return payload;
     }
 
     private Map<String, Object> buildApprovalTracePayload(
@@ -632,9 +678,10 @@ public class AgentTraceService {
         payload.put("summary", blankToEmpty(summary));
         payload.put("reply", blankToEmpty(reply));
         payload.put("approval", approvalPayload(approval));
-        payload.put("answerPayload", Map.of());
-        payload.put("debugPayload", Map.of());
-        payload.put("confirmedFacts", List.of());
+        payload.put("answer", Map.of());
+        payload.put("debug", Map.of());
+        payload.put("facts", List.of());
+        payload.put("normalization", emptyNormalizationPayload());
         if (completionMode != null) {
             payload.put("completionMode", completionMode.name());
         }
@@ -665,6 +712,116 @@ public class AgentTraceService {
             "riskLevel", approval.riskLevel() == null ? "" : approval.riskLevel().name(),
             "expiresAt", approval.expiresAt() == null ? "" : approval.expiresAt().toString()
         );
+    }
+
+    /**
+     * 为非 Tool 结果类 trace 构造默认的归一化标记。
+     */
+    private Map<String, Object> emptyNormalizationPayload() {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("summaryTruncated", false);
+        payload.put("answerTruncated", false);
+        payload.put("debugTruncated", false);
+        payload.put("factsTruncated", false);
+        return payload;
+    }
+
+    /**
+     * 把可空对象安全转为字符串。
+     */
+    private String readString(Object value) {
+        return value == null ? "" : value.toString().trim();
+    }
+
+    /**
+     * 把 JSON Map 深拷贝为只读结构，避免响应层误改解析结果。
+     */
+    private Map<String, Object> readObjectMap(Object value) {
+        if (!(value instanceof Map<?, ?> map)) {
+            return Map.of();
+        }
+        Map<String, Object> copied = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            copied.put(String.valueOf(entry.getKey()), copyJsonValue(entry.getValue()));
+        }
+        return Collections.unmodifiableMap(copied);
+    }
+
+    /**
+     * 把 JSON 数组安全转换为字符串列表。
+     */
+    private List<String> readStringList(Object value) {
+        if (!(value instanceof List<?> list)) {
+            return List.of();
+        }
+        List<String> copied = new ArrayList<>();
+        for (Object item : list) {
+            if (item == null) {
+                continue;
+            }
+            String text = item.toString().trim();
+            if (!text.isEmpty()) {
+                copied.add(text);
+            }
+        }
+        return Collections.unmodifiableList(copied);
+    }
+
+    /**
+     * 读取持久化的归一化元数据；缺失时退回默认值。
+     */
+    private AgentToolOutputNormalizationDTO readNormalization(Object value) {
+        if (!(value instanceof Map<?, ?> map)) {
+            return new AgentToolOutputNormalizationDTO(false, false, false, false);
+        }
+        return new AgentToolOutputNormalizationDTO(
+            readBoolean(map, "summaryTruncated"),
+            readBoolean(map, "answerTruncated"),
+            readBoolean(map, "debugTruncated"),
+            readBoolean(map, "factsTruncated")
+        );
+    }
+
+    /**
+     * 从宽松 JSON 值里读取布尔标记。
+     */
+    private boolean readBoolean(Map<?, ?> map, String key) {
+        Object value = map.get(key);
+        if (value instanceof Boolean booleanValue) {
+            return booleanValue;
+        }
+        if (value instanceof String text) {
+            return Boolean.parseBoolean(text.trim());
+        }
+        return false;
+    }
+
+    /**
+     * 深拷贝 JSON 树，保证 DTO 暴露出去的是稳定快照。
+     */
+    private Object copyJsonValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> copied = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                copied.put(String.valueOf(entry.getKey()), copyJsonValue(entry.getValue()));
+            }
+            return Collections.unmodifiableMap(copied);
+        }
+        if (value instanceof List<?> list) {
+            List<Object> copied = new ArrayList<>(list.size());
+            for (Object item : list) {
+                copied.add(copyJsonValue(item));
+            }
+            return Collections.unmodifiableList(copied);
+        }
+        return value;
+    }
+
+    /**
+     * 返回两个候选值中的第一个非空值。
+     */
+    private Object firstNonNull(Object preferred, Object fallback) {
+        return preferred != null ? preferred : fallback;
     }
 
     private void markToolStepApprovalTerminal(

@@ -14,6 +14,7 @@ public record AgentTraceDTO(
     String selectedTool,
     String toolInputJson,
     String toolOutputJson,
+    AgentToolOutputDTO toolOutput,
     String observationSummary,
     AgentMemorySnapshot memoryBefore,
     AgentMemorySnapshot memoryAfter,

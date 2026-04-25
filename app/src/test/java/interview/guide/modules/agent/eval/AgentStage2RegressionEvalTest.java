@@ -725,6 +725,7 @@ class AgentStage2RegressionEvalTest {
             selectedTool,
             "{}",
             "{}",
+            null,
             "observation",
             createMemory(),
             createMemory(),

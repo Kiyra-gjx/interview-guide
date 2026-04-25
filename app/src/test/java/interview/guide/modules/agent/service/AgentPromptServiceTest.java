@@ -38,13 +38,13 @@ class AgentPromptServiceTest {
     }
 
     @Test
-    @DisplayName("should expose full goal and latest message while only passing answer payload to the final answer prompt")
-    void shouldExposeFullGoalAndLatestMessageWhileOnlyPassingAnswerPayloadToTheFinalAnswerPrompt() throws Exception {
+    @DisplayName("should expose full goal and latest message while only passing the normalized answer view to the final answer prompt")
+    void shouldExposeFullGoalAndLatestMessageWhileOnlyPassingTheNormalizedAnswerViewToTheFinalAnswerPrompt() throws Exception {
         AgentPromptService promptService = new AgentPromptService(
             new ObjectMapper(),
             utf8Resource("system"),
             utf8Resource("user"),
-            utf8Resource("目标={userGoal}\n消息={latestUserMessage}\n上下文={contextSummary}\n工具={toolName}\n载荷={answerPayloadJson}")
+            utf8Resource("目标={userGoal}\n消息={latestUserMessage}\n上下文={contextSummary}\n工具={toolName}\n视图={toolAnswerJson}")
         );
         AgentToolResult toolResult = new AgentToolResult(
             "summary",
@@ -62,6 +62,8 @@ class AgentPromptServiceTest {
         assertThat(prompt).contains("完整目标");
         assertThat(prompt).contains("完整消息");
         assertThat(prompt).contains("业务结果");
+        assertThat(prompt).contains("summary");
+        assertThat(prompt).contains("fact-1");
         assertThat(prompt).doesNotContain("debug query");
         assertThat(prompt).contains("用于回答阶段的上下文");
     }

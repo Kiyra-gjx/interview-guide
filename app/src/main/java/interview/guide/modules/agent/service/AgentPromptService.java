@@ -111,7 +111,7 @@ public class AgentPromptService {
         variables.put("latestUserMessage", nullToEmpty(assembledContext == null ? null : assembledContext.latestUserMessage()));
         variables.put("contextSummary", contextSummary(assembledContext));
         variables.put("toolName", nullToEmpty(toolName));
-        variables.put("answerPayloadJson", toJson(toolResult.answerPayload()));
+        variables.put("toolAnswerJson", toJson(toolResult.promptPayload()));
         return answerUserPromptTemplate.render(variables);
     }
 
@@ -138,7 +138,7 @@ public class AgentPromptService {
         variables.put("memorySummary", summarizeMemory(memorySnapshot));
         variables.put("contextSummary", summarizeMemory(memorySnapshot));
         variables.put("toolName", nullToEmpty(toolName));
-        variables.put("answerPayloadJson", toJson(toolResult.answerPayload()));
+        variables.put("toolAnswerJson", toJson(toolResult.promptPayload()));
         return answerUserPromptTemplate.render(variables);
     }
 

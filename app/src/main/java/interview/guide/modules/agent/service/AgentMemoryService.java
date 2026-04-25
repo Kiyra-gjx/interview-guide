@@ -24,6 +24,9 @@ public class AgentMemoryService {
 
     private final ObjectMapper objectMapper;
 
+    /**
+     * 创建初始 memory 快照。
+     */
     public AgentMemorySnapshot createInitialSnapshot(String goal) {
         return new AgentMemorySnapshot(
             goal == null ? "" : goal.trim(),
@@ -34,6 +37,9 @@ public class AgentMemoryService {
         );
     }
 
+    /**
+     * 读取当前会话的 memory 快照。
+     */
     public AgentMemorySnapshot readMemory(AgentSessionEntity session) {
         if (session.getMemoryJson() == null || session.getMemoryJson().isBlank()) {
             return createInitialSnapshot(session.getGoal());
@@ -45,6 +51,9 @@ public class AgentMemoryService {
         }
     }
 
+    /**
+     * 把 memory 快照写回到会话实体。
+     */
     public void writeMemory(AgentSessionEntity session, AgentMemorySnapshot snapshot) {
         try {
             session.setMemoryJson(objectMapper.writeValueAsString(snapshot));
@@ -53,18 +62,30 @@ public class AgentMemoryService {
         }
     }
 
+    /**
+     * 在工具执行完成后更新 memory 快照。
+     */
     public AgentMemorySnapshot updateAfterTool(
         AgentMemorySnapshot current,
         String toolName,
         AgentToolResult result
     ) {
-        LinkedHashSet<String> facts = new LinkedHashSet<>(safeList(current.confirmedFacts()));
-        for (String fact : safeList(result.confirmedFacts())) {
+        AgentToolResult.MemoryProjection currentProjection = AgentToolResult.memoryProjection(
+            current.nextFocus(),
+            current.confirmedFacts(),
+            MAX_FACTS
+        );
+        AgentToolResult.MemoryProjection toolProjection = result.memoryProjection();
+
+        // .1 先把已有 memory 和新 tool result 都压到同一套 summary / facts 契约下，再做合并。
+        LinkedHashSet<String> facts = new LinkedHashSet<>(safeList(currentProjection.facts()));
+        for (String fact : safeList(toolProjection.facts())) {
             if (fact != null && !fact.isBlank()) {
                 facts.add(fact);
             }
         }
 
+        // .2 memory 仍保留自己的总量上限，但单条事实和单次 tool 写回都已经过统一归一化。
         List<String> limitedFacts = new ArrayList<>(facts).stream()
             .limit(MAX_FACTS)
             .toList();
@@ -77,10 +98,13 @@ public class AgentMemoryService {
             resolvePhase(toolName),
             limitedFacts,
             new ArrayList<>(usedTools),
-            result.summary()
+            toolProjection.summary()
         );
     }
 
+    /**
+     * 根据工具名推进 memory 阶段。
+     */
     private String resolvePhase(String toolName) {
         return switch (toolName) {
             case "get_resume_profile" -> "resume_context_ready";
@@ -92,6 +116,9 @@ public class AgentMemoryService {
         };
     }
 
+    /**
+     * 兜底空列表，避免重复判空。
+     */
     private List<String> safeList(List<String> value) {
         return value == null ? List.of() : value;
     }

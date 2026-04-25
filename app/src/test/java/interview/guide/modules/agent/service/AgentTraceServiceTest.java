@@ -253,4 +253,41 @@ class AgentTraceServiceTest {
         assertThat(traceDTOs.getFirst().memoryBefore().currentPhase()).isEqualTo("memory_snapshot_unavailable");
         assertThat(traceDTOs.getFirst().memoryBefore().confirmedFacts()).contains("memory_snapshot_read_failed");
     }
+
+    @Test
+    @DisplayName("should normalize legacy layered payload names from persisted trace output")
+    void shouldNormalizeLegacyLayeredPayloadNamesFromPersistedTraceOutput() throws Exception {
+        AgentSessionEntity session = new AgentSessionEntity();
+        session.setSessionId("session-tool-output");
+        AgentTurnEntity turn = new AgentTurnEntity();
+        turn.setTurnId("turn-tool-output");
+        turn.setSession(session);
+        AgentStepTraceEntity trace = new AgentStepTraceEntity();
+        trace.setTurn(turn);
+        trace.setSession(session);
+        trace.setStepIndex(1);
+        trace.setToolOutputJson("{legacy-tool-output}");
+        trace.setStatus(AgentExecutionState.COMPLETED);
+        trace.setCreatedAt(java.time.LocalDateTime.now());
+
+        when(turnRepository.findByTurnId("turn-tool-output")).thenReturn(Optional.of(turn));
+        when(traceRepository.findByTurn_TurnIdOrderByStepIndexAsc("turn-tool-output")).thenReturn(java.util.List.of(trace));
+        when(objectMapper.readValue(eq("{legacy-tool-output}"), any(tools.jackson.core.type.TypeReference.class)))
+            .thenReturn(Map.of(
+                "kind", "tool_result",
+                "summary", "summary",
+                "reply", "reply",
+                "answerPayload", Map.of("answer", "业务结果"),
+                "debugPayload", Map.of("retrievalQuery", "debug query"),
+                "confirmedFacts", java.util.List.of("fact-1")
+            ));
+
+        java.util.List<AgentTraceDTO> traceDTOs = traceService.getTurnTrace("turn-tool-output");
+
+        assertThat(traceDTOs).hasSize(1);
+        assertThat(traceDTOs.getFirst().toolOutput()).isNotNull();
+        assertThat(traceDTOs.getFirst().toolOutput().answer()).containsEntry("answer", "业务结果");
+        assertThat(traceDTOs.getFirst().toolOutput().debug()).containsEntry("retrievalQuery", "debug query");
+        assertThat(traceDTOs.getFirst().toolOutput().facts()).containsExactly("fact-1");
+    }
 }
