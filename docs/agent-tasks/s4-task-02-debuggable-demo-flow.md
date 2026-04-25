@@ -19,14 +19,14 @@
 ## 3. 本任务范围
 
 - demo 主流程与入口状态设计
-- 调试信息与演示视角的统一
+- 基于现有 `trace / memory / approval / toolOutput` 数据面的调试信息与演示视角统一
 - 典型场景样例与演示说明
 - 单 Agent 收口所需的异常态、空态、加载态整理
 
 ## 4. 主要改动点
 
 - 前端主流程与状态切换
-- 与 workbench 相关的 API / DTO 消费逻辑
+- 与 workbench 相关的 API / DTO 消费逻辑，尤其是统一 `toolOutput` 视图的展示组织
 - demo 场景样例或文档
 - 必要的说明文档与展示辅助内容
 
