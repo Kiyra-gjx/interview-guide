@@ -3,7 +3,7 @@
 ## 0. 阶段状态
 - 阶段状态：已完成
 - 已完成任务：S2-01、S2-02、S2-03、S2-04
-- 后续承接任务：Stage 3 已完成，当前推荐进入 [S4-01：Agent Workbench UI](../agent-tasks/s4-task-01-agent-workbench-ui.md)
+- 后续承接任务：Stage 3 与 S4-01 已完成，当前推荐进入 [S4-02：Debuggable Demo Flow](../agent-tasks/s4-task-02-debuggable-demo-flow.md)
 - 前置条件：Stage 1 已完成
 
 ## 1. 阶段目标

@@ -84,7 +84,7 @@ flowchart TB
         Resume["modules/resume<br/>上传 + 解析 + 分析"]
         Interview["modules/interview<br/>出题 + 会话 + 评估"]
         KB["modules/knowledgebase<br/>上传 + 向量化 + RAG"]
-        Agent["modules/agent<br/>orchestrator + tool + trace + approval"]
+        Agent["modules/agent<br/>orchestrator + tool + trace + approval + workbench read model"]
 
         Resume --> Common
         Interview --> Common
@@ -258,6 +258,43 @@ sequenceDiagram
 - Tool 调用前后都落 trace，Agent 前端可以读取 trace/memory/approval，并直接消费统一的 `toolOutput` 做可观测界面。
 - 当前已注册的 Tool 主要是只读型能力：读取简历画像、检索知识库。
 
+### 工作台读模型链路
+
+```mermaid
+sequenceDiagram
+    participant UI as Agent Workbench
+    participant AC as AgentController
+    participant WS as AgentWorkbenchService
+    participant SS as AgentSessionService
+    participant TR as AgentTraceService
+    participant AP as AgentApprovalService
+    participant TUR as AgentTurnRepository
+    participant MSG as AgentMessageRepository
+
+    UI->>AC: GET /api/agent/sessions/{sessionId}
+    UI->>AC: GET /api/agent/sessions/{sessionId}/turns
+    UI->>AC: GET /api/agent/sessions/{sessionId}/memory
+    UI->>AC: GET /api/agent/sessions/{sessionId}/approvals
+    UI->>AC: GET /api/agent/turns/{turnId}
+
+    AC->>WS: getSessionTurns(sessionId)
+    WS->>SS: getSessionEntity(sessionId)
+    WS->>TUR: findBySession_SessionIdOrderByCreatedAtDesc()
+    WS->>MSG: findBySession_SessionIdOrderByMessageOrderAsc()
+
+    AC->>WS: getTurnDetail(turnId)
+    WS->>MSG: findByTurn_TurnIdOrderByMessageOrderAsc()
+    WS->>TR: getTurnTrace(turnId)
+    WS->>AP: getTurnApprovals(turnId)
+```
+
+### 这条读模型链路的关键点
+
+- workbench 路径是只读聚合层，不改 Agent 编排主链路。
+- `session` 接口现在只返回会话元数据，不再携带全量 `messages`；历史消息改为通过 turn summary / detail 按需读取。
+- turn 列表会批量读取会话消息并在内存中按 turn 分组，避免列表路径落入 N+1 查询。
+- turn 明细一次性收口 `messages / traceSteps / approvals / guardrailResults`，前端不再自己拼多份 turn 数据。
+
 ### 审批恢复链路
 
 ```mermaid
@@ -313,7 +350,8 @@ flowchart TD
 | 页面组织 | BrowserRouter + lazy load，按简历、面试、知识库、Agent 四条主线拆页 | `frontend/src/App.tsx` |
 | 普通请求 | axios 统一处理后端 `Result<T>` 包装 | `frontend/src/api/request.ts` |
 | 流式请求 | SSE 直接用 `fetch` 读取流，不经过 axios | `frontend/src/api/knowledgebase.ts`、`frontend/src/api/ragChat.ts` |
-| Agent UI 数据面 | 除了聊天响应，还会读 trace / memory / approvals；其中 trace 已暴露统一 `toolOutput` 视图与归一化标记 | `frontend/src/api/agent.ts`、`frontend/src/types/agent.ts` |
+| Agent UI 数据面 | 工作台以 `session` 元数据、`turn summaries/detail`、`memory` 与 `approvals` 组织界面；`turn detail` 再承载 `messages / traceSteps / approvals / guardrailResults`，不再从 `session` 返回全量消息 | `frontend/src/pages/AgentCoachPage.tsx`、`frontend/src/components/agent/*`、`frontend/src/api/agent.ts`、`frontend/src/types/agent.ts` |
+| Agent 前端并发保护 | 用请求序号与会话代际屏蔽 stale response，避免切 turn、刷新工作台、切会话时旧请求回写界面 | `frontend/src/pages/AgentCoachPage.tsx`、`frontend/tests/AgentCoachPage.test.tsx` |
 
 ### 6.3 后端业务切片
 
@@ -322,7 +360,7 @@ flowchart TD
 | `modules/resume` | 上传简历、解析文本、去重、异步分析、导出 PDF | 上传同步，分析异步 | `ResumeController`、`ResumeUploadService`、`AnalyzeStreamProducer`、`AnalyzeStreamConsumer`、`ResumeGradingService` |
 | `modules/interview` | 生成问题、管理作答进度、恢复会话、异步评估报告 | 会话同步，评估异步 | `InterviewController`、`InterviewSessionService`、`InterviewQuestionService`、`EvaluateStreamProducer`、`EvaluateStreamConsumer`、`AnswerEvaluationService` |
 | `modules/knowledgebase` | 上传文档、解析、向量化、RAG 检索、RAG 会话 | 上传异步向量化，查询同步/SSE | `KnowledgeBaseController`、`KnowledgeBaseUploadService`、`KnowledgeBaseVectorService`、`KnowledgeBaseQueryService`、`RagChatController`、`RagChatSessionService` |
-| `modules/agent` | Agent session、turn 生命周期、decision、tool、memory、trace、approval、guardrail | 请求驱动，同步编排，支持审批恢复 | `AgentController`、`AgentOrchestrator`、`AgentSessionService`、`AgentTraceService`、`AgentApprovalService`、`AgentGuardrailService` |
+| `modules/agent` | Agent session、turn 生命周期、decision、tool、memory、trace、approval、guardrail、workbench 读模型 | 请求驱动，同步编排；工作台读取走只读聚合 | `AgentController`、`AgentOrchestrator`、`AgentWorkbenchService`、`AgentSessionService`、`AgentTraceService`、`AgentApprovalService`、`AgentGuardrailService` |
 
 ### 6.4 共享基础设施
 
@@ -361,20 +399,21 @@ flowchart TD
 2. AI 密集型长耗时步骤基本都被拆到 Redis Stream，避免接口长时间阻塞。
 3. 面试模块是“Redis 过程态 + PostgreSQL 恢复态”的混合模型。
 4. 知识库模块把“上传向量化”和“检索问答”拆成两条链路，分别优化。
-5. Agent 模块是当前最复杂的子系统，已经具备 guardrail、approval、trace、memory、turn lease，以及统一的 tool output normalization。
+5. Agent 模块是当前最复杂的子系统，已经具备 guardrail、approval、trace、memory、turn lease、统一的 tool output normalization，以及 Stage 4 workbench 只读聚合层。
 
 ## 7. 阅读源码时的推荐入口
 
 如果要从代码继续往下看，建议按下面顺序读：
 
 1. `frontend/src/App.tsx`
-2. `frontend/src/api/request.ts`
-3. `app/src/main/java/interview/guide/modules/resume/service/ResumeUploadService.java`
-4. `app/src/main/java/interview/guide/modules/interview/service/InterviewSessionService.java`
-5. `app/src/main/java/interview/guide/modules/knowledgebase/service/KnowledgeBaseQueryService.java`
+2. `frontend/src/pages/AgentCoachPage.tsx`
+3. `frontend/src/api/agent.ts`
+4. `app/src/main/java/interview/guide/modules/agent/AgentController.java`
+5. `app/src/main/java/interview/guide/modules/agent/service/AgentWorkbenchService.java`
 6. `app/src/main/java/interview/guide/modules/agent/service/AgentOrchestrator.java`
-7. `app/src/main/java/interview/guide/common/ai/StructuredOutputInvoker.java`
-8. `app/src/main/resources/db/migration/V1__agent_base_schema.sql` 到 `V5__agent_runtime_approval_policy.sql`
+7. `app/src/main/java/interview/guide/modules/agent/service/AgentSessionService.java`
+8. `app/src/main/java/interview/guide/common/ai/StructuredOutputInvoker.java`
+9. `app/src/main/resources/db/migration/V1__agent_base_schema.sql` 到 `V5__agent_runtime_approval_policy.sql`
 
 ## 8. 后续维护建议
 

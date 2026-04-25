@@ -56,6 +56,7 @@ Level B 不是最低完成线，而是在 Level A 之上的增强层。
 - Stage 1 已完成
 - Stage 2 已完成
 - Stage 3 已完成
+- Stage 4 进行中
 - S2-01 已完成
 - S2-02 已完成
 - S2-03 已完成
@@ -63,15 +64,16 @@ Level B 不是最低完成线，而是在 Level A 之上的增强层。
 - S3-01 已完成
 - S3-02 已完成
 - S3-03 已完成
-- 当前推荐下一任务是 [S4-01：Agent Workbench UI](./agent-tasks/s4-task-01-agent-workbench-ui.md)
+- S4-01 已完成
+- 当前推荐下一任务是 [S4-02：Debuggable Demo Flow](./agent-tasks/s4-task-02-debuggable-demo-flow.md)
 
-这意味着项目已经建立了单 Agent 的执行基础、安全可观测运行时基线、首批 interview domain 工具能力、统一 context assembly 基线，以及统一的 tool output 消费视图，但还没有达到完整单 Agent 的完成线。
+这意味着项目已经建立了单 Agent 的执行基础、安全可观测运行时基线、首批 interview domain 工具能力、统一 context assembly 基线、统一的 tool output 消费视图，以及 turn 级 Agent Workbench；但还没有达到完整单 Agent 的完成线，当前仍缺少 Stage 4 最后的 demo flow 收口。
 
 ## 它还差什么
 
 从顶层看，当前还差两段收口：
 
-- Stage 4：把已有能力收口成可调试、可演示的完整单 Agent 体验
+- Stage 4：S4-01 已完成，但还需要把已有工作台收口成稳定、可复现、可对外说明的 demo flow
 - Stage 5：在 Level A 之后，按收益评估是否进入受控多步执行
 
 ## 文档分工

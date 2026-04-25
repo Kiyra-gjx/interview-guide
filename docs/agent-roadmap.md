@@ -2,10 +2,10 @@
 
 ## 当前进度快照
 
-- 当前整体状态：Stage 3 已完成，Stage 4 待启动
+- 当前整体状态：Stage 3 已完成，Stage 4 进行中
 - 已完成阶段：Stage 1、Stage 2、Stage 3
-- 当前已完成任务：S3-01、S3-02、S3-03
-- 当前推荐下一任务：[S4-01：Agent Workbench UI](./agent-tasks/s4-task-01-agent-workbench-ui.md)
+- 当前已完成任务：S3-01、S3-02、S3-03、S4-01
+- 当前推荐下一任务：[S4-02：Debuggable Demo Flow](./agent-tasks/s4-task-02-debuggable-demo-flow.md)
 - 当前最低完成线定义：完成 Stage 4 即达到完整单 Agent（Level A）
 - 更高一级目标：Stage 5 是受控多步 Agent（Level B），不是最低完成线
 
@@ -73,7 +73,8 @@
   - 项目已能作为完整单 Agent 工程对外说明
   - 单 Agent 执行边界、工具治理、memory、观测、风控、评测闭环完整
   - 达到 Level A
-- 当前状态：未开始
+- 当前状态：进行中
+- 当前完成情况：S4-01 已完成，已落地真正的 Agent Workbench 与 turn 级只读聚合；S4-02 待完成
 - 参考文档：[Stage 4：Agent Workbench and Demo Surface](./agent-stages/stage-4-agent-workbench-demo-surface.md)
 
 ### Stage 5：Bounded Multi-Step Agent
@@ -92,13 +93,13 @@
 
 ## 当前推荐下一任务
 
-当前建议进入 [S4-01：Agent Workbench UI](./agent-tasks/s4-task-01-agent-workbench-ui.md)。
+当前建议进入 [S4-02：Debuggable Demo Flow](./agent-tasks/s4-task-02-debuggable-demo-flow.md)。
 
 推荐原因：
 
-- Stage 3 已完成，领域工具、上下文装配与 tool output normalization 已经收口
-- Trace / Memory / Approval / toolOutput 数据面已经具备稳定消费基础，适合进入工作台展示与调试界面建设
-- 当前最主要缺口已经从“如何稳定产出单 Agent 结果”转向“如何把这些结果做成可观察、可演示的 Level A 产品表面”
+- S4-01 已完成，前后端都已经按 turn 视角落地 Workbench，而不是继续堆聊天页
+- 当前剩余缺口已经从“把数据面接出来”转向“把工作台收口成稳定、可复现、可讲清楚的 demo flow”
+- Stage 5 仍然不是当前优先级，必须先完成 Stage 4 的 Level A 收口
 
 ## 评测与证据原则
 

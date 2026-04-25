@@ -1,10 +1,16 @@
 # Stage 4: Agent Workbench and Demo Surface
 
 ## 0. 阶段状态
-- 阶段状态：未开始
-- 已完成任务：无
-- 当前任务：[S4-01：Agent Workbench UI](../agent-tasks/s4-task-01-agent-workbench-ui.md)
+- 阶段状态：进行中
+- 已完成任务：S4-01
+- 当前任务：[S4-02：Debuggable Demo Flow](../agent-tasks/s4-task-02-debuggable-demo-flow.md)
 - 前置条件：Stage 3 已完成
+
+## 0.1 当前进展
+
+- S4-01 已把 `AgentCoachPage` 从聊天页重构为真正的 Agent Workbench，前端可以按 turn 查看时间线、会话级 memory、审批队列和 trace 调试面
+- 后端已新增 `AgentWorkbenchService`、`AgentTurnSummaryDTO`、`AgentTurnDetailDTO`，并通过 `/api/agent/sessions/{sessionId}/turns` 与 `/api/agent/turns/{turnId}` 暴露 turn 级读模型
+- `AgentSessionDTO` 已收口为会话元数据；历史消息不再跟着 session 全量返回，而是通过 turn detail 按需读取
 
 ## 1. 阶段目标
 
@@ -12,10 +18,10 @@
 
 ## 2. 本阶段必须解决的问题
 
-- 当前系统缺少面向用户和开发者的统一 workbench 入口
-- Trace、Memory、状态和失败原因缺少清晰的前端观察面
-- 领域能力已经存在时，仍缺少可用于演示和验证的 demo surface
-- 单 Agent 能力尚未形成完整产品闭环
+- 统一的 workbench 入口已经落地，但还缺少稳定、可重复演示的 demo flow
+- turn、trace、memory、approval 虽然已可视化，但对成功、降级、失败路径的演示叙事还没有完全收口
+- 空态、加载态、失败态与启动说明仍需围绕 demo 继续整理
+- 单 Agent 能力尚未形成完整的对外说明闭环
 
 ## 3. 本阶段交付物
 

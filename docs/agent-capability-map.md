@@ -40,7 +40,7 @@
 
 ## Observability
 
-- 当前状态：Stage 2 已完成，S2-01、S2-02、S2-03、S2-04 已建立 trace、memory、metrics、guardrail、approval 与 eval 基线；S3-03 进一步让 trace / API 暴露统一 `toolOutput` 与 normalization 元数据
+- 当前状态：Stage 2 已完成，S2-01、S2-02、S2-03、S2-04 已建立 trace、memory、metrics、guardrail、approval 与 eval 基线；S3-03 进一步让 trace / API 暴露统一 `toolOutput` 与 normalization 元数据；S4-01 已把这些数据面接到 turn 级工作台中
 - 完成标准：能清楚解释一轮执行为何成功、降级、被拒绝或失败，并具备稳定指标入口
 - 对应 stage/task：
   - [Stage 2：Safe and Observable Runtime](./agent-stages/stage-2-observability-guardrails.md)
@@ -68,7 +68,7 @@
 
 ## Workbench
 
-- 当前状态：已有局部展示能力，且 trace 已具备 `toolOutput`、memory、approval 等统一数据面，但还不是完整 Agent Workbench
+- 当前状态：S4-01 已完成，已经具备 turn 时间线、turn 明细、session memory、审批队列与 trace browser 的统一工作台入口；但 Stage 4 尚未完成，还缺少稳定 demo flow 与演示说明
 - 完成标准：具备面向调试、观测、演示的统一工作台入口，并能支撑完整单 Agent demo
 - 对应 stage/task：
   - [Stage 4：Agent Workbench and Demo Surface](./agent-stages/stage-4-agent-workbench-demo-surface.md)
@@ -88,5 +88,5 @@
 ## 总结
 
 - “它是什么”：见 [Agent Overview](./agent-overview.md)
-- “它还差什么”：当前主要缺口集中在 Workbench / Demo Surface
-- “它接下来做什么”：当前推荐进入 [S4-01：Agent Workbench UI](./agent-tasks/s4-task-01-agent-workbench-ui.md)
+- “它还差什么”：当前主要缺口集中在 Demo Surface 收口与对外说明
+- “它接下来做什么”：当前推荐进入 [S4-02：Debuggable Demo Flow](./agent-tasks/s4-task-02-debuggable-demo-flow.md)

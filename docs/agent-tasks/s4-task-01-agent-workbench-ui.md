@@ -2,7 +2,7 @@
 
 ## 0. 任务状态
 
-- 状态：未开始
+- 状态：已完成
 - 当前定位：Stage 4 的工作台入口任务
 - 前置依赖：Stage 3 已完成
 
@@ -19,7 +19,7 @@
 ## 3. 本任务范围
 
 - turn 列表与明细视图
-- trace / memory / toolOutput / approval / metrics 面板
+- trace / memory / toolOutput / approval 面板
 - 错误、降级、拒绝、审批状态展示
 - 更适合演示与调试的 UI 结构
 
@@ -27,9 +27,11 @@
 
 - `frontend/src/pages/AgentCoachPage.tsx`
 - 新增 `frontend/src/components/agent/*`
-- `frontend/src/api/agent.ts`
-- `frontend/src/types/agent.ts`
-- 与 `AgentTraceDTO.toolOutput`、`AgentMemorySnapshot`、`AgentApproval` 对应的前端消费与展示逻辑
+- `frontend/src/api/agent.ts`、`frontend/src/types/agent.ts`
+- `app/src/main/java/interview/guide/modules/agent/service/AgentWorkbenchService.java`
+- `app/src/main/java/interview/guide/modules/agent/model/AgentTurnSummaryDTO.java`、`AgentTurnDetailDTO.java`
+- `app/src/main/java/interview/guide/modules/agent/AgentController.java`、`AgentSessionDTO.java`
+- turn 级只读聚合接口、session payload 收口，以及前端 stale response 并发保护与测试覆盖
 
 ## 5. 风险与边界
 
@@ -40,11 +42,13 @@
 ## 6. 完成标准
 
 - 可以按 turn 查看执行结果、状态和关键调试信息
+- 会话接口只保留元数据，历史消息改为通过 turn summary / detail 读模型按需获取
 - Trace、Memory、`toolOutput`、审批状态与失败原因可直观看到
 - 界面已经具备“workbench”而不是“聊天页”的信息组织方式
 
 ## 7. 验证要求
 
-- 前端构建与关键页面交互校验通过
+- `./gradlew test --tests "interview.guide.modules.agent.AgentControllerTest" --tests "interview.guide.modules.agent.service.AgentWorkbenchServiceTest" --tests "interview.guide.modules.agent.service.AgentSessionServiceTest"` 通过
+- `pnpm test:run` 与 `pnpm build` 通过
 - 至少有一条典型单 Agent 场景可在工作台中完整查看执行过程
 - 异常、降级、拒绝等状态在 UI 中可区分、可解释
