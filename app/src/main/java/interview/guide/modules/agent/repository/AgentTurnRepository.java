@@ -21,6 +21,8 @@ public interface AgentTurnRepository extends JpaRepository<AgentTurnEntity, Long
 
     Optional<AgentTurnEntity> findByTurnId(String turnId);
 
+    List<AgentTurnEntity> findBySession_SessionIdOrderByCreatedAtDesc(String sessionId);
+
     List<AgentTurnEntity> findBySession_SessionIdAndStatusOrderByCreatedAtAsc(String sessionId, AgentTurnStatus status);
 
     List<AgentTurnEntity> findBySession_SessionIdAndStatusInOrderByCreatedAtAsc(

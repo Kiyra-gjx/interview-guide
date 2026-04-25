@@ -5,6 +5,8 @@ import type {
   AgentChatResponse,
   AgentMemorySnapshot,
   AgentSession,
+  AgentTurnDetail,
+  AgentTurnSummary,
   AgentTraceStep,
   CreateAgentSessionRequest,
 } from '../types/agent';
@@ -26,6 +28,14 @@ export const agentApi = {
 
   async getTrace(sessionId: string): Promise<AgentTraceStep[]> {
     return request.get<AgentTraceStep[]>(`/api/agent/sessions/${sessionId}/trace`);
+  },
+
+  async getTurns(sessionId: string): Promise<AgentTurnSummary[]> {
+    return request.get<AgentTurnSummary[]>(`/api/agent/sessions/${sessionId}/turns`);
+  },
+
+  async getTurnDetail(turnId: string): Promise<AgentTurnDetail> {
+    return request.get<AgentTurnDetail>(`/api/agent/turns/${turnId}`);
   },
 
   async getMemory(sessionId: string): Promise<AgentMemorySnapshot> {

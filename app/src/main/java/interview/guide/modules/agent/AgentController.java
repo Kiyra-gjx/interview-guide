@@ -7,6 +7,7 @@ import interview.guide.modules.agent.service.AgentMemoryService;
 import interview.guide.modules.agent.service.AgentOrchestrator;
 import interview.guide.modules.agent.service.AgentSessionService;
 import interview.guide.modules.agent.service.AgentTraceService;
+import interview.guide.modules.agent.service.AgentWorkbenchService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,7 @@ public class AgentController {
     private final AgentTraceService traceService;
     private final AgentMemoryService memoryService;
     private final AgentApprovalService approvalService;
+    private final AgentWorkbenchService workbenchService;
 
     @PostMapping("/api/agent/sessions")
     public Result<AgentSessionDTO> createSession(@Valid @RequestBody CreateAgentSessionRequest request) {
@@ -50,6 +52,24 @@ public class AgentController {
     @GetMapping("/api/agent/sessions/{sessionId}/trace")
     public Result<List<AgentTraceDTO>> getTrace(@PathVariable String sessionId) {
         return Result.success(traceService.getTrace(sessionId));
+    }
+
+    /**
+     * 查询会话下的 turn 摘要列表。
+     * 主要供工作台左侧 turn 时间线与状态总览使用。
+     */
+    @GetMapping("/api/agent/sessions/{sessionId}/turns")
+    public Result<List<AgentTurnSummaryDTO>> getTurns(@PathVariable String sessionId) {
+        return Result.success(workbenchService.getSessionTurns(sessionId));
+    }
+
+    /**
+     * 查询单个 turn 的工作台明细。
+     * 这里一次性返回消息、trace、审批与 guardrail 聚合结果，避免前端自行拼接多份 turn 数据。
+     */
+    @GetMapping("/api/agent/turns/{turnId}")
+    public Result<AgentTurnDetailDTO> getTurnDetail(@PathVariable String turnId) {
+        return Result.success(workbenchService.getTurnDetail(turnId));
     }
 
     @GetMapping("/api/agent/sessions/{sessionId}/memory")

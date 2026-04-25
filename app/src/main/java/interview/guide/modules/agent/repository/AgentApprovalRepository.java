@@ -22,6 +22,8 @@ public interface AgentApprovalRepository extends JpaRepository<AgentApprovalEnti
 
     List<AgentApprovalEntity> findBySession_SessionIdOrderByCreatedAtDesc(String sessionId);
 
+    List<AgentApprovalEntity> findByTurn_TurnIdOrderByCreatedAtDesc(String turnId);
+
     List<AgentApprovalEntity> findBySession_SessionIdAndStatusOrderByCreatedAtAsc(
         String sessionId,
         AgentApprovalStatus status

@@ -5,11 +5,15 @@ import interview.guide.common.exception.ErrorCode;
 import interview.guide.common.exception.GlobalExceptionHandler;
 import interview.guide.modules.agent.model.AgentApprovalDTO;
 import interview.guide.modules.agent.model.AgentApprovalStatus;
+import interview.guide.modules.agent.model.AgentTurnDetailDTO;
+import interview.guide.modules.agent.model.AgentTurnStatus;
+import interview.guide.modules.agent.model.AgentTurnSummaryDTO;
 import interview.guide.modules.agent.service.AgentMemoryService;
 import interview.guide.modules.agent.service.AgentApprovalService;
 import interview.guide.modules.agent.service.AgentOrchestrator;
 import interview.guide.modules.agent.service.AgentSessionService;
 import interview.guide.modules.agent.service.AgentTraceService;
+import interview.guide.modules.agent.service.AgentWorkbenchService;
 import interview.guide.modules.agent.tool.AgentToolRiskLevel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -42,6 +46,8 @@ class AgentControllerTest {
     private AgentMemoryService memoryService;
     @Mock
     private AgentApprovalService approvalService;
+    @Mock
+    private AgentWorkbenchService workbenchService;
 
     private MockMvc mockMvc;
 
@@ -52,7 +58,8 @@ class AgentControllerTest {
             agentOrchestrator,
             traceService,
             memoryService,
-            approvalService
+            approvalService,
+            workbenchService
         );
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
             .setControllerAdvice(new GlobalExceptionHandler())
@@ -124,5 +131,59 @@ class AgentControllerTest {
             .andExpect(jsonPath("$.data[0].approvalId").value("approval-1"))
             .andExpect(jsonPath("$.data[0].status").value("PENDING"))
             .andExpect(jsonPath("$.data[0].selectedTool").value("delete_resume"));
+    }
+
+    @Test
+    @DisplayName("should return session turn summaries for the workbench")
+    void shouldReturnSessionTurnSummariesForWorkbench() throws Exception {
+        String sessionId = "session-turns";
+        when(workbenchService.getSessionTurns(sessionId)).thenReturn(java.util.List.of(
+            new AgentTurnSummaryDTO(
+                "turn-1",
+                AgentTurnStatus.COMPLETED,
+                interview.guide.modules.agent.model.AgentCompletionMode.SUCCESS,
+                "先分析我的简历重点",
+                "已经整理出三个重点方向。",
+                null,
+                java.time.LocalDateTime.parse("2026-04-25T10:00:00"),
+                java.time.LocalDateTime.parse("2026-04-25T10:00:01"),
+                java.time.LocalDateTime.parse("2026-04-25T10:00:09")
+            )
+        ));
+
+        mockMvc.perform(get("/api/agent/sessions/{sessionId}/turns", sessionId))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].turnId").value("turn-1"))
+            .andExpect(jsonPath("$.data[0].status").value("COMPLETED"))
+            .andExpect(jsonPath("$.data[0].assistantReplyPreview").value("已经整理出三个重点方向。"));
+    }
+
+    @Test
+    @DisplayName("should return turn detail for the workbench")
+    void shouldReturnTurnDetailForWorkbench() throws Exception {
+        String turnId = "turn-detail";
+        when(workbenchService.getTurnDetail(turnId)).thenReturn(new AgentTurnDetailDTO(
+            new AgentTurnSummaryDTO(
+                turnId,
+                AgentTurnStatus.WAITING_APPROVAL,
+                interview.guide.modules.agent.model.AgentCompletionMode.WAITING_APPROVAL,
+                "帮我删除当前简历",
+                "高风险操作，等待审批。",
+                null,
+                java.time.LocalDateTime.parse("2026-04-25T11:00:00"),
+                java.time.LocalDateTime.parse("2026-04-25T11:00:01"),
+                null
+            ),
+            java.util.List.of(),
+            java.util.List.of(),
+            java.util.List.of(),
+            java.util.List.of()
+        ));
+
+        mockMvc.perform(get("/api/agent/turns/{turnId}", turnId))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.turn.turnId").value(turnId))
+            .andExpect(jsonPath("$.data.turn.status").value("WAITING_APPROVAL"))
+            .andExpect(jsonPath("$.data.turn.assistantReplyPreview").value("高风险操作，等待审批。"));
     }
 }

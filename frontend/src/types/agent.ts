@@ -3,6 +3,23 @@ export type AgentTurnStatus = 'CREATED' | 'RUNNING' | 'WAITING_APPROVAL' | 'COMP
 export type AgentCompletionMode = 'SUCCESS' | 'DEGRADED' | 'WAITING_APPROVAL';
 export type AgentApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
 export type AgentToolRiskLevel = 'READ_ONLY' | 'REQUIRES_APPROVAL';
+export type AgentGuardrailStage = 'INPUT' | 'TOOL' | 'OUTPUT';
+export type AgentGuardrailCode =
+  | 'INPUT_INTERNAL_DATA_REQUEST'
+  | 'INPUT_MESSAGE_TOO_LONG'
+  | 'INPUT_CONTROL_CHARACTERS'
+  | 'TOOL_REQUIRES_APPROVAL'
+  | 'TOOL_UNEXPECTED_INPUT'
+  | 'TOOL_MISSING_REQUIRED_INPUT'
+  | 'OUTPUT_EMPTY_REPLY'
+  | 'OUTPUT_RAW_JSON_REPLY'
+  | 'OUTPUT_SENSITIVE_FIELD_LEAK';
+export type AgentGuardrailAction = 'REJECT' | 'DEGRADE' | 'REQUIRE_APPROVAL';
+export type AgentGuardrailResolution =
+  | 'RETURN_SAFE_REPLY'
+  | 'BLOCK_TOOL_CALL'
+  | 'REPLACE_WITH_FALLBACK_REPLY'
+  | 'WAIT_FOR_APPROVAL';
 
 export interface AgentMessage {
   role: 'user' | 'assistant';
@@ -36,6 +53,14 @@ export interface AgentToolOutput {
   normalization: AgentToolOutputNormalization;
 }
 
+export interface AgentGuardrailResult {
+  stage: AgentGuardrailStage | null;
+  code: AgentGuardrailCode | null;
+  action: AgentGuardrailAction | null;
+  resolution: AgentGuardrailResolution | null;
+  reason: string | null;
+}
+
 export interface AgentTraceStep {
   stepIndex: number;
   decisionSummary: string | null;
@@ -46,6 +71,7 @@ export interface AgentTraceStep {
   observationSummary: string | null;
   memoryBefore: AgentMemorySnapshot | null;
   memoryAfter: AgentMemorySnapshot | null;
+  guardrailResults: AgentGuardrailResult[];
   status: AgentExecutionState;
   errorMessage: string | null;
   createdAt: string;
@@ -60,7 +86,6 @@ export interface AgentSession {
   status: AgentExecutionState;
   createdAt: string;
   updatedAt: string;
-  messages: AgentMessage[];
 }
 
 export interface CreateAgentSessionRequest {
@@ -87,6 +112,26 @@ export interface AgentApproval {
   createdAt: string;
 }
 
+export interface AgentTurnSummary {
+  turnId: string;
+  status: AgentTurnStatus;
+  completionMode: AgentCompletionMode | null;
+  userMessagePreview: string | null;
+  assistantReplyPreview: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export interface AgentTurnDetail {
+  turn: AgentTurnSummary;
+  messages: AgentMessage[];
+  traceSteps: AgentTraceStep[];
+  approvals: AgentApproval[];
+  guardrailResults: AgentGuardrailResult[];
+}
+
 export interface AgentChatResponse {
   sessionId: string;
   turnId: string;
@@ -96,5 +141,6 @@ export interface AgentChatResponse {
   reply: string;
   memory: AgentMemorySnapshot;
   traceSteps: AgentTraceStep[];
+  guardrailResults: AgentGuardrailResult[];
   messagesDelta: AgentMessage[];
 }

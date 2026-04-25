@@ -71,6 +71,17 @@ public class AgentApprovalService {
     }
 
     /**
+     * 读取单个 turn 关联的全部审批记录。
+     * 工作台明细只关心当前 turn 的审批历史，因此这里单独提供 turn 级投影视图。
+     */
+    public List<AgentApprovalDTO> getTurnApprovals(String turnId) {
+        LocalDateTime now = LocalDateTime.now();
+        return approvalRepository.findByTurn_TurnIdOrderByCreatedAtDesc(turnId).stream()
+            .map(approval -> toDTO(approval, now))
+            .toList();
+    }
+
+    /**
      * 读取单条审批的对外视图。
      * 这里只做状态投影，不负责推进 turn 或 trace。
      */

@@ -2,6 +2,7 @@ package interview.guide.modules.agent.service;
 
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
+import interview.guide.modules.agent.model.AgentExecutionState;
 import interview.guide.modules.agent.model.AgentSessionDTO;
 import interview.guide.modules.agent.model.AgentMessageEntity;
 import interview.guide.modules.agent.model.AgentSessionEntity;
@@ -154,6 +155,24 @@ class AgentSessionServiceTest {
     }
 
     @Test
+    @DisplayName("should return session summary without loading message history")
+    void shouldReturnSessionSummaryWithoutLoadingMessageHistory() throws Exception {
+        String sessionId = "session-summary";
+        AgentSessionEntity session = createSession(sessionId);
+        session.setStatus(AgentExecutionState.RUNNING);
+        session.setKnowledgeBaseIdsJson("[1,2]");
+
+        when(sessionRepository.findBySessionId(sessionId)).thenReturn(Optional.of(session));
+        when(objectMapper.readValue(eq("[1,2]"), any(TypeReference.class))).thenReturn(List.of(1L, 2L));
+
+        AgentSessionDTO sessionDTO = sessionService.getSession(sessionId);
+
+        assertThat(sessionDTO.sessionId()).isEqualTo(sessionId);
+        assertThat(sessionDTO.knowledgeBaseIds()).containsExactly(1L, 2L);
+        verify(messageRepository, never()).findBySession_SessionIdOrderByMessageOrderAsc(sessionId);
+    }
+
+    @Test
     @DisplayName("should reject session creation when the resume resource does not exist")
     void shouldRejectSessionCreationWhenResumeResourceDoesNotExist() {
         CreateAgentSessionRequest request = new CreateAgentSessionRequest("title", "goal", 42L, List.of());
@@ -200,7 +219,6 @@ class AgentSessionServiceTest {
         when(objectMapper.writeValueAsString(List.of(1L, 2L))).thenReturn("[1,2]");
         when(objectMapper.readValue(eq("[1,2]"), any(TypeReference.class))).thenReturn(List.of(1L, 2L));
         when(sessionRepository.save(any(AgentSessionEntity.class))).thenReturn(savedSession);
-        when(messageRepository.findBySession_SessionIdOrderByMessageOrderAsc("session-created")).thenReturn(List.of());
 
         AgentSessionDTO sessionDTO = sessionService.createSession(request);
 
@@ -208,6 +226,7 @@ class AgentSessionServiceTest {
         verify(sessionRepository).save(sessionCaptor.capture());
         assertThat(sessionCaptor.getValue().getKnowledgeBaseIdsJson()).isEqualTo("[1,2]");
         assertThat(sessionDTO.knowledgeBaseIds()).containsExactly(1L, 2L);
+        verify(messageRepository, never()).findBySession_SessionIdOrderByMessageOrderAsc("session-created");
     }
 
     private AgentSessionEntity createSession(String sessionId) {

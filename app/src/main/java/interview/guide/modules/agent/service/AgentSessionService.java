@@ -513,6 +513,7 @@ public class AgentSessionService {
      * 将会话实体转换为接口 DTO。
      */
     private AgentSessionDTO toSessionDTO(AgentSessionEntity session) {
+        // 工作台会话 DTO 不再携带全量消息历史，消息查看统一走 turn/detail 读模型。
         return new AgentSessionDTO(
             session.getSessionId(),
             session.getTitle(),
@@ -521,8 +522,7 @@ public class AgentSessionService {
             readKnowledgeBaseIds(session),
             session.getStatus(),
             session.getCreatedAt(),
-            session.getUpdatedAt(),
-            getMessages(session.getSessionId())
+            session.getUpdatedAt()
         );
     }
 
