@@ -21,7 +21,7 @@
 
 - S3-01 范围内的首批 interview context tools 已具备可消费状态
 - 当前未发现阻塞 S3-01 达标的已知正确性缺口
-- Stage 3 在 S3-02 已完成后，下一步应进入 [S3-03：Tool Output Normalization](./s3-task-03-tool-output-normalization.md)
+- 后续已由 [S3-03：Tool Output Normalization](./s3-task-03-tool-output-normalization.md) 完成统一消费视图收口，Stage 3 当前已整体完成
 
 ## 1. 任务目标
 

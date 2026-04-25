@@ -1,15 +1,16 @@
 # Stage 3: Domain Tooling and Context Assembly
 
 ## 0. 阶段状态
-- 阶段状态：进行中
-- 已完成任务：S3-01、S3-02
-- 当前任务：[S3-03：Tool Output Normalization](../agent-tasks/s3-task-03-tool-output-normalization.md)
+- 阶段状态：已完成
+- 已完成任务：S3-01、S3-02、S3-03
+- 后续承接任务：[S4-01：Agent Workbench UI](../agent-tasks/s4-task-01-agent-workbench-ui.md)
 - 前置条件：Stage 2 完成
 
 ## 0.1 当前进展
 
 - 已落地首批 interview domain 读型 / 轻量分析型工具，覆盖历史概况、短板分析与追问建议
-- Stage 3 当前已完成统一上下文装配策略落地，剩余重点转向工具输出归一化，由 S3-03 承接
+- 已完成统一上下文装配策略落地，简历、知识库、历史面试等上下文进入统一装配路径
+- S3-03 已把 Tool 原始结果统一投影为 Prompt 回答视图、Memory 写回视图与 Trace / API `toolOutput` 视图，并补齐 normalization 元数据与 legacy trace 兼容读取
 
 ## 1. 阶段目标
 
@@ -27,6 +28,7 @@
 - 统一的 context assembly 策略与装配边界
 - 简历、知识库、历史面试、复盘等核心 domain context 的组装路径
 - 可被单 Agent 直接消费的领域能力层
+- 统一的 tool output 消费契约，覆盖回答、memory、trace 与前端 API
 
 ## 4. 任务拆分
 
@@ -52,6 +54,7 @@
 
 - interview 关键场景已具备足够的 domain tooling 支撑
 - 上下文组装路径清晰且可复用，不再依赖临时拼接
+- Tool 输出已能稳定服务回答、memory 与调试链路，不再依赖各消费方自行拼装
 - 单 Agent 已能稳定拿到所需领域上下文，但本阶段仍不要求提供完整 demo surface
 
 ## 8. 建议留存的证据

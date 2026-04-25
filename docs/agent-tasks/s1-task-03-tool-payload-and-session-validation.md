@@ -3,14 +3,14 @@
 ## 0. 任务状态
 
 - 状态：已完成
-- 当前重点：已完成 Tool payload 分层、Prompt 收口、session 资源校验与 ToolRegistry 重名保护
+- 当前重点：已完成 Tool payload 分层、session 资源校验与 ToolRegistry 重名保护；当前版本在此基础上进一步统一了 Tool 结果的消费者视图
 
 ## 0.1 已完成项
 
 - `AgentToolResult` 已拆为 `summary / answerPayload / debugPayload / confirmedFacts`
-- 回答 Prompt 已只消费 `answerPayload`，不再把 Tool debug 字段喂回回答模型
+- Stage 1 已先完成回答层与调试层分离；当前版本的回答 Prompt 在此基础上改为消费统一回答视图 `promptPayload()`，仍不让 Tool debug 字段进入回答模型
 - `ResumeProfileTool` 与 `KnowledgeBaseSearchTool` 已按业务结果与调试结果分层输出
-- Tool trace 已保留完整分层快照，回答链路与排障链路职责分开
+- Tool trace 已保留完整分层快照；当前版本又在此基础上暴露统一 `toolOutput` 结构，回答链路与排障链路职责分开
 - `createSession()` 已在落库前校验 `resumeId` 存在性，并对 `knowledgeBaseIds` 做去重与存在性校验
 - `ToolRegistry` 已新增 duplicate fail-fast，重名 Tool 会在启动阶段直接失败
 - 已补 Agent 后端专项测试，覆盖 Prompt 隔离、trace 分层、session 资源校验与 ToolRegistry 重名保护
@@ -36,7 +36,7 @@
 ## 3. 本任务范围
 
 - `AgentToolResult` 拆层
-- Prompt 只消费 `answerPayload`
+- Prompt 不消费 `debugPayload`，当前通过统一回答视图消费 Tool 结果
 - Tool 输出字段收紧
 - session 创建资源校验
 - ToolRegistry duplicate fail-fast

@@ -3,8 +3,8 @@
 ## 0. 阶段状态
 - 阶段状态：未开始
 - 已完成任务：无
-- 当前任务：待 Stage 3 完成后启动
-- 前置条件：Stage 3 完成
+- 当前任务：[S4-01：Agent Workbench UI](../agent-tasks/s4-task-01-agent-workbench-ui.md)
+- 前置条件：Stage 3 已完成
 
 ## 1. 阶段目标
 
@@ -32,7 +32,7 @@
 
 ## 5. 进入条件 / 依赖关系
 
-- 必须先完成 Stage 3，确保 domain tooling 与 context assembly 已可用
+- 必须先完成 Stage 3，确保 domain tooling、context assembly 与统一 tool output 消费视图已可用
 - 本阶段不负责新增高级多步执行能力，只消费 Stage 1-3 的成果做单 Agent 收口
 - Stage 4 完成即达到 Level A 的完整单 Agent 形态
 - Stage 5 是后续增强阶段，不是本阶段的进入前提

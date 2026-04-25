@@ -1,6 +1,6 @@
 # 当前代码架构图与设计细节
 
-> 更新时间：2026-04-23
+> 更新时间：2026-04-25
 >
 > 图形工具：Mermaid
 >
@@ -236,7 +236,8 @@ sequenceDiagram
         else TOOL_CALL
             AO->>TR: startToolStep()
             AO->>TO: execute(context)
-            TO-->>AO: AgentToolResult
+            TO-->>AO: AgentToolResult(raw output)
+            AO->>AO: normalizeToolOutput()<br/>生成 prompt / memory / trace 统一视图
             AO->>MS: updateAfterTool()
             AO->>LLM: 生成最终回复
             AO->>GS: evaluateOutput()
@@ -253,7 +254,8 @@ sequenceDiagram
 - `agent` 模块不是普通聊天接口，而是有持久化执行状态的编排器。
 - 核心对象不是只有 message，还有 `session`、`turn`、`step trace`、`memory`、`approval`。
 - `turn` 有租约与终态控制，避免同一个会话被并发执行污染。
-- Tool 调用前后都落 trace，Agent 前端可以读取 trace/memory/approval 做可观测界面。
+- Tool 原始结果先产出 `summary / answerPayload / debugPayload / confirmedFacts`，再由 `AgentToolResult` 统一投影成 Prompt 的回答视图、Memory 的写回视图，以及 Trace / API 的 `toolOutput` 视图。
+- Tool 调用前后都落 trace，Agent 前端可以读取 trace/memory/approval，并直接消费统一的 `toolOutput` 做可观测界面。
 - 当前已注册的 Tool 主要是只读型能力：读取简历画像、检索知识库。
 
 ### 审批恢复链路
@@ -311,7 +313,7 @@ flowchart TD
 | 页面组织 | BrowserRouter + lazy load，按简历、面试、知识库、Agent 四条主线拆页 | `frontend/src/App.tsx` |
 | 普通请求 | axios 统一处理后端 `Result<T>` 包装 | `frontend/src/api/request.ts` |
 | 流式请求 | SSE 直接用 `fetch` 读取流，不经过 axios | `frontend/src/api/knowledgebase.ts`、`frontend/src/api/ragChat.ts` |
-| Agent UI 数据面 | 除了聊天响应，还会读 trace / memory / approvals | `frontend/src/api/agent.ts` |
+| Agent UI 数据面 | 除了聊天响应，还会读 trace / memory / approvals；其中 trace 已暴露统一 `toolOutput` 视图与归一化标记 | `frontend/src/api/agent.ts`、`frontend/src/types/agent.ts` |
 
 ### 6.3 后端业务切片
 
@@ -359,7 +361,7 @@ flowchart TD
 2. AI 密集型长耗时步骤基本都被拆到 Redis Stream，避免接口长时间阻塞。
 3. 面试模块是“Redis 过程态 + PostgreSQL 恢复态”的混合模型。
 4. 知识库模块把“上传向量化”和“检索问答”拆成两条链路，分别优化。
-5. Agent 模块是当前最复杂的子系统，已经具备 guardrail、approval、trace、memory 和 turn lease。
+5. Agent 模块是当前最复杂的子系统，已经具备 guardrail、approval、trace、memory、turn lease，以及统一的 tool output normalization。
 
 ## 7. 阅读源码时的推荐入口
 

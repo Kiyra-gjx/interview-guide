@@ -20,7 +20,7 @@
 
 ## Tooling
 
-- 当前状态：已有基础 Tool 契约，S3-01 已落地首批 interview domain 工具，S3-02 已建立统一 context assembly 策略；剩余缺口主要集中在 tool output normalization
+- 当前状态：已有基础 Tool 契约，S3-01、S3-02、S3-03 已完成；Tool 原始结果仍由 `summary / answerPayload / debugPayload / confirmedFacts` 产出，但消费侧已统一收口为 Prompt 回答视图、Memory 投影视图与 Trace / API `toolOutput` 视图
 - 完成标准：工具输入、执行、输出边界清晰，可扩展且能稳定服务单 Agent 主链路
 - 对应 stage/task：
   - [Stage 1：Execution Foundation](./agent-stages/stage-1-turn-foundation.md)
@@ -31,7 +31,7 @@
 
 ## Memory
 
-- 当前状态：Stage 2 已完成 S2-01，S3-02 已把 memory 装配到统一上下文快照中，memory before / after 与消费边界已有基础
+- 当前状态：Stage 2 已完成 S2-01，S3-02 已把 memory 装配到统一上下文快照中，S3-03 又把 tool 写回 memory 的 summary / facts 归一化逻辑统一收口到 `memoryProjection()`
 - 完成标准：memory 能稳定表达跨轮上下文变化，并能被 trace、回放和工作台解释
 - 对应 stage/task：
   - [Stage 2：Safe and Observable Runtime](./agent-stages/stage-2-observability-guardrails.md)
@@ -40,7 +40,7 @@
 
 ## Observability
 
-- 当前状态：Stage 2 已完成，S2-01、S2-02、S2-03、S2-04 已建立 trace、memory、metrics、guardrail、approval 与 eval 基线
+- 当前状态：Stage 2 已完成，S2-01、S2-02、S2-03、S2-04 已建立 trace、memory、metrics、guardrail、approval 与 eval 基线；S3-03 进一步让 trace / API 暴露统一 `toolOutput` 与 normalization 元数据
 - 完成标准：能清楚解释一轮执行为何成功、降级、被拒绝或失败，并具备稳定指标入口
 - 对应 stage/task：
   - [Stage 2：Safe and Observable Runtime](./agent-stages/stage-2-observability-guardrails.md)
@@ -68,7 +68,7 @@
 
 ## Workbench
 
-- 当前状态：已有局部展示能力，但还不是完整 Agent Workbench
+- 当前状态：已有局部展示能力，且 trace 已具备 `toolOutput`、memory、approval 等统一数据面，但还不是完整 Agent Workbench
 - 完成标准：具备面向调试、观测、演示的统一工作台入口，并能支撑完整单 Agent demo
 - 对应 stage/task：
   - [Stage 4：Agent Workbench and Demo Surface](./agent-stages/stage-4-agent-workbench-demo-surface.md)
@@ -88,5 +88,5 @@
 ## 总结
 
 - “它是什么”：见 [Agent Overview](./agent-overview.md)
-- “它还差什么”：当前主要缺口集中在 Tool Output Normalization、Workbench
-- “它接下来做什么”：当前推荐进入 [S3-03：Tool Output Normalization](./agent-tasks/s3-task-03-tool-output-normalization.md)
+- “它还差什么”：当前主要缺口集中在 Workbench / Demo Surface
+- “它接下来做什么”：当前推荐进入 [S4-01：Agent Workbench UI](./agent-tasks/s4-task-01-agent-workbench-ui.md)
