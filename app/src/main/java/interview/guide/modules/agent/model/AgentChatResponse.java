@@ -17,12 +17,40 @@ public record AgentChatResponse(
     AgentMemorySnapshot memory,
     List<AgentTraceDTO> traceSteps,
     List<AgentGuardrailResult> guardrailResults,
-    List<AgentMessageDTO> messagesDelta
+    List<AgentMessageDTO> messagesDelta,
+    AgentExecutionSummaryDTO execution
 ) {
 
     public AgentChatResponse {
         traceSteps = traceSteps == null ? List.of() : List.copyOf(traceSteps);
         guardrailResults = guardrailResults == null ? List.of() : List.copyOf(guardrailResults);
         messagesDelta = messagesDelta == null ? List.of() : List.copyOf(messagesDelta);
+    }
+
+    public AgentChatResponse(
+        String sessionId,
+        String turnId,
+        AgentTurnStatus turnStatus,
+        AgentCompletionMode completionMode,
+        AgentApprovalDTO approval,
+        String reply,
+        AgentMemorySnapshot memory,
+        List<AgentTraceDTO> traceSteps,
+        List<AgentGuardrailResult> guardrailResults,
+        List<AgentMessageDTO> messagesDelta
+    ) {
+        this(
+            sessionId,
+            turnId,
+            turnStatus,
+            completionMode,
+            approval,
+            reply,
+            memory,
+            traceSteps,
+            guardrailResults,
+            messagesDelta,
+            null
+        );
     }
 }

@@ -3,6 +3,17 @@ export type AgentTurnStatus = 'CREATED' | 'RUNNING' | 'WAITING_APPROVAL' | 'COMP
 export type AgentCompletionMode = 'SUCCESS' | 'DEGRADED' | 'WAITING_APPROVAL';
 export type AgentApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
 export type AgentToolRiskLevel = 'READ_ONLY' | 'REQUIRES_APPROVAL';
+export type AgentLoopStopReason =
+  | 'INPUT_GUARDRAIL_BLOCKED'
+  | 'DIRECT_REPLY'
+  | 'DEGRADED_REPLY'
+  | 'TOOL_COMPLETED_SINGLE_STEP'
+  | 'PENDING_APPROVAL'
+  | 'STEP_BUDGET_EXHAUSTED'
+  | 'TIME_BUDGET_EXHAUSTED'
+  | 'TOKEN_BUDGET_EXHAUSTED'
+  | 'TOOL_EXECUTION_FAILED'
+  | 'TOOL_POST_PROCESSING_FAILED';
 export type AgentGuardrailStage = 'INPUT' | 'TOOL' | 'OUTPUT';
 export type AgentGuardrailCode =
   | 'INPUT_INTERNAL_DATA_REQUEST'
@@ -88,6 +99,27 @@ export interface AgentSession {
   updatedAt: string;
 }
 
+export interface AgentRuntimeConfig {
+  multiStepEnabled?: boolean;
+  maxSteps?: number;
+  maxDurationMillis?: number;
+  maxEstimatedModelTokens?: number;
+}
+
+export interface AgentExecutionSummary {
+  multiStepEnabled: boolean;
+  maxSteps: number;
+  executedSteps: number;
+  remainingSteps: number;
+  maxDurationMillis: number;
+  elapsedMillis: number;
+  remainingDurationMillis: number;
+  maxEstimatedModelTokens: number;
+  estimatedModelTokensUsed: number;
+  remainingEstimatedModelTokens: number;
+  stopReason: AgentLoopStopReason | null;
+}
+
 export interface CreateAgentSessionRequest {
   title?: string;
   goal: string;
@@ -97,6 +129,7 @@ export interface CreateAgentSessionRequest {
 
 export interface AgentChatRequest {
   message: string;
+  runtimeConfig?: AgentRuntimeConfig;
 }
 
 export interface AgentApproval {
@@ -143,4 +176,5 @@ export interface AgentChatResponse {
   traceSteps: AgentTraceStep[];
   guardrailResults: AgentGuardrailResult[];
   messagesDelta: AgentMessage[];
+  execution?: AgentExecutionSummary | null;
 }

@@ -1,6 +1,9 @@
 package interview.guide.modules.agent.service;
 
 import interview.guide.modules.agent.model.AgentCompletionMode;
+import interview.guide.modules.agent.model.AgentExecutionSummaryDTO;
+import interview.guide.modules.agent.model.AgentLoopStopReason;
+import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +21,9 @@ public class AgentMetricsService {
     private static final String TURN_RECLAIMED_METRIC = "agent.turn.reclaimed";
     private static final String TURN_LATENCY_METRIC = "agent.turn.latency";
     private static final String TOOL_EXECUTION_METRIC = "agent.tool.execution";
+    private static final String EXECUTION_SUMMARY_METRIC = "agent.execution.summary";
+    private static final String EXECUTION_STEPS_METRIC = "agent.execution.steps";
+    private static final String EXECUTION_BUDGET_EXHAUSTED_METRIC = "agent.execution.budget.exhausted";
 
     private final MeterRegistry meterRegistry;
 
@@ -64,7 +70,48 @@ public class AgentMetricsService {
             .register(meterRegistry));
     }
 
+    /**
+     * 记录本轮执行摘要，补充多步预算相关观测维度。
+     */
+    public void recordExecutionSummary(AgentExecutionSummaryDTO executionSummary) {
+        if (executionSummary == null) {
+            return;
+        }
+        meterRegistry.counter(
+            EXECUTION_SUMMARY_METRIC,
+            "multiStep", Boolean.toString(executionSummary.multiStepEnabled()),
+            "stopReason", normalizeStopReason(executionSummary.stopReason())
+        ).increment();
+
+        DistributionSummary.builder(EXECUTION_STEPS_METRIC)
+            .description("Executed step count of completed agent turns")
+            .register(meterRegistry)
+            .record(executionSummary.executedSteps());
+
+        String exhaustedBudget = resolveExhaustedBudget(executionSummary.stopReason());
+        if (exhaustedBudget != null) {
+            meterRegistry.counter(EXECUTION_BUDGET_EXHAUSTED_METRIC, "budget", exhaustedBudget).increment();
+        }
+    }
+
     private String normalizeToolName(String toolName) {
         return toolName == null || toolName.isBlank() ? "unknown_tool" : toolName.trim();
+    }
+
+    private String normalizeStopReason(AgentLoopStopReason stopReason) {
+        return stopReason == null ? "UNKNOWN" : stopReason.name();
+    }
+
+    private String resolveExhaustedBudget(AgentLoopStopReason stopReason) {
+        if (stopReason == AgentLoopStopReason.STEP_BUDGET_EXHAUSTED) {
+            return "step";
+        }
+        if (stopReason == AgentLoopStopReason.TIME_BUDGET_EXHAUSTED) {
+            return "time";
+        }
+        if (stopReason == AgentLoopStopReason.TOKEN_BUDGET_EXHAUSTED) {
+            return "token";
+        }
+        return null;
     }
 }

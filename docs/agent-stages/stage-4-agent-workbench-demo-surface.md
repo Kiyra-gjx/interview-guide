@@ -1,9 +1,9 @@
 # Stage 4: Agent Workbench and Demo Surface
 
 ## 0. 阶段状态
-- 阶段状态：进行中
-- 已完成任务：S4-01
-- 当前任务：[S4-02：Debuggable Demo Flow](../agent-tasks/s4-task-02-debuggable-demo-flow.md)
+- 阶段状态：已完成
+- 已完成任务：S4-01、S4-02
+- 后续承接任务：[S5-01：Bounded Loop and Budget Control](../agent-tasks/s5-task-01-bounded-loop-and-budget-control.md)
 - 前置条件：Stage 3 已完成
 
 ## 0.1 当前进展
@@ -11,6 +11,8 @@
 - S4-01 已把 `AgentCoachPage` 从聊天页重构为真正的 Agent Workbench，前端可以按 turn 查看时间线、会话级 memory、审批队列和 trace 调试面
 - 后端已新增 `AgentWorkbenchService`、`AgentTurnSummaryDTO`、`AgentTurnDetailDTO`，并通过 `/api/agent/sessions/{sessionId}/turns` 与 `/api/agent/turns/{turnId}` 暴露 turn 级读模型
 - `AgentSessionDTO` 已收口为会话元数据；历史消息不再跟着 session 全量返回，而是通过 turn detail 按需读取
+- S4-02 已补齐 `docs/agent-demo-flow.md`，把成功路径、降级路径和页面观察顺序收口成稳定 demo 叙事
+- Stage 4 已完成，项目已达到完整单 Agent（Level A）收口线
 
 ## 1. 阶段目标
 

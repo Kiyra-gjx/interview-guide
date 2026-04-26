@@ -3,7 +3,7 @@
 ## 0. 阶段状态
 - 阶段状态：已完成
 - 已完成任务：S2-01、S2-02、S2-03、S2-04
-- 后续承接任务：Stage 3 与 S4-01 已完成，当前推荐进入 [S4-02：Debuggable Demo Flow](../agent-tasks/s4-task-02-debuggable-demo-flow.md)
+- 后续承接任务：Stage 3 与 Stage 4 已完成，当前主线已进入 [S5-01：Bounded Loop and Budget Control](../agent-tasks/s5-task-01-bounded-loop-and-budget-control.md)
 - 前置条件：Stage 1 已完成
 
 ## 1. 阶段目标
@@ -35,7 +35,7 @@
 ## 5. 进入条件 / 依赖关系
 
 - 必须先完成 Stage 1
-- 当前真实进度：S2-01、S2-02、S2-03、S2-04 已完成，Stage 3 也已完成，下一步进入 Stage 4 的工作台与 demo surface 收口
+- 当前真实进度：S2-01、S2-02、S2-03、S2-04 已完成，Stage 3 与 Stage 4 也已完成，当前主线正在推进 S5-01 的受控多步执行骨架
 - Stage 3、Stage 4、Stage 5 都依赖本阶段提供的安全与可观测能力
 
 ## 6. 不在本阶段范围内

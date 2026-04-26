@@ -12,8 +12,11 @@ import interview.guide.modules.agent.model.AgentChatRequest;
 import interview.guide.modules.agent.model.AgentChatResponse;
 import interview.guide.modules.agent.model.AgentCompletionMode;
 import interview.guide.modules.agent.model.AgentDecisionDTO;
+import interview.guide.modules.agent.model.AgentExecutionSummaryDTO;
 import interview.guide.modules.agent.model.AgentExecutionState;
+import interview.guide.modules.agent.model.AgentLoopStopReason;
 import interview.guide.modules.agent.model.AgentMemorySnapshot;
+import interview.guide.modules.agent.model.AgentRuntimeConfig;
 import interview.guide.modules.agent.model.AgentSessionEntity;
 import interview.guide.modules.agent.model.AgentStepTraceEntity;
 import interview.guide.modules.agent.model.AgentTraceDTO;
@@ -47,7 +50,14 @@ public class AgentOrchestrator {
     private static final String DIRECT_ANSWER_TOOL = "direct_answer";
     private static final String DECISION_FALLBACK_TOOL = "decision_fallback";
     private static final String INVALID_TOOL_NAME = "invalid_tool";
+    private static final String BOUNDED_LOOP_TOOL = "bounded_loop";
     private static final String SESSION_OR_RESUME_INPUT = "sessionId/resumeId";
+    private static final int DEFAULT_MULTI_STEP_MAX_STEPS = 3;
+    private static final long DEFAULT_MULTI_STEP_MAX_DURATION_MILLIS = 15_000L;
+    private static final int DEFAULT_MULTI_STEP_MAX_ESTIMATED_MODEL_TOKENS = 4_000;
+    private static final int MAX_ALLOWED_MULTI_STEP_STEPS = 5;
+    private static final long MAX_ALLOWED_MULTI_STEP_DURATION_MILLIS = 30_000L;
+    private static final int MAX_ALLOWED_MULTI_STEP_ESTIMATED_MODEL_TOKENS = 12_000;
 
     private final ChatClient chatClient;
     private final StructuredOutputInvoker structuredOutputInvoker;
@@ -102,6 +112,7 @@ public class AgentOrchestrator {
         Timer.Sample latencySample = metricsService.startTurnLatency();
         AgentCompletionMode completionMode = null;
         AgentChatResponse response;
+        AgentExecutionSummaryDTO executionSummary = null;
 
         try {
             expirePendingApprovals(sessionId);
@@ -115,6 +126,7 @@ public class AgentOrchestrator {
             // 2. 先做输入 Guardrail，命中后直接返回安全回复，不再进入模型决策链路。
             AgentMemorySnapshot memory = memoryService.readMemory(session);
             AgentGuardrailService.InputGuardrailDecision inputGuardrail = guardrailService.evaluateInput(request.message());
+            ResolvedRunConfig runConfig = resolveRunConfig(request.runtimeConfig());
             if (inputGuardrail.blocked()) {
                 String reply = buildInputGuardrailReply(inputGuardrail.result());
                 traceService.recordInputGuardrailRejection(
@@ -132,24 +144,19 @@ public class AgentOrchestrator {
                     AgentCompletionMode.DEGRADED
                 );
                 completionMode = AgentCompletionMode.DEGRADED;
+                executionSummary = buildInputGuardrailExecutionSummary(runConfig);
                 metricsService.recordTurnCompleted(completionMode);
+                metricsService.recordExecutionSummary(executionSummary);
                 turnTerminalPersisted = true;
-                response = buildChatResponse(completedTurn, null, reply, memory);
+                response = buildChatResponse(completedTurn, null, reply, memory, executionSummary);
                 metricsService.stopTurnLatency(latencySample, "degraded");
                 return response;
             }
 
-            // 3. 输入安全后，再读取 stepIndex 并生成决策。
-            int stepIndexHint = traceService.estimateNextStepIndex(sessionId);
-            AgentAssembledContext assembledContext = contextAssemblyService.assemble(
-                session,
-                memory,
-                inputGuardrail.normalizedMessage()
-            );
-            ResolvedDecision decision = decide(session, assembledContext, stepIndexHint);
-
-            // 4. 执行决策并在成功后提交 turn 完成态。
-            TurnExecution execution = executeDecision(turnId, session, memory, assembledContext, decision);
+            // 3. 输入安全后，根据运行时配置选择单步或受控多步执行。
+            TurnExecution execution = runConfig.multiStepEnabled()
+                ? executeBoundedLoop(turnId, session, memory, inputGuardrail.normalizedMessage(), runConfig)
+                : executeSingleStep(turnId, session, memory, inputGuardrail.normalizedMessage(), runConfig);
             AgentTurnEntity completedTurn = execution.persistedTurn() != null
                 ? execution.persistedTurn()
                 : sessionService.completeTurn(
@@ -159,9 +166,17 @@ public class AgentOrchestrator {
                     execution.completionMode()
                 );
             completionMode = execution.completionMode();
+            executionSummary = execution.executionSummary();
             metricsService.recordTurnCompleted(completionMode);
+            metricsService.recordExecutionSummary(executionSummary);
             turnTerminalPersisted = true;
-            response = buildChatResponse(completedTurn, execution.approval(), execution.reply(), execution.memorySnapshot());
+            response = buildChatResponse(
+                completedTurn,
+                execution.approval(),
+                execution.reply(),
+                execution.memorySnapshot(),
+                executionSummary
+            );
             metricsService.stopTurnLatency(latencySample, resolveLatencyOutcome(completionMode));
         } catch (Exception e) {
             // 5. 只有 turn 已创建时才补失败终态；终态保护由 sessionService 负责。
@@ -314,7 +329,7 @@ public class AgentOrchestrator {
             try {
                 // 10. 工具执行成功后，继续完成 memory 更新、答案生成、输出 guardrail 和 turn 收口。
                 AgentMemorySnapshot updatedMemory = memoryService.updateAfterTool(memory, tool.name(), result);
-                String reply = buildFinalAnswer(
+                GeneratedAnswer generatedAnswer = buildFinalAnswer(
                     session,
                     approval.getLatestUserMessage(),
                     updatedMemory,
@@ -322,7 +337,7 @@ public class AgentOrchestrator {
                     result
                 );
                 AgentGuardrailService.OutputGuardrailDecision outputGuardrail = guardrailService.evaluateOutput(
-                    reply,
+                    generatedAnswer.reply(),
                     buildFallbackReply(session)
                 );
                 AgentCompletionMode completionMode = outputGuardrail.degraded()
@@ -343,7 +358,7 @@ public class AgentOrchestrator {
                     updatedMemory,
                     completionMode
                 );
-                return buildChatResponse(completedTurn, claim.approvedApproval(), outputGuardrail.reply(), updatedMemory);
+                return buildChatResponse(completedTurn, claim.approvedApproval(), outputGuardrail.reply(), updatedMemory, null);
             } catch (Exception e) {
                 return finalizeApprovedFailure(
                     claim,
@@ -371,20 +386,136 @@ public class AgentOrchestrator {
     }
 
     /**
-     * 让模型基于目标、记忆和最新用户输入，产出本轮执行决策。
+     * 保持现有单步链路不变，只是补一层统一的预算与执行摘要表达。
      */
-    private ResolvedDecision decide(
+    private TurnExecution executeSingleStep(
+        String turnId,
+        AgentSessionEntity session,
+        AgentMemorySnapshot memory,
+        String latestUserMessage,
+        ResolvedRunConfig runConfig
+    ) {
+        LoopBudgetTracker budgetTracker = LoopBudgetTracker.start(runConfig);
+        budgetTracker.beginStep();
+        int stepIndexHint = traceService.estimateNextStepIndex(session.getSessionId());
+        AgentAssembledContext assembledContext = contextAssemblyService.assemble(session, memory, latestUserMessage);
+        DecisionEvaluation decision = decide(session, assembledContext, stepIndexHint);
+        budgetTracker.recordEstimatedModelTokens(decision.estimatedModelTokensUsed());
+        TurnExecution execution = executeDecision(turnId, session, memory, assembledContext, decision.decision(), budgetTracker);
+        return execution.withExecutionSummary(budgetTracker.finish(execution.stopReason()));
+    }
+
+    /**
+     * 受控多步执行入口。
+     * 只有显式开启多步模式时才会进入该链路，避免影响当前单步基线。
+     */
+    private TurnExecution executeBoundedLoop(
+        String turnId,
+        AgentSessionEntity session,
+        AgentMemorySnapshot initialMemory,
+        String latestUserMessage,
+        ResolvedRunConfig runConfig
+    ) {
+        LoopBudgetTracker budgetTracker = LoopBudgetTracker.start(runConfig);
+        AgentMemorySnapshot currentMemory = initialMemory;
+        CompletedToolStep lastToolStep = null;
+
+        while (true) {
+            AgentLoopStopReason budgetStopReason = budgetTracker.resolveBudgetStopBeforeNextStep();
+            if (budgetStopReason != null) {
+                return finalizeBudgetStop(turnId, session, currentMemory, budgetTracker, lastToolStep, budgetStopReason);
+            }
+
+            budgetTracker.beginStep();
+            int stepIndexHint = traceService.estimateNextStepIndex(session.getSessionId());
+            AgentAssembledContext assembledContext = contextAssemblyService.assemble(
+                session,
+                currentMemory,
+                latestUserMessage
+            );
+            DecisionEvaluation decision = decide(
+                session,
+                assembledContext,
+                stepIndexHint,
+                budgetTracker.promptBudgetSummary()
+            );
+            budgetTracker.recordEstimatedModelTokens(decision.estimatedModelTokensUsed());
+
+            switch (decision.decision().route()) {
+                case DIRECT_REPLY -> {
+                    TurnExecution execution = executeDirectReply(
+                        turnId,
+                        session,
+                        currentMemory,
+                        decision.decision()
+                    );
+                    return execution.withExecutionSummary(budgetTracker.finish(execution.stopReason()));
+                }
+                case DEGRADED_REPLY -> {
+                    TurnExecution execution = executeDegradedReply(
+                        turnId,
+                        currentMemory,
+                        decision.decision()
+                    );
+                    return execution.withExecutionSummary(budgetTracker.finish(execution.stopReason()));
+                }
+                case PENDING_APPROVAL -> {
+                    TurnExecution execution = executePendingApproval(
+                        turnId,
+                        session,
+                        currentMemory,
+                        assembledContext,
+                        decision.decision()
+                    );
+                    return execution.withExecutionSummary(budgetTracker.finish(execution.stopReason()));
+                }
+                case TOOL_CALL -> {
+                    ToolStepExecution toolExecution = executeLoopToolStep(
+                        turnId,
+                        session,
+                        currentMemory,
+                        assembledContext,
+                        decision.decision()
+                    );
+                    if (toolExecution.terminalExecution() != null) {
+                        return toolExecution.terminalExecution()
+                            .withExecutionSummary(budgetTracker.finish(toolExecution.stopReason()));
+                    }
+                    currentMemory = toolExecution.updatedMemory();
+                    lastToolStep = toolExecution.completedToolStep();
+                }
+            }
+        }
+    }
+
+    /**
+     * 让模型基于目标、记忆和最新用户输入，产出本轮执行决策。
+     * 同时估算本次结构化调用大致消耗的模型预算，供多步控制使用。
+     */
+    private DecisionEvaluation decide(
         AgentSessionEntity session,
         AgentAssembledContext assembledContext,
         int stepIndex
     ) {
+        return decide(session, assembledContext, stepIndex, "");
+    }
+
+    private DecisionEvaluation decide(
+        AgentSessionEntity session,
+        AgentAssembledContext assembledContext,
+        int stepIndex,
+        String runtimeBudgetSummary
+    ) {
+        String systemPrompt = promptService.buildDecisionSystemPrompt(
+            toolRegistry.describeTools(),
+            decisionOutputConverter.getFormat()
+        );
+        String userPrompt = isBlank(runtimeBudgetSummary)
+            ? promptService.buildDecisionUserPrompt(assembledContext, stepIndex)
+            : promptService.buildDecisionUserPrompt(assembledContext, stepIndex, runtimeBudgetSummary);
+        int estimatedTokens = estimateModelTokens(systemPrompt, userPrompt);
         try {
             // 1. 组装系统提示词和用户提示词，让模型输出结构化决策。
-            String systemPrompt = promptService.buildDecisionSystemPrompt(
-                toolRegistry.describeTools(),
-                decisionOutputConverter.getFormat()
-            );
-            String userPrompt = promptService.buildDecisionUserPrompt(assembledContext, stepIndex);
             AgentDecisionDTO decision = structuredOutputInvoker.invoke(
                 chatClient,
                 systemPrompt,
@@ -395,19 +526,20 @@ public class AgentOrchestrator {
                 "Agent 决策",
                 log
             );
+            estimatedTokens += estimateDecisionOutputTokens(decision);
 
             // 2. 模型输出只是提案，真正执行前还要做本地校验与参数补齐。
-            return resolveDecision(session, assembledContext, decision);
+            return new DecisionEvaluation(resolveDecision(session, assembledContext, decision), estimatedTokens);
         } catch (Exception e) {
             log.warn("Agent 决策失败，已降级为直接回复: sessionId={}, error={}", session.getSessionId(), e.getMessage());
-            return ResolvedDecision.degraded(
+            return new DecisionEvaluation(ResolvedDecision.degraded(
                 "模型决策失败，降级为直接文本回复",
                 DECISION_FALLBACK_TOOL,
                 Map.of(),
                 buildFallbackReply(session),
                 "模型决策失败: " + safeMessage(e),
                 List.of()
-            );
+            ), estimatedTokens);
         }
     }
 
@@ -512,13 +644,14 @@ public class AgentOrchestrator {
         AgentSessionEntity session,
         AgentMemorySnapshot memory,
         AgentAssembledContext assembledContext,
-        ResolvedDecision decision
+        ResolvedDecision decision,
+        LoopBudgetTracker budgetTracker
     ) {
         return switch (decision.route()) {
             case DIRECT_REPLY -> executeDirectReply(turnId, session, memory, decision);
             case DEGRADED_REPLY -> executeDegradedReply(turnId, memory, decision);
             case PENDING_APPROVAL -> executePendingApproval(turnId, session, memory, assembledContext, decision);
-            case TOOL_CALL -> executeToolReply(turnId, session, memory, assembledContext, decision);
+            case TOOL_CALL -> executeToolReply(turnId, session, memory, assembledContext, decision, budgetTracker);
         };
     }
 
@@ -547,7 +680,7 @@ public class AgentOrchestrator {
         AgentCompletionMode completionMode = outputGuardrail.degraded()
             ? AgentCompletionMode.DEGRADED
             : AgentCompletionMode.SUCCESS;
-        return new TurnExecution(reply, memory, completionMode);
+        return new TurnExecution(reply, memory, completionMode, null, null, AgentLoopStopReason.DIRECT_REPLY, null);
     }
 
     /**
@@ -570,7 +703,15 @@ public class AgentOrchestrator {
             memory,
             decision.guardrailResults()
         );
-        return new TurnExecution(decision.reply(), memory, AgentCompletionMode.DEGRADED);
+        return new TurnExecution(
+            decision.reply(),
+            memory,
+            AgentCompletionMode.DEGRADED,
+            null,
+            null,
+            AgentLoopStopReason.DEGRADED_REPLY,
+            null
+        );
     }
 
     /**
@@ -599,7 +740,13 @@ public class AgentOrchestrator {
                 decision.guardrailResults()
             )
         );
-        return TurnExecution.waitingApproval(reply, memory, transition.approval(), transition.persistedTurn());
+        return TurnExecution.waitingApproval(
+            reply,
+            memory,
+            transition.approval(),
+            transition.persistedTurn(),
+            AgentLoopStopReason.PENDING_APPROVAL
+        );
     }
 
     /**
@@ -610,7 +757,8 @@ public class AgentOrchestrator {
         AgentSessionEntity session,
         AgentMemorySnapshot memory,
         AgentAssembledContext assembledContext,
-        ResolvedDecision decision
+        ResolvedDecision decision,
+        LoopBudgetTracker budgetTracker
     ) {
         // 1. 先记录一个 RUNNING 状态的 trace，保证后续成功或失败都能闭环。
         AgentStepTraceEntity trace = traceService.startToolStep(
@@ -631,15 +779,16 @@ public class AgentOrchestrator {
             AgentMemorySnapshot postProcessedMemory = memory;
             try {
                 postProcessedMemory = memoryService.updateAfterTool(memory, decision.tool().name(), result);
-                String reply = buildFinalAnswer(
+                GeneratedAnswer generatedAnswer = buildFinalAnswer(
                     session,
                     assembledContext.latestUserMessage(),
                     postProcessedMemory,
                     decision.tool().name(),
                     result
                 );
+                budgetTracker.recordEstimatedModelTokens(generatedAnswer.estimatedModelTokensUsed());
                 AgentGuardrailService.OutputGuardrailDecision outputGuardrail = guardrailService.evaluateOutput(
-                    reply,
+                    generatedAnswer.reply(),
                     buildFallbackReply(session)
                 );
                 traceService.completeToolStep(
@@ -652,7 +801,15 @@ public class AgentOrchestrator {
                 AgentCompletionMode completionMode = outputGuardrail.degraded()
                     ? AgentCompletionMode.DEGRADED
                     : AgentCompletionMode.SUCCESS;
-                return new TurnExecution(outputGuardrail.reply(), postProcessedMemory, completionMode);
+                return new TurnExecution(
+                    outputGuardrail.reply(),
+                    postProcessedMemory,
+                    completionMode,
+                    null,
+                    null,
+                    AgentLoopStopReason.TOOL_COMPLETED_SINGLE_STEP,
+                    null
+                );
             } catch (Exception e) {
                 String reply = buildToolPostProcessingFailureReply(session, decision.tool().name());
                 traceService.failToolStep(
@@ -665,7 +822,15 @@ public class AgentOrchestrator {
                 );
                 log.warn("Agent Tool 后处理失败: sessionId={}, tool={}, error={}",
                     session.getSessionId(), decision.tool().name(), e.getMessage());
-                return new TurnExecution(reply, memory, AgentCompletionMode.DEGRADED);
+                return new TurnExecution(
+                    reply,
+                    memory,
+                    AgentCompletionMode.DEGRADED,
+                    null,
+                    null,
+                    AgentLoopStopReason.TOOL_POST_PROCESSING_FAILED,
+                    null
+                );
             }
         } catch (Exception e) {
             // 3. 工具失败时不让整轮异常扩散，而是落失败 trace 并返回降级文案。
@@ -680,8 +845,130 @@ public class AgentOrchestrator {
                 "工具执行失败，已回退为直接回复"
             );
             log.warn("Agent Tool 执行失败: sessionId={}, tool={}, error={}", session.getSessionId(), decision.tool().name(), e.getMessage());
-            return new TurnExecution(reply, memory, AgentCompletionMode.DEGRADED);
+            return new TurnExecution(
+                reply,
+                memory,
+                AgentCompletionMode.DEGRADED,
+                null,
+                null,
+                AgentLoopStopReason.TOOL_EXECUTION_FAILED,
+                null
+            );
         }
+    }
+
+    /**
+     * 多步模式下只执行工具与 memory 更新，不立即生成最终回复。
+     * 这样下一步可以继续基于更新后的 memory 重新决策。
+     */
+    private ToolStepExecution executeLoopToolStep(
+        String turnId,
+        AgentSessionEntity session,
+        AgentMemorySnapshot memory,
+        AgentAssembledContext assembledContext,
+        ResolvedDecision decision
+    ) {
+        AgentStepTraceEntity trace = traceService.startToolStep(
+            turnId,
+            decision.decisionSummary(),
+            decision.selectedTool(),
+            decision.toolInput(),
+            memory
+        );
+
+        try {
+            AgentToolResult result = decision.tool().execute(
+                decision.toolInput(),
+                buildToolContext(assembledContext)
+            );
+            metricsService.recordToolExecution(decision.tool().name(), true);
+            try {
+                AgentMemorySnapshot updatedMemory = memoryService.updateAfterTool(memory, decision.tool().name(), result);
+                traceService.completeToolStep(trace, result, updatedMemory, "", List.of());
+                return ToolStepExecution.continueLoop(
+                    updatedMemory,
+                    new CompletedToolStep(decision.tool().name(), result)
+                );
+            } catch (Exception e) {
+                String reply = buildToolPostProcessingFailureReply(session, decision.tool().name());
+                traceService.failToolStep(
+                    trace,
+                    e,
+                    reply,
+                    memory,
+                    "tool_post_processing_failure",
+                    "工具后处理失败，已回退为直接回复"
+                );
+                log.warn("Agent 多步 Tool 后处理失败: sessionId={}, tool={}, error={}",
+                    session.getSessionId(), decision.tool().name(), e.getMessage());
+                return ToolStepExecution.terminal(new TurnExecution(
+                    reply,
+                    memory,
+                    AgentCompletionMode.DEGRADED,
+                    null,
+                    null,
+                    AgentLoopStopReason.TOOL_POST_PROCESSING_FAILED,
+                    null
+                ));
+            }
+        } catch (Exception e) {
+            String reply = buildToolFailureReply(session, decision.tool().name());
+            metricsService.recordToolExecution(decision.tool().name(), false);
+            traceService.failToolStep(
+                trace,
+                e,
+                reply,
+                memory,
+                "tool_execution_failure",
+                "工具执行失败，已回退为直接回复"
+            );
+            log.warn("Agent 多步 Tool 执行失败: sessionId={}, tool={}, error={}",
+                session.getSessionId(), decision.tool().name(), e.getMessage());
+            return ToolStepExecution.terminal(new TurnExecution(
+                reply,
+                memory,
+                AgentCompletionMode.DEGRADED,
+                null,
+                null,
+                AgentLoopStopReason.TOOL_EXECUTION_FAILED,
+                null
+            ));
+        }
+    }
+
+    /**
+     * 当多步预算耗尽时，使用确定性文案收口，而不是再发起新的模型调用。
+     */
+    private TurnExecution finalizeBudgetStop(
+        String turnId,
+        AgentSessionEntity session,
+        AgentMemorySnapshot currentMemory,
+        LoopBudgetTracker budgetTracker,
+        CompletedToolStep lastToolStep,
+        AgentLoopStopReason stopReason
+    ) {
+        String rawReply = buildBudgetExhaustedReply(currentMemory, lastToolStep, stopReason);
+        AgentGuardrailService.OutputGuardrailDecision outputGuardrail = guardrailService.evaluateOutput(
+            rawReply,
+            buildFallbackReply(session)
+        );
+        traceService.recordBudgetExhaustedStop(
+            turnId,
+            stopReason,
+            outputGuardrail.reply(),
+            currentMemory,
+            currentMemory,
+            outputGuardrail.guardrailResults()
+        );
+        return new TurnExecution(
+            outputGuardrail.reply(),
+            currentMemory,
+            AgentCompletionMode.DEGRADED,
+            null,
+            null,
+            stopReason,
+            budgetTracker.finish(stopReason)
+        );
     }
 
     /**
@@ -691,7 +978,8 @@ public class AgentOrchestrator {
         AgentTurnEntity completedTurn,
         AgentApprovalDTO approval,
         String reply,
-        AgentMemorySnapshot memorySnapshot
+        AgentMemorySnapshot memorySnapshot,
+        AgentExecutionSummaryDTO executionSummary
     ) {
         String turnId = completedTurn.getTurnId();
         List<AgentTraceDTO> traceSteps = traceService.getTurnTrace(turnId);
@@ -708,7 +996,8 @@ public class AgentOrchestrator {
             memorySnapshot,
             traceSteps,
             guardrailResults,
-            sessionService.getTurnMessages(turnId)
+            sessionService.getTurnMessages(turnId),
+            executionSummary
         );
     }
 
@@ -807,29 +1096,36 @@ public class AgentOrchestrator {
      * 让模型基于工具结果生成最终回答。
      * 如果生成失败，则回退到工具摘要或通用兜底文案。
      */
-    private String buildFinalAnswer(
+    private GeneratedAnswer buildFinalAnswer(
         AgentSessionEntity session,
         String latestUserMessage,
         AgentMemorySnapshot updatedMemory,
         String toolName,
         AgentToolResult toolResult
     ) {
+        String systemPrompt = promptService.buildAnswerSystemPrompt();
         try {
             AgentAssembledContext assembledContext = contextAssemblyService.assemble(
                 session,
                 updatedMemory,
                 latestUserMessage
             );
+            String userPrompt = promptService.buildAnswerUserPrompt(assembledContext, toolName, toolResult);
+            int estimatedTokens = estimateModelTokens(systemPrompt, userPrompt);
             String content = chatClient.prompt()
-                .system(promptService.buildAnswerSystemPrompt())
-                .user(promptService.buildAnswerUserPrompt(assembledContext, toolName, toolResult))
+                .system(systemPrompt)
+                .user(userPrompt)
                 .call()
                 .content();
-            return blankToDefault(content, blankToDefault(toolResult.summary(), buildFallbackReply(session)));
+            String reply = blankToDefault(content, blankToDefault(toolResult.summary(), buildFallbackReply(session)));
+            return new GeneratedAnswer(reply, estimatedTokens + estimateTextTokens(content));
         } catch (Exception e) {
             log.warn("Agent 最终回复生成失败，回退到工具摘要: sessionId={}, tool={}, error={}",
                 session.getSessionId(), toolName, e.getMessage());
-            return blankToDefault(toolResult.summary(), buildFallbackReply(session));
+            return new GeneratedAnswer(
+                blankToDefault(toolResult.summary(), buildFallbackReply(session)),
+                estimateModelTokens(systemPrompt, toolResult.summary())
+            );
         }
     }
 
@@ -946,6 +1242,133 @@ public class AgentOrchestrator {
             return "当前工具上下文还不完整，我先不继续自动执行。请补充必要信息后再试。";
         }
         return "本轮工具调用没有通过安全校验，我没有继续自动执行。请换一种更直接的描述后再试。";
+    }
+
+    /**
+     * 解析用户请求里的运行时配置。
+     * 默认仍保持单步模式，避免 Stage 5 能力无意间影响既有基线。
+     */
+    private ResolvedRunConfig resolveRunConfig(AgentRuntimeConfig runtimeConfig) {
+        boolean multiStepEnabled = runtimeConfig != null && Boolean.TRUE.equals(runtimeConfig.multiStepEnabled());
+        if (!multiStepEnabled) {
+            return new ResolvedRunConfig(
+                false,
+                1,
+                DEFAULT_MULTI_STEP_MAX_DURATION_MILLIS,
+                DEFAULT_MULTI_STEP_MAX_ESTIMATED_MODEL_TOKENS
+            );
+        }
+        return new ResolvedRunConfig(
+            true,
+            clampInt(runtimeConfig.maxSteps(), 1, MAX_ALLOWED_MULTI_STEP_STEPS, DEFAULT_MULTI_STEP_MAX_STEPS),
+            clampLong(
+                runtimeConfig.maxDurationMillis(),
+                1L,
+                MAX_ALLOWED_MULTI_STEP_DURATION_MILLIS,
+                DEFAULT_MULTI_STEP_MAX_DURATION_MILLIS
+            ),
+            clampInt(
+                runtimeConfig.maxEstimatedModelTokens(),
+                1,
+                MAX_ALLOWED_MULTI_STEP_ESTIMATED_MODEL_TOKENS,
+                DEFAULT_MULTI_STEP_MAX_ESTIMATED_MODEL_TOKENS
+            )
+        );
+    }
+
+    /**
+     * 输入 Guardrail 在模型决策前就终止，因此执行步数仍为 0。
+     */
+    private AgentExecutionSummaryDTO buildInputGuardrailExecutionSummary(ResolvedRunConfig runConfig) {
+        return new AgentExecutionSummaryDTO(
+            runConfig.multiStepEnabled(),
+            runConfig.maxSteps(),
+            0,
+            runConfig.maxSteps(),
+            runConfig.maxDurationMillis(),
+            0L,
+            runConfig.maxDurationMillis(),
+            runConfig.maxEstimatedModelTokens(),
+            0,
+            runConfig.maxEstimatedModelTokens(),
+            AgentLoopStopReason.INPUT_GUARDRAIL_BLOCKED
+        );
+    }
+
+    /**
+     * 多步预算耗尽时的统一收口文案。
+     * 这里不再发起新的模型调用，只复用已有中间结果给出阶段性结论。
+     */
+    private String buildBudgetExhaustedReply(
+        AgentMemorySnapshot currentMemory,
+        CompletedToolStep lastToolStep,
+        AgentLoopStopReason stopReason
+    ) {
+        String budgetPhrase = switch (stopReason) {
+            case TIME_BUDGET_EXHAUSTED -> "本轮多步时间预算已用尽";
+            case TOKEN_BUDGET_EXHAUSTED -> "本轮多步模型预算已用尽";
+            default -> "本轮多步预算已用尽";
+        };
+        if (lastToolStep != null && !isBlank(lastToolStep.result().summary())) {
+            String nextFocus = currentMemory == null ? "" : blankToDefault(currentMemory.nextFocus(), "");
+            String nextSentence = isBlank(nextFocus) ? "" : " 当前建议先聚焦：" + nextFocus + "。";
+            return budgetPhrase + "，我先停在当前结论。" + " 已拿到的中间结论是：" + lastToolStep.result().summary() + "。" + nextSentence;
+        }
+        if (currentMemory != null && !isBlank(currentMemory.nextFocus())) {
+            return budgetPhrase + "，我先停在当前结论。建议下一轮直接围绕“" + currentMemory.nextFocus() + "”继续追问。";
+        }
+        return budgetPhrase + "，我先停在当前结论。你可以基于当前问题拆成更具体的下一轮请求，我再继续处理。";
+    }
+
+    /**
+     * 按粗粒度字符规则估算模型预算。
+     * 当前底层没有稳定暴露真实 usage，因此这里只做可解释的近似值，不伪装成精确 token。
+     */
+    private int estimateModelTokens(String... segments) {
+        int chars = 0;
+        if (segments != null) {
+            for (String segment : segments) {
+                chars += segment == null ? 0 : segment.trim().length();
+            }
+        }
+        return estimateTextTokens(chars);
+    }
+
+    private int estimateDecisionOutputTokens(AgentDecisionDTO decision) {
+        if (decision == null) {
+            return 0;
+        }
+        int chars = 0;
+        chars += safeLength(decision.toolName());
+        chars += safeLength(decision.decisionSummary());
+        chars += safeLength(decision.directAnswer());
+        chars += safeLength(String.valueOf(decision.toolInput()));
+        return estimateTextTokens(chars);
+    }
+
+    private int estimateTextTokens(String value) {
+        return estimateTextTokens(safeLength(value));
+    }
+
+    private int estimateTextTokens(int chars) {
+        if (chars <= 0) {
+            return 0;
+        }
+        return Math.max(1, (chars + 3) / 4);
+    }
+
+    private int safeLength(String value) {
+        return value == null ? 0 : value.trim().length();
+    }
+
+    private int clampInt(Integer value, int min, int max, int defaultValue) {
+        int normalized = value == null ? defaultValue : value;
+        return Math.max(min, Math.min(max, normalized));
+    }
+
+    private long clampLong(Long value, long min, long max, long defaultValue) {
+        long normalized = value == null ? defaultValue : value;
+        return Math.max(min, Math.min(max, normalized));
     }
 
     /**
@@ -1127,14 +1550,14 @@ public class AgentOrchestrator {
                 memory,
                 completionMode
             );
-            return buildChatResponse(completedTurn, claim.approvedApproval(), reply, memory);
+            return buildChatResponse(completedTurn, claim.approvedApproval(), reply, memory, null);
         } catch (Exception e) {
             AgentTurnEntity failedTurn = sessionService.failTurn(
                 claim.approval().getTurn().getTurnId(),
                 e,
                 reply
             );
-            return buildChatResponse(failedTurn, claim.approvedApproval(), reply, memory);
+            return buildChatResponse(failedTurn, claim.approvedApproval(), reply, memory, null);
         }
     }
 
@@ -1147,7 +1570,7 @@ public class AgentOrchestrator {
     private AgentChatResponse resolveApprovalTransition(ApprovalTransition transition) {
         if (transition.finalized() != null) {
             FinalizedApproval finalized = transition.finalized();
-            return buildChatResponse(finalized.turn(), finalized.approval(), finalized.reply(), finalized.memory());
+            return buildChatResponse(finalized.turn(), finalized.approval(), finalized.reply(), finalized.memory(), null);
         }
         return buildApprovalSnapshotResponse(
             approvalService.getApproval(transition.snapshotApprovalId()),
@@ -1203,7 +1626,7 @@ public class AgentOrchestrator {
                 memory,
                 AgentCompletionMode.DEGRADED
             );
-            return buildChatResponse(completedTurn, claim.approvedApproval(), reply, memory);
+            return buildChatResponse(completedTurn, claim.approvedApproval(), reply, memory, null);
         } catch (Exception finalizeError) {
             try {
                 AgentTurnEntity failedTurn = sessionService.failTurn(
@@ -1211,7 +1634,7 @@ public class AgentOrchestrator {
                     error,
                     reply
                 );
-                return buildChatResponse(failedTurn, claim.approvedApproval(), reply, memory);
+                return buildChatResponse(failedTurn, claim.approvedApproval(), reply, memory, null);
             } catch (Exception failTurnError) {
                 finalizeError.addSuppressed(failTurnError);
             }
@@ -1274,7 +1697,7 @@ public class AgentOrchestrator {
      */
     private AgentChatResponse buildApprovalSnapshotResponse(AgentApprovalDTO approval, AgentTurnEntity turn) {
         AgentMemorySnapshot memory = readApprovalMemory(turn.getSession());
-        return buildChatResponse(turn, approval, resolveApprovalSnapshotReply(approval, turn), memory);
+        return buildChatResponse(turn, approval, resolveApprovalSnapshotReply(approval, turn), memory, null);
     }
 
     /**
@@ -1452,6 +1875,53 @@ public class AgentOrchestrator {
     }
 
     /**
+     * 一次模型决策调用的结果。
+     * 除了解析后的决策外，还会带回本次调用的大致模型预算消耗。
+     */
+    private record DecisionEvaluation(ResolvedDecision decision, int estimatedModelTokensUsed) {
+    }
+
+    /**
+     * 最终回答生成结果。
+     */
+    private record GeneratedAnswer(String reply, int estimatedModelTokensUsed) {
+    }
+
+    /**
+     * 已完成的一次工具步骤中间结果。
+     * 供后续预算收口文案复用，而不必再次访问工具原始实现。
+     */
+    private record CompletedToolStep(String toolName, AgentToolResult result) {
+    }
+
+    /**
+     * 多步工具执行结果。
+     * 成功时继续循环；失败时直接返回一条可收口的终态执行结果。
+     */
+    private record ToolStepExecution(
+        AgentMemorySnapshot updatedMemory,
+        CompletedToolStep completedToolStep,
+        TurnExecution terminalExecution,
+        AgentLoopStopReason stopReason
+    ) {
+        private static ToolStepExecution continueLoop(
+            AgentMemorySnapshot updatedMemory,
+            CompletedToolStep completedToolStep
+        ) {
+            return new ToolStepExecution(updatedMemory, completedToolStep, null, null);
+        }
+
+        private static ToolStepExecution terminal(TurnExecution terminalExecution) {
+            return new ToolStepExecution(
+                terminalExecution.memorySnapshot(),
+                null,
+                terminalExecution,
+                terminalExecution.stopReason()
+            );
+        }
+    }
+
+    /**
      * 某条执行分支产出的最终结果。
      */
     private record TurnExecution(
@@ -1459,19 +1929,147 @@ public class AgentOrchestrator {
         AgentMemorySnapshot memorySnapshot,
         AgentCompletionMode completionMode,
         AgentApprovalDTO approval,
-        AgentTurnEntity persistedTurn
+        AgentTurnEntity persistedTurn,
+        AgentLoopStopReason stopReason,
+        AgentExecutionSummaryDTO executionSummary
     ) {
-        private TurnExecution(String reply, AgentMemorySnapshot memorySnapshot, AgentCompletionMode completionMode) {
-            this(reply, memorySnapshot, completionMode, null, null);
-        }
-
         private static TurnExecution waitingApproval(
             String reply,
             AgentMemorySnapshot memorySnapshot,
             AgentApprovalDTO approval,
-            AgentTurnEntity persistedTurn
+            AgentTurnEntity persistedTurn,
+            AgentLoopStopReason stopReason
         ) {
-            return new TurnExecution(reply, memorySnapshot, AgentCompletionMode.WAITING_APPROVAL, approval, persistedTurn);
+            return new TurnExecution(
+                reply,
+                memorySnapshot,
+                AgentCompletionMode.WAITING_APPROVAL,
+                approval,
+                persistedTurn,
+                stopReason,
+                null
+            );
+        }
+
+        private TurnExecution withExecutionSummary(AgentExecutionSummaryDTO executionSummary) {
+            return new TurnExecution(
+                reply,
+                memorySnapshot,
+                completionMode,
+                approval,
+                persistedTurn,
+                stopReason,
+                executionSummary
+            );
+        }
+    }
+
+    /**
+     * 解析后的安全运行配置。
+     */
+    private record ResolvedRunConfig(
+        boolean multiStepEnabled,
+        int maxSteps,
+        long maxDurationMillis,
+        int maxEstimatedModelTokens
+    ) {
+    }
+
+    /**
+     * 受控多步的预算跟踪器。
+     * 这里统一维护步数、耗时和估算模型预算，避免多处重复计算。
+     */
+    private static final class LoopBudgetTracker {
+
+        private final ResolvedRunConfig runConfig;
+        private final long startedAtMillis;
+        private int executedSteps;
+        private int estimatedModelTokensUsed;
+
+        private LoopBudgetTracker(ResolvedRunConfig runConfig, long startedAtMillis) {
+            this.runConfig = runConfig;
+            this.startedAtMillis = startedAtMillis;
+        }
+
+        private static LoopBudgetTracker start(ResolvedRunConfig runConfig) {
+            return new LoopBudgetTracker(runConfig, System.currentTimeMillis());
+        }
+
+        private void beginStep() {
+            executedSteps++;
+        }
+
+        private void recordEstimatedModelTokens(int estimatedTokens) {
+            estimatedModelTokensUsed += Math.max(0, estimatedTokens);
+        }
+
+        private AgentLoopStopReason resolveBudgetStopBeforeNextStep() {
+            if (executedSteps >= runConfig.maxSteps()) {
+                return AgentLoopStopReason.STEP_BUDGET_EXHAUSTED;
+            }
+            if (elapsedMillis() >= runConfig.maxDurationMillis()) {
+                return AgentLoopStopReason.TIME_BUDGET_EXHAUSTED;
+            }
+            if (estimatedModelTokensUsed >= runConfig.maxEstimatedModelTokens()) {
+                return AgentLoopStopReason.TOKEN_BUDGET_EXHAUSTED;
+            }
+            return null;
+        }
+
+        private String promptBudgetSummary() {
+            return """
+                - 多步模式: %s
+                - 已执行步骤: %d/%d
+                - 当前准备开始第 %d 步
+                - 剩余可执行步骤: %d
+                - 已用估算模型预算: %d
+                - 剩余估算模型预算: %d
+                - 已耗时(ms): %d
+                - 剩余时间(ms): %d
+                - 如果当前上下文已经足够回答，请直接给出最终 directAnswer，不要继续调用工具。
+                """.formatted(
+                runConfig.multiStepEnabled() ? "开启" : "关闭",
+                executedSteps,
+                runConfig.maxSteps(),
+                executedSteps + 1,
+                remainingSteps(),
+                estimatedModelTokensUsed,
+                remainingEstimatedModelTokens(),
+                elapsedMillis(),
+                remainingDurationMillis()
+            ).trim();
+        }
+
+        private AgentExecutionSummaryDTO finish(AgentLoopStopReason stopReason) {
+            return new AgentExecutionSummaryDTO(
+                runConfig.multiStepEnabled(),
+                runConfig.maxSteps(),
+                executedSteps,
+                remainingSteps(),
+                runConfig.maxDurationMillis(),
+                elapsedMillis(),
+                remainingDurationMillis(),
+                runConfig.maxEstimatedModelTokens(),
+                estimatedModelTokensUsed,
+                remainingEstimatedModelTokens(),
+                stopReason
+            );
+        }
+
+        private int remainingSteps() {
+            return Math.max(0, runConfig.maxSteps() - executedSteps);
+        }
+
+        private int remainingEstimatedModelTokens() {
+            return Math.max(0, runConfig.maxEstimatedModelTokens() - estimatedModelTokensUsed);
+        }
+
+        private long elapsedMillis() {
+            return Math.max(0L, System.currentTimeMillis() - startedAtMillis);
+        }
+
+        private long remainingDurationMillis() {
+            return Math.max(0L, runConfig.maxDurationMillis() - elapsedMillis());
         }
     }
 

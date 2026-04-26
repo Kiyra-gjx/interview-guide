@@ -57,12 +57,32 @@ public class AgentPromptService {
      * @return 决策提示词
      */
     public String buildDecisionUserPrompt(AgentAssembledContext assembledContext, int stepIndex) {
+        return buildDecisionUserPrompt(assembledContext, stepIndex, "");
+    }
+
+    /**
+     * 基于统一装配后的上下文构造决策提示词，并附带当前执行预算摘要。
+     *
+     * @param assembledContext 已装配的上下文快照
+     * @param stepIndex 当前步骤序号
+     * @param runtimeBudgetSummary 当前执行预算摘要
+     * @return 决策提示词
+     */
+    public String buildDecisionUserPrompt(
+        AgentAssembledContext assembledContext,
+        int stepIndex,
+        String runtimeBudgetSummary
+    ) {
         Map<String, Object> variables = new HashMap<>();
         variables.put("userGoal", nullToEmpty(assembledContext == null ? null : assembledContext.userGoal()));
         variables.put("latestUserMessage", nullToEmpty(assembledContext == null ? null : assembledContext.latestUserMessage()));
         variables.put("contextSummary", contextSummary(assembledContext));
         variables.put("stepIndex", stepIndex);
-        return userPromptTemplate.render(variables);
+        String rendered = userPromptTemplate.render(variables);
+        if (runtimeBudgetSummary == null || runtimeBudgetSummary.isBlank()) {
+            return rendered;
+        }
+        return rendered + "\n\n当前执行预算:\n" + runtimeBudgetSummary.trim();
     }
 
     /**

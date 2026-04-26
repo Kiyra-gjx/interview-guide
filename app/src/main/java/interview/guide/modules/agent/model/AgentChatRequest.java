@@ -7,6 +7,11 @@ import jakarta.validation.constraints.NotBlank;
  */
 public record AgentChatRequest(
     @NotBlank(message = "message 不能为空")
-    String message
+    String message,
+    AgentRuntimeConfig runtimeConfig
 ) {
+
+    public AgentChatRequest(String message) {
+        this(message, null);
+    }
 }

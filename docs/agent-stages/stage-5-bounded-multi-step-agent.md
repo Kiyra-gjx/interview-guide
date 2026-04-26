@@ -1,9 +1,9 @@
 # Stage 5: Bounded Multi-Step Agent
 
 ## 0. 阶段状态
-- 阶段状态：未开始
+- 阶段状态：进行中
 - 已完成任务：无
-- 当前任务：待 Stage 4 完成后评估启动
+- 当前任务：[S5-01：Bounded Loop and Budget Control](../agent-tasks/s5-task-01-bounded-loop-and-budget-control.md)
 - 前置条件：Stage 4 完成
 
 ## 1. 阶段目标
@@ -35,6 +35,13 @@
 - 必须先完成 Stage 4，因为 Stage 5 不是最低完成线，而是 Level A 之后的增强
 - 依赖 Stage 1-4 已经提供稳定执行边界、安全运行时、领域能力和 demo/workbench 收口
 - 只有在复杂任务收益明确时，才应进入本阶段
+
+## 5.1 当前已落地范围
+
+- 已支持通过 `runtimeConfig.multiStepEnabled=true` 显式开启 bounded multi-step loop，默认仍保持单步执行
+- 已支持 `maxSteps`、`maxDurationMillis`、`maxEstimatedModelTokens` 三类预算
+- 已支持预算耗尽后的降级收口、`execution` 执行摘要，以及 `bounded_loop` trace
+- 这些能力当前仍属于 S5-01 的第一版骨架，不代表 Stage 5 已完成
 
 ## 6. 不在本阶段范围内
 

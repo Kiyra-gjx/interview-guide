@@ -7,6 +7,7 @@ import interview.guide.modules.agent.guardrail.AgentGuardrailCode;
 import interview.guide.modules.agent.guardrail.AgentGuardrailResolution;
 import interview.guide.modules.agent.guardrail.AgentGuardrailResult;
 import interview.guide.modules.agent.guardrail.AgentGuardrailStage;
+import interview.guide.modules.agent.model.AgentLoopStopReason;
 import interview.guide.modules.agent.model.AgentExecutionState;
 import interview.guide.modules.agent.model.AgentMemorySnapshot;
 import interview.guide.modules.agent.model.AgentSessionEntity;
@@ -289,5 +290,40 @@ class AgentTraceServiceTest {
         assertThat(traceDTOs.getFirst().toolOutput().answer()).containsEntry("answer", "业务结果");
         assertThat(traceDTOs.getFirst().toolOutput().debug()).containsEntry("retrievalQuery", "debug query");
         assertThat(traceDTOs.getFirst().toolOutput().facts()).containsExactly("fact-1");
+    }
+
+    @Test
+    @DisplayName("should persist a dedicated trace when bounded loop budget is exhausted")
+    void shouldPersistDedicatedTraceWhenBoundedLoopBudgetIsExhausted() throws Exception {
+        AgentSessionEntity session = new AgentSessionEntity();
+        session.setSessionId("session-budget-stop");
+        AgentTurnEntity turn = new AgentTurnEntity();
+        turn.setTurnId("turn-budget-stop");
+        turn.setSession(session);
+        AgentMemorySnapshot memory = new AgentMemorySnapshot("goal", "phase", java.util.List.of("fact-1"), java.util.List.of("tool-1"), "next");
+
+        when(turnRepository.findByTurnId("turn-budget-stop")).thenReturn(Optional.of(turn));
+        when(sessionRepository.findBySessionIdForUpdate("session-budget-stop")).thenReturn(Optional.of(session));
+        when(traceRepository.findTopBySession_SessionIdOrderByStepIndexDesc("session-budget-stop")).thenReturn(Optional.empty());
+        when(objectMapper.writeValueAsString(any())).thenReturn("{\"ok\":true}");
+
+        traceService.recordBudgetExhaustedStop(
+            "turn-budget-stop",
+            AgentLoopStopReason.STEP_BUDGET_EXHAUSTED,
+            "本轮多步预算已用尽，我先停在当前结论。",
+            memory,
+            memory,
+            java.util.List.of()
+        );
+
+        ArgumentCaptor<AgentStepTraceEntity> traceCaptor = ArgumentCaptor.forClass(AgentStepTraceEntity.class);
+        verify(traceRepository).save(traceCaptor.capture());
+
+        AgentStepTraceEntity savedTrace = traceCaptor.getValue();
+        assertThat(savedTrace.getSelectedTool()).isEqualTo("bounded_loop");
+        assertThat(savedTrace.getStatus()).isEqualTo(AgentExecutionState.FAILED);
+        assertThat(savedTrace.getObservationSummary()).contains("预算");
+        assertThat(savedTrace.getErrorMessage()).isEqualTo("STEP_BUDGET_EXHAUSTED");
+        assertThat(savedTrace.getToolOutputJson()).isEqualTo("{\"ok\":true}");
     }
 }

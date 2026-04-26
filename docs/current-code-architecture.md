@@ -1,6 +1,6 @@
 # 当前代码架构图与设计细节
 
-> 更新时间：2026-04-25
+> 更新时间：2026-04-26
 >
 > 图形工具：Mermaid
 >
@@ -257,6 +257,8 @@ sequenceDiagram
 - Tool 原始结果先产出 `summary / answerPayload / debugPayload / confirmedFacts`，再由 `AgentToolResult` 统一投影成 Prompt 的回答视图、Memory 的写回视图，以及 Trace / API 的 `toolOutput` 视图。
 - Tool 调用前后都落 trace，Agent 前端可以读取 trace/memory/approval，并直接消费统一的 `toolOutput` 做可观测界面。
 - 当前已注册的 Tool 主要是只读型能力：读取简历画像、检索知识库。
+- 当前默认仍是单步 Agent；只有显式传入 `runtimeConfig.multiStepEnabled=true` 时，`AgentOrchestrator` 才会进入受控多步 loop。
+- 当前已落地第一版多步预算：`maxSteps`、`maxDurationMillis`、`maxEstimatedModelTokens`，并通过响应里的 `execution` 摘要与 `bounded_loop` trace 暴露停止原因。
 
 ### 工作台读模型链路
 
@@ -400,6 +402,7 @@ flowchart TD
 3. 面试模块是“Redis 过程态 + PostgreSQL 恢复态”的混合模型。
 4. 知识库模块把“上传向量化”和“检索问答”拆成两条链路，分别优化。
 5. Agent 模块是当前最复杂的子系统，已经具备 guardrail、approval、trace、memory、turn lease、统一的 tool output normalization，以及 Stage 4 workbench 只读聚合层。
+6. Stage 5 的第一步已经启动，但仍保持“显式开启、默认单步”的保守策略：多步 loop 不会默认接管所有请求，预算耗尽时也会通过降级回复和 trace 显式收口，而不是继续无限执行。
 
 ## 7. 阅读源码时的推荐入口
 

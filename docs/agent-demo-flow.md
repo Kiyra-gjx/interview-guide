@@ -2,7 +2,7 @@
 
 ## 目标
 
-这份文档对应 Stage 4 的 `S4-02：Debuggable Demo Flow`，用于说明：
+这份文档对应已完成的 Stage 4 `S4-02：Debuggable Demo Flow`，用于说明：
 
 - 如何启动 Agent Workbench 的默认演示路径
 - 如何在页面里观察一次执行为什么成功、为什么降级

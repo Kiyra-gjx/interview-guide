@@ -6,6 +6,7 @@ import interview.guide.modules.agent.guardrail.AgentGuardrailResult;
 import interview.guide.modules.agent.model.AgentApprovalDTO;
 import interview.guide.modules.agent.model.AgentCompletionMode;
 import interview.guide.modules.agent.model.AgentExecutionState;
+import interview.guide.modules.agent.model.AgentLoopStopReason;
 import interview.guide.modules.agent.model.AgentMemorySnapshot;
 import interview.guide.modules.agent.model.AgentSessionEntity;
 import interview.guide.modules.agent.model.AgentStepTraceEntity;
@@ -340,6 +341,33 @@ public class AgentTraceService {
         trace.setStatus(AgentExecutionState.FAILED);
         trace.setErrorMessage(sanitize(error));
         traceRepository.save(trace);
+    }
+
+    /**
+     * 记录受控多步执行因预算耗尽而停止的终态 trace。
+     * 该 trace 专门用于说明“本轮不是异常崩溃，而是被预算边界主动收口”。
+     */
+    @Transactional
+    public AgentStepTraceEntity recordBudgetExhaustedStop(
+        String turnId,
+        AgentLoopStopReason stopReason,
+        String reply,
+        AgentMemorySnapshot memoryBefore,
+        AgentMemorySnapshot memoryAfter,
+        List<AgentGuardrailResult> guardrailResults
+    ) {
+        AgentStepTraceEntity trace = newTrace(turnId, resolveBudgetStopDecisionSummary(stopReason), "bounded_loop", null, memoryBefore);
+        trace.setToolOutputJson(writeJson(buildReplyTracePayload(
+            "loop_budget_exhausted",
+            resolveBudgetStopObservation(stopReason),
+            reply
+        )));
+        trace.setObservationSummary(resolveBudgetStopObservation(stopReason));
+        trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
+        trace.setGuardrailResultsJson(writeGuardrailResultsJson(guardrailResults));
+        trace.setStatus(AgentExecutionState.FAILED);
+        trace.setErrorMessage(stopReason == null ? "UNKNOWN" : stopReason.name());
+        return traceRepository.save(trace);
     }
 
     /**
@@ -838,6 +866,26 @@ public class AgentTraceService {
         trace.setStatus(AgentExecutionState.FAILED);
         trace.setErrorMessage(approval == null ? null : clip(approval.reason(), ERROR_LIMIT));
         traceRepository.save(trace);
+    }
+
+    private String resolveBudgetStopDecisionSummary(AgentLoopStopReason stopReason) {
+        if (stopReason == AgentLoopStopReason.TIME_BUDGET_EXHAUSTED) {
+            return "多步执行命中时间预算，停止继续推进";
+        }
+        if (stopReason == AgentLoopStopReason.TOKEN_BUDGET_EXHAUSTED) {
+            return "多步执行命中模型预算，停止继续推进";
+        }
+        return "多步执行命中步数预算，停止继续推进";
+    }
+
+    private String resolveBudgetStopObservation(AgentLoopStopReason stopReason) {
+        if (stopReason == AgentLoopStopReason.TIME_BUDGET_EXHAUSTED) {
+            return "本轮多步执行已达到时间预算，系统按边界主动收口";
+        }
+        if (stopReason == AgentLoopStopReason.TOKEN_BUDGET_EXHAUSTED) {
+            return "本轮多步执行已达到模型预算，系统按边界主动收口";
+        }
+        return "本轮多步执行已达到步数预算，系统按边界主动收口";
     }
 
     public record ApprovedExecutionRecovery(

@@ -12,6 +12,8 @@ import interview.guide.modules.agent.model.AgentChatResponse;
 import interview.guide.modules.agent.model.AgentCompletionMode;
 import interview.guide.modules.agent.model.AgentDecisionDTO;
 import interview.guide.modules.agent.model.AgentExecutionState;
+import interview.guide.modules.agent.model.AgentExecutionSummaryDTO;
+import interview.guide.modules.agent.model.AgentLoopStopReason;
 import interview.guide.modules.agent.guardrail.AgentGuardrailAction;
 import interview.guide.modules.agent.guardrail.AgentGuardrailCode;
 import interview.guide.modules.agent.guardrail.AgentGuardrailResolution;
@@ -19,6 +21,7 @@ import interview.guide.modules.agent.guardrail.AgentGuardrailResult;
 import interview.guide.modules.agent.guardrail.AgentGuardrailStage;
 import interview.guide.modules.agent.model.AgentMemorySnapshot;
 import interview.guide.modules.agent.model.AgentMessageDTO;
+import interview.guide.modules.agent.model.AgentRuntimeConfig;
 import interview.guide.modules.agent.model.AgentSessionEntity;
 import interview.guide.modules.agent.model.AgentStepTraceEntity;
 import interview.guide.modules.agent.model.AgentTraceDTO;
@@ -2032,6 +2035,220 @@ class AgentOrchestratorTest {
         assertThat(toolContextCaptor.getValue().assembledContext()).isEqualTo(assembledContext);
         assertThat(toolContextCaptor.getValue().knowledgeBaseIds()).containsExactly(7L, 8L);
         assertThat(response.reply()).isEqualTo("已读取简历画像，包含摘要、优势和历史面试数量。");
+    }
+
+    @Test
+    @DisplayName("should continue with a second decision when multi step mode is enabled")
+    void shouldContinueWithSecondDecisionWhenMultiStepModeIsEnabled() {
+        String sessionId = "session-multi-step";
+        String turnId = "turn-multi-step";
+        AgentChatRequest request = new AgentChatRequest(
+            "先读取我的简历，再给我下一步建议",
+            new AgentRuntimeConfig(true, 3, 15_000L, 4_000)
+        );
+        AgentSessionEntity session = createSession(sessionId, "准备 Java 面试", 42L);
+        AgentMemorySnapshot memory = createMemory();
+        AgentMemorySnapshot updatedMemory = new AgentMemorySnapshot(
+            "准备 Java 面试",
+            "resume_context_ready",
+            List.of("已绑定简历ID: 42", "简历优势: 后端基础扎实"),
+            List.of("get_resume_profile"),
+            "继续基于简历给出下一步建议"
+        );
+        AgentAssembledContext firstContext = assembledContext(session, memory, request.message());
+        AgentAssembledContext secondContext = assembledContext(session, updatedMemory, request.message());
+        AgentStepTraceEntity stepTrace = new AgentStepTraceEntity();
+        AgentToolResult toolResult = new AgentToolResult(
+            "已读取简历画像，包含摘要与优势。",
+            Map.of("resumeId", 42L, "highlights", List.of("Java", "Spring Boot")),
+            Map.of(),
+            List.of("已绑定简历ID: 42", "简历优势: 后端基础扎实")
+        );
+        List<AgentTraceDTO> trace = List.of(
+            createTrace("get_resume_profile", AgentExecutionState.COMPLETED),
+            createTrace("direct_answer", AgentExecutionState.COMPLETED)
+        );
+        List<AgentMessageDTO> messagesDelta = List.of(
+            createMessage("user", request.message(), 1),
+            createMessage("assistant", "先把简历优势沉淀成项目亮点，再补一轮面试追问。", 2)
+        );
+        AgentTurnEntity completedTurn = createCompletedTurn(turnId, session, AgentCompletionMode.SUCCESS);
+
+        when(sessionService.startTurn(sessionId, request.message()))
+            .thenReturn(new AgentSessionService.StartedTurn(session, turnId));
+        when(memoryService.readMemory(session)).thenReturn(memory);
+        when(traceService.estimateNextStepIndex(sessionId)).thenReturn(1, 2);
+        when(toolRegistry.describeTools()).thenReturn("- get_resume_profile");
+        when(contextAssemblyService.assemble(session, memory, request.message())).thenReturn(firstContext);
+        when(contextAssemblyService.assemble(session, updatedMemory, request.message())).thenReturn(secondContext);
+        when(promptService.buildDecisionSystemPrompt(anyString(), anyString())).thenReturn("decision-system");
+        when(promptService.buildDecisionUserPrompt(eq(firstContext), eq(1), anyString())).thenReturn("decision-user-step-1");
+        when(promptService.buildDecisionUserPrompt(eq(secondContext), eq(2), anyString())).thenReturn("decision-user-step-2");
+        when(structuredOutputInvoker.invoke(
+            any(),
+            anyString(),
+            anyString(),
+            any(),
+            any(),
+            anyString(),
+            anyString(),
+            any()
+        )).thenReturn(
+            new AgentDecisionDTO(true, "get_resume_profile", Map.of(), "先补齐简历上下文", null),
+            new AgentDecisionDTO(false, null, Map.of(), "上下文已足够，直接给建议", "先把简历优势沉淀成项目亮点，再补一轮面试追问。")
+        );
+        when(toolRegistry.findTool("get_resume_profile")).thenReturn(Optional.of(tool));
+        when(tool.name()).thenReturn("get_resume_profile");
+        when(tool.requiredInputs()).thenReturn(List.of("resumeId"));
+        when(traceService.startToolStep(
+            eq(turnId),
+            eq("先补齐简历上下文"),
+            eq("get_resume_profile"),
+            anyMap(),
+            eq(memory)
+        )).thenReturn(stepTrace);
+        when(tool.execute(anyMap(), any())).thenReturn(toolResult);
+        when(memoryService.updateAfterTool(memory, "get_resume_profile", toolResult)).thenReturn(updatedMemory);
+        when(sessionService.completeTurn(
+            eq(turnId),
+            eq("先把简历优势沉淀成项目亮点，再补一轮面试追问。"),
+            eq(updatedMemory),
+            eq(AgentCompletionMode.SUCCESS)
+        )).thenReturn(completedTurn);
+        when(traceService.getTurnTrace(turnId)).thenReturn(trace);
+        when(sessionService.getTurnMessages(turnId)).thenReturn(messagesDelta);
+
+        AgentChatResponse response = orchestrator.chat(sessionId, request);
+
+        verify(traceService).completeToolStep(
+            eq(stepTrace),
+            eq(toolResult),
+            eq(updatedMemory),
+            anyString(),
+            eq(List.of())
+        );
+        verify(promptService).buildDecisionUserPrompt(eq(firstContext), eq(1), anyString());
+        verify(promptService).buildDecisionUserPrompt(eq(secondContext), eq(2), anyString());
+        verify(sessionService).completeTurn(
+            eq(turnId),
+            eq("先把简历优势沉淀成项目亮点，再补一轮面试追问。"),
+            eq(updatedMemory),
+            eq(AgentCompletionMode.SUCCESS)
+        );
+
+        AgentExecutionSummaryDTO execution = response.execution();
+        assertThat(execution).isNotNull();
+        assertThat(execution.multiStepEnabled()).isTrue();
+        assertThat(execution.executedSteps()).isEqualTo(2);
+        assertThat(execution.stopReason()).isEqualTo(AgentLoopStopReason.DIRECT_REPLY);
+        assertThat(execution.estimatedModelTokensUsed()).isPositive();
+        assertThat(response.reply()).isEqualTo("先把简历优势沉淀成项目亮点，再补一轮面试追问。");
+        assertThat(response.memory()).isEqualTo(updatedMemory);
+        assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.SUCCESS);
+    }
+
+    @Test
+    @DisplayName("should stop with a degraded reply when the multi step budget is exhausted")
+    void shouldStopWithDegradedReplyWhenTheMultiStepBudgetIsExhausted() {
+        String sessionId = "session-step-budget";
+        String turnId = "turn-step-budget";
+        AgentChatRequest request = new AgentChatRequest(
+            "先读取我的简历，再继续推导",
+            new AgentRuntimeConfig(true, 1, 15_000L, 4_000)
+        );
+        AgentSessionEntity session = createSession(sessionId, "准备 Java 面试", 42L);
+        AgentMemorySnapshot memory = createMemory();
+        AgentMemorySnapshot updatedMemory = new AgentMemorySnapshot(
+            "准备 Java 面试",
+            "resume_context_ready",
+            List.of("已绑定简历ID: 42"),
+            List.of("get_resume_profile"),
+            "继续根据简历上下文给出建议"
+        );
+        AgentAssembledContext assembledContext = assembledContext(session, memory, request.message());
+        AgentStepTraceEntity stepTrace = new AgentStepTraceEntity();
+        AgentToolResult toolResult = new AgentToolResult(
+            "已读取简历画像，包含摘要与优势。",
+            Map.of("resumeId", 42L),
+            Map.of(),
+            List.of("已绑定简历ID: 42")
+        );
+        List<AgentTraceDTO> trace = List.of(
+            createTrace("get_resume_profile", AgentExecutionState.COMPLETED),
+            createTrace("bounded_loop", AgentExecutionState.FAILED)
+        );
+        List<AgentMessageDTO> messagesDelta = List.of(
+            createMessage("user", request.message(), 1),
+            createMessage("assistant", "本轮多步预算已用尽，我先停在当前结论。", 2)
+        );
+        AgentTurnEntity completedTurn = createCompletedTurn(turnId, session, AgentCompletionMode.DEGRADED);
+
+        when(sessionService.startTurn(sessionId, request.message()))
+            .thenReturn(new AgentSessionService.StartedTurn(session, turnId));
+        when(memoryService.readMemory(session)).thenReturn(memory);
+        when(traceService.estimateNextStepIndex(sessionId)).thenReturn(1);
+        when(toolRegistry.describeTools()).thenReturn("- get_resume_profile");
+        when(contextAssemblyService.assemble(session, memory, request.message())).thenReturn(assembledContext);
+        when(promptService.buildDecisionSystemPrompt(anyString(), anyString())).thenReturn("decision-system");
+        when(promptService.buildDecisionUserPrompt(eq(assembledContext), eq(1), anyString())).thenReturn("decision-user-step-1");
+        when(structuredOutputInvoker.invoke(
+            any(),
+            anyString(),
+            anyString(),
+            any(),
+            any(),
+            anyString(),
+            anyString(),
+            any()
+        )).thenReturn(new AgentDecisionDTO(true, "get_resume_profile", Map.of(), "先补齐简历上下文", null));
+        when(toolRegistry.findTool("get_resume_profile")).thenReturn(Optional.of(tool));
+        when(tool.name()).thenReturn("get_resume_profile");
+        when(tool.requiredInputs()).thenReturn(List.of("resumeId"));
+        when(traceService.startToolStep(
+            eq(turnId),
+            eq("先补齐简历上下文"),
+            eq("get_resume_profile"),
+            anyMap(),
+            eq(memory)
+        )).thenReturn(stepTrace);
+        when(tool.execute(anyMap(), any())).thenReturn(toolResult);
+        when(memoryService.updateAfterTool(memory, "get_resume_profile", toolResult)).thenReturn(updatedMemory);
+        when(sessionService.completeTurn(
+            eq(turnId),
+            anyString(),
+            eq(updatedMemory),
+            eq(AgentCompletionMode.DEGRADED)
+        )).thenReturn(completedTurn);
+        when(traceService.getTurnTrace(turnId)).thenReturn(trace);
+        when(sessionService.getTurnMessages(turnId)).thenReturn(messagesDelta);
+
+        AgentChatResponse response = orchestrator.chat(sessionId, request);
+
+        ArgumentCaptor<String> replyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(traceService).recordBudgetExhaustedStop(
+            eq(turnId),
+            eq(AgentLoopStopReason.STEP_BUDGET_EXHAUSTED),
+            replyCaptor.capture(),
+            eq(updatedMemory),
+            eq(updatedMemory),
+            eq(List.of())
+        );
+        verify(sessionService).completeTurn(
+            eq(turnId),
+            eq(replyCaptor.getValue()),
+            eq(updatedMemory),
+            eq(AgentCompletionMode.DEGRADED)
+        );
+
+        AgentExecutionSummaryDTO execution = response.execution();
+        assertThat(execution).isNotNull();
+        assertThat(execution.multiStepEnabled()).isTrue();
+        assertThat(execution.executedSteps()).isEqualTo(1);
+        assertThat(execution.stopReason()).isEqualTo(AgentLoopStopReason.STEP_BUDGET_EXHAUSTED);
+        assertThat(replyCaptor.getValue()).contains("预算");
+        assertThat(response.reply()).isEqualTo(replyCaptor.getValue());
+        assertThat(response.memory()).isEqualTo(updatedMemory);
+        assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.DEGRADED);
     }
 
     private AgentSessionEntity createSession(String sessionId, String goal, Long resumeId) {

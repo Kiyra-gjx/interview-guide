@@ -2,9 +2,16 @@
 
 ## 0. 任务状态
 
-- 状态：未开始
+- 状态：进行中
 - 当前定位：Stage 5 的多步执行入口任务
 - 前置依赖：Stage 4 完成
+
+## 0.1 当前进展
+
+- 已在后端引入显式 `runtimeConfig` 开关，默认仍保持单步执行
+- 已落地第一版 bounded loop 与三类预算：`maxSteps`、`maxDurationMillis`、`maxEstimatedModelTokens`
+- 已补齐 `execution` 执行摘要、预算耗尽后的降级回复，以及 `bounded_loop` trace / metrics
+- 当前仍需继续补强预算语义解释、固定样例证据，以及与后续 S5-02 / S5-03 的边界衔接
 
 ## 1. 任务目标
 
