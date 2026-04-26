@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, ShieldAlert, Wrench } from 'lucide-react';
+import { AlertTriangle, MessageSquare, ShieldAlert, Wrench } from 'lucide-react';
 import type { AgentToolOutputNormalization, AgentTraceStep, AgentTurnDetail } from '../../types/agent';
 import CodeBlock from '../CodeBlock';
 import AgentStatusBadge from './AgentStatusBadge';
+import {
+  getTraceToolPresentation,
+  type AgentTraceToolPresentationKind,
+} from './agentTraceToolPresentation';
 
 interface AgentTraceExplorerProps {
   detail: AgentTurnDetail | null;
@@ -22,6 +26,7 @@ export default function AgentTraceExplorer({ detail, loading = false }: AgentTra
   }, [detail?.turn.turnId, detail?.traceSteps]);
 
   const selectedStep = resolveSelectedStep(detail?.traceSteps ?? [], selectedStepIndex);
+  const selectedStepPresentation = getTraceToolPresentation(selectedStep?.selectedTool);
   const normalizationFlags = selectedStep?.toolOutput ? collectNormalizationFlags(selectedStep.toolOutput.normalization) : [];
 
   if (loading) {
@@ -69,6 +74,8 @@ export default function AgentTraceExplorer({ detail, loading = false }: AgentTra
             <div className="space-y-3">
               {detail.traceSteps.map((step) => {
                 const selected = step.stepIndex === selectedStep?.stepIndex;
+                const stepToolPresentation = getTraceToolPresentation(step.selectedTool);
+                const StepToolIcon = resolveTraceToolIcon(stepToolPresentation.kind);
 
                 return (
                   <button
@@ -85,8 +92,8 @@ export default function AgentTraceExplorer({ detail, loading = false }: AgentTra
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-slate-900 dark:text-white">Step {step.stepIndex}</p>
                         <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                          <Wrench className="h-3.5 w-3.5" />
-                          {step.selectedTool || 'direct_reply'}
+                          <StepToolIcon className="h-3.5 w-3.5" />
+                          {stepToolPresentation.label}
                         </p>
                       </div>
                       <AgentStatusBadge kind="execution" value={step.status} />
@@ -114,8 +121,10 @@ export default function AgentTraceExplorer({ detail, loading = false }: AgentTra
                       {selectedStep.decisionSummary || '暂无'}
                     </p>
                     <p>
-                      <span className="font-semibold text-slate-900 dark:text-white">工具：</span>
-                      {selectedStep.selectedTool || '无工具，直接回复'}
+                      <span className="font-semibold text-slate-900 dark:text-white">
+                        {selectedStepPresentation.fieldLabel}：
+                      </span>
+                      {selectedStepPresentation.label}
                     </p>
                     <p>
                       <span className="font-semibold text-slate-900 dark:text-white">观察：</span>
@@ -311,4 +320,19 @@ function collectNormalizationFlags(normalization: AgentToolOutputNormalization |
     flags.push('facts 已截断');
   }
   return flags;
+}
+
+/**
+ * Trace Browser 里的图标只负责强化“工具路径”和“非工具路径”的区别，
+ * 不参与业务判断，真正的规则统一由 presentation helper 维护。
+ */
+function resolveTraceToolIcon(kind: AgentTraceToolPresentationKind) {
+  switch (kind) {
+    case 'direct_reply':
+      return MessageSquare;
+    case 'guardrail':
+      return ShieldAlert;
+    default:
+      return Wrench;
+  }
 }

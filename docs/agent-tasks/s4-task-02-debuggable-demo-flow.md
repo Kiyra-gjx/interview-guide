@@ -30,6 +30,10 @@
 - demo 场景样例或文档
 - 必要的说明文档与展示辅助内容
 
+当前落地时，建议同步维护一份面向演示者的操作说明：
+
+- [Agent Demo Flow](../agent-demo-flow.md)
+
 ## 5. 风险与边界
 
 - 本任务不进入多步 loop、planner 或 subagent 设计

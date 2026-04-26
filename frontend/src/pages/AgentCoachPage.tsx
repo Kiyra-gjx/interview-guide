@@ -22,10 +22,13 @@ import type {
   AgentTurnSummary,
 } from '../types/agent';
 import AgentApprovalQueue from '../components/agent/AgentApprovalQueue';
+import AgentDemoScenarioPanel from '../components/agent/AgentDemoScenarioPanel';
+import AgentExecutionNarrativePanel from '../components/agent/AgentExecutionNarrativePanel';
 import AgentStatusBadge from '../components/agent/AgentStatusBadge';
 import AgentTraceExplorer from '../components/agent/AgentTraceExplorer';
 import AgentTurnConversation from '../components/agent/AgentTurnConversation';
 import AgentTurnList from '../components/agent/AgentTurnList';
+import type { AgentDemoScenario } from '../components/agent/agentDemoFlow';
 
 /**
  * Stage 4 的 Agent Workbench 页面。
@@ -407,6 +410,19 @@ export default function AgentCoachPage() {
     setError('');
   }
 
+  /**
+   * 把推荐 demo 场景写入当前输入区。
+   * 这里只改本地草稿，不隐式创建或重建会话，避免用户还没确认资源绑定就被自动提交。
+   */
+  function handleApplyDemoScenario(scenario: AgentDemoScenario) {
+    // 1. 同步替换训练目标，让用户明确知道这次演示想验证什么。
+    setGoal(scenario.goal);
+    // 2. 同步替换待发送问题，保证点击后即可直接开始主路径演示。
+    setMessage(scenario.message);
+    // 3. 应用场景本身不算错误，顺手清掉旧错误提示，避免把 demo 引导和旧异常混在一起。
+    setError('');
+  }
+
   return (
     <div className="space-y-6">
       {/* 顶部标题负责明确 Stage 4 workbench 的定位，而不是泛化成普通 Agent 聊天页。 */}
@@ -464,6 +480,23 @@ export default function AgentCoachPage() {
           {error}
         </div>
       )}
+
+      {/* 先用场景入口和执行解释把 demo flow 讲清楚，再进入工作台的细粒度观察面。 */}
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+        <AgentDemoScenarioPanel
+          selectedResumeId={selectedResumeId}
+          selectedKnowledgeBaseIds={selectedKnowledgeBaseIds}
+          hasSession={!!session}
+          onApplyScenario={handleApplyDemoScenario}
+        />
+        <AgentExecutionNarrativePanel
+          session={session}
+          detail={selectedTurnDetail}
+          approvals={approvals}
+          loading={detailLoading}
+          turnCount={turns.length}
+        />
+      </div>
 
       {/* 顶部主工作区拆成配置/turn 列表、当前 turn 对话、会话级观测三列。 */}
       <div className="grid gap-6 2xl:grid-cols-[340px_minmax(0,1fr)_360px]">
