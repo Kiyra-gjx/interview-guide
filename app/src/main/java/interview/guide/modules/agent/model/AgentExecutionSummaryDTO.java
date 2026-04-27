@@ -2,7 +2,8 @@ package interview.guide.modules.agent.model;
 
 /**
  * Agent 执行摘要。
- * 对外暴露本轮是否启用了多步、预算消耗到哪里，以及最终为何停止。
+ * 对外暴露本轮是否启用了多步、预算消耗到哪里，以及最终如何收口。
+ * stopReason 表示真实终态原因；budgetStopReason 表示是否命中预算边界。
  */
 public record AgentExecutionSummaryDTO(
     boolean multiStepEnabled,
@@ -15,7 +16,8 @@ public record AgentExecutionSummaryDTO(
     int maxEstimatedModelTokens,
     int estimatedModelTokensUsed,
     int remainingEstimatedModelTokens,
-    AgentLoopStopReason stopReason
+    AgentLoopStopReason stopReason,
+    AgentLoopStopReason budgetStopReason
 ) {
 
     public AgentExecutionSummaryDTO {

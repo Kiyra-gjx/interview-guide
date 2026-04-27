@@ -36,7 +36,11 @@ public class AgentMetricsService {
     }
 
     public void recordTurnCompleted(AgentCompletionMode completionMode) {
-        String outcome = completionMode == AgentCompletionMode.DEGRADED ? "degraded" : "success";
+        String outcome = switch (completionMode) {
+            case DEGRADED -> "degraded";
+            case WAITING_APPROVAL -> "waiting_approval";
+            case SUCCESS -> "success";
+        };
         meterRegistry.counter(TURN_OUTCOME_METRIC, "outcome", outcome).increment();
     }
 
@@ -80,7 +84,8 @@ public class AgentMetricsService {
         meterRegistry.counter(
             EXECUTION_SUMMARY_METRIC,
             "multiStep", Boolean.toString(executionSummary.multiStepEnabled()),
-            "stopReason", normalizeStopReason(executionSummary.stopReason())
+            "stopReason", normalizeStopReason(executionSummary.stopReason()),
+            "budgetStopReason", normalizeBudgetStopReason(executionSummary.budgetStopReason())
         ).increment();
 
         DistributionSummary.builder(EXECUTION_STEPS_METRIC)
@@ -88,6 +93,8 @@ public class AgentMetricsService {
             .register(meterRegistry)
             .record(executionSummary.executedSteps());
 
+        // exhausted 指标只统计“本轮确实因为预算边界而停下”的情况，
+        // 不把正常收口但恰好打满预算的场景混进来。
         String exhaustedBudget = resolveExhaustedBudget(executionSummary.stopReason());
         if (exhaustedBudget != null) {
             meterRegistry.counter(EXECUTION_BUDGET_EXHAUSTED_METRIC, "budget", exhaustedBudget).increment();
@@ -100,6 +107,10 @@ public class AgentMetricsService {
 
     private String normalizeStopReason(AgentLoopStopReason stopReason) {
         return stopReason == null ? "UNKNOWN" : stopReason.name();
+    }
+
+    private String normalizeBudgetStopReason(AgentLoopStopReason budgetStopReason) {
+        return budgetStopReason == null ? "NONE" : budgetStopReason.name();
     }
 
     private String resolveExhaustedBudget(AgentLoopStopReason stopReason) {

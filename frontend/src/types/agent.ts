@@ -118,6 +118,7 @@ export interface AgentExecutionSummary {
   estimatedModelTokensUsed: number;
   remainingEstimatedModelTokens: number;
   stopReason: AgentLoopStopReason | null;
+  budgetStopReason: AgentLoopStopReason | null;
 }
 
 export interface CreateAgentSessionRequest {

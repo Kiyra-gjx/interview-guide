@@ -21,6 +21,7 @@ class AgentMetricsServiceTest {
 
         metricsService.recordTurnStarted();
         metricsService.recordTurnCompleted(AgentCompletionMode.SUCCESS);
+        metricsService.recordTurnCompleted(AgentCompletionMode.WAITING_APPROVAL);
         metricsService.recordTurnFailed();
         metricsService.recordTurnReclaimed(2);
         metricsService.recordToolExecution("get_resume_profile", true);
@@ -28,6 +29,7 @@ class AgentMetricsServiceTest {
 
         assertThat(meterRegistry.get("agent.turn.total").counter().count()).isEqualTo(1.0);
         assertThat(meterRegistry.get("agent.turn.outcome").tag("outcome", "success").counter().count()).isEqualTo(1.0);
+        assertThat(meterRegistry.get("agent.turn.outcome").tag("outcome", "waiting_approval").counter().count()).isEqualTo(1.0);
         assertThat(meterRegistry.get("agent.turn.outcome").tag("outcome", "failed").counter().count()).isEqualTo(1.0);
         assertThat(meterRegistry.get("agent.turn.reclaimed").tag("reason", "lease_timeout").counter().count()).isEqualTo(2.0);
         assertThat(meterRegistry.get("agent.tool.execution").tag("tool", "get_resume_profile").tag("outcome", "success").counter().count()).isEqualTo(1.0);
@@ -51,7 +53,22 @@ class AgentMetricsServiceTest {
             4_000,
             1_280,
             2_720,
-            AgentLoopStopReason.DIRECT_REPLY
+            AgentLoopStopReason.DIRECT_REPLY,
+            null
+        ));
+        metricsService.recordExecutionSummary(new AgentExecutionSummaryDTO(
+            true,
+            3,
+            1,
+            2,
+            15_000L,
+            900L,
+            14_100L,
+            64,
+            128,
+            0,
+            AgentLoopStopReason.DIRECT_REPLY,
+            AgentLoopStopReason.TOKEN_BUDGET_EXHAUSTED
         ));
         metricsService.recordExecutionSummary(new AgentExecutionSummaryDTO(
             true,
@@ -64,23 +81,35 @@ class AgentMetricsServiceTest {
             4_000,
             1_600,
             2_400,
+            AgentLoopStopReason.STEP_BUDGET_EXHAUSTED,
             AgentLoopStopReason.STEP_BUDGET_EXHAUSTED
         ));
 
         assertThat(meterRegistry.get("agent.execution.summary")
             .tag("multiStep", "true")
             .tag("stopReason", "DIRECT_REPLY")
+            .tag("budgetStopReason", "NONE")
+            .counter()
+            .count()).isEqualTo(1.0);
+        assertThat(meterRegistry.get("agent.execution.summary")
+            .tag("multiStep", "true")
+            .tag("stopReason", "DIRECT_REPLY")
+            .tag("budgetStopReason", "TOKEN_BUDGET_EXHAUSTED")
             .counter()
             .count()).isEqualTo(1.0);
         assertThat(meterRegistry.get("agent.execution.summary")
             .tag("multiStep", "true")
             .tag("stopReason", "STEP_BUDGET_EXHAUSTED")
+            .tag("budgetStopReason", "STEP_BUDGET_EXHAUSTED")
             .counter()
             .count()).isEqualTo(1.0);
         assertThat(meterRegistry.get("agent.execution.budget.exhausted")
             .tag("budget", "step")
             .counter()
             .count()).isEqualTo(1.0);
-        assertThat(meterRegistry.get("agent.execution.steps").summary().count()).isEqualTo(2L);
+        assertThat(meterRegistry.find("agent.execution.budget.exhausted")
+            .tag("budget", "token")
+            .counter()).isNull();
+        assertThat(meterRegistry.get("agent.execution.steps").summary().count()).isEqualTo(3L);
     }
 }

@@ -2148,6 +2148,194 @@ class AgentOrchestratorTest {
     }
 
     @Test
+    @DisplayName("should not expose a step budget stop reason for default single step direct replies")
+    void shouldNotExposeStepBudgetStopReasonForDefaultSingleStepDirectReplies() {
+        String sessionId = "session-single-step-direct";
+        String turnId = "turn-single-step-direct";
+        AgentChatRequest request = new AgentChatRequest("直接给我一句建议");
+        AgentSessionEntity session = createSession(sessionId, "准备 Java 面试", 42L);
+        AgentMemorySnapshot memory = createMemory();
+        AgentAssembledContext assembledContext = assembledContext(session, memory, request.message());
+        List<AgentTraceDTO> trace = List.of(createTrace("direct_answer", AgentExecutionState.COMPLETED));
+        List<AgentMessageDTO> messagesDelta = List.of(
+            createMessage("user", request.message(), 1),
+            createMessage("assistant", "先把一个项目亮点讲深，再补一轮追问。", 2)
+        );
+        AgentTurnEntity completedTurn = createCompletedTurn(turnId, session, AgentCompletionMode.SUCCESS);
+
+        when(sessionService.startTurn(sessionId, request.message()))
+            .thenReturn(new AgentSessionService.StartedTurn(session, turnId));
+        when(memoryService.readMemory(session)).thenReturn(memory);
+        when(traceService.estimateNextStepIndex(sessionId)).thenReturn(1);
+        when(toolRegistry.describeTools()).thenReturn("- get_resume_profile");
+        when(contextAssemblyService.assemble(session, memory, request.message())).thenReturn(assembledContext);
+        when(promptService.buildDecisionSystemPrompt(anyString(), anyString())).thenReturn("decision-system");
+        when(promptService.buildDecisionUserPrompt(eq(assembledContext), eq(1))).thenReturn("decision-user");
+        when(structuredOutputInvoker.invoke(
+            any(),
+            anyString(),
+            anyString(),
+            any(),
+            any(),
+            anyString(),
+            anyString(),
+            any()
+        )).thenReturn(new AgentDecisionDTO(
+            false,
+            null,
+            Map.of(),
+            "当前信息足够，直接给最终建议",
+            "先把一个项目亮点讲深，再补一轮追问。"
+        ));
+        when(sessionService.completeTurn(
+            eq(turnId),
+            eq("先把一个项目亮点讲深，再补一轮追问。"),
+            eq(memory),
+            eq(AgentCompletionMode.SUCCESS)
+        )).thenReturn(completedTurn);
+        when(traceService.getTurnTrace(turnId)).thenReturn(trace);
+        when(sessionService.getTurnMessages(turnId)).thenReturn(messagesDelta);
+
+        AgentChatResponse response = orchestrator.chat(sessionId, request);
+
+        AgentExecutionSummaryDTO execution = response.execution();
+        assertThat(execution).isNotNull();
+        assertThat(execution.multiStepEnabled()).isFalse();
+        assertThat(execution.stopReason()).isEqualTo(AgentLoopStopReason.DIRECT_REPLY);
+        assertThat(execution.budgetStopReason()).isNull();
+        assertThat(execution.executedSteps()).isEqualTo(1);
+        assertThat(response.reply()).isEqualTo("先把一个项目亮点讲深，再补一轮追问。");
+        assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.SUCCESS);
+    }
+
+    @Test
+    @DisplayName("should expose budget stop reason when terminal direct reply already exceeds token budget")
+    void shouldExposeBudgetStopReasonWhenTerminalDirectReplyAlreadyExceedsTokenBudget() {
+        String sessionId = "session-budget-overrun-direct";
+        String turnId = "turn-budget-overrun-direct";
+        AgentChatRequest request = new AgentChatRequest(
+            "直接给我一句总结建议",
+            new AgentRuntimeConfig(true, 3, 15_000L, 1)
+        );
+        AgentSessionEntity session = createSession(sessionId, "准备 Java 面试", 42L);
+        AgentMemorySnapshot memory = createMemory();
+        AgentAssembledContext assembledContext = assembledContext(session, memory, request.message());
+        List<AgentTraceDTO> trace = List.of(createTrace("direct_answer", AgentExecutionState.COMPLETED));
+        List<AgentMessageDTO> messagesDelta = List.of(
+            createMessage("user", request.message(), 1),
+            createMessage("assistant", "先聚焦一个最能体现后端能力的项目亮点。", 2)
+        );
+        AgentTurnEntity completedTurn = createCompletedTurn(turnId, session, AgentCompletionMode.SUCCESS);
+
+        when(sessionService.startTurn(sessionId, request.message()))
+            .thenReturn(new AgentSessionService.StartedTurn(session, turnId));
+        when(memoryService.readMemory(session)).thenReturn(memory);
+        when(traceService.estimateNextStepIndex(sessionId)).thenReturn(1);
+        when(toolRegistry.describeTools()).thenReturn("- get_resume_profile");
+        when(contextAssemblyService.assemble(session, memory, request.message())).thenReturn(assembledContext);
+        when(promptService.buildDecisionSystemPrompt(anyString(), anyString())).thenReturn("decision-system");
+        when(promptService.buildDecisionUserPrompt(eq(assembledContext), eq(1), anyString())).thenReturn("decision-user");
+        when(structuredOutputInvoker.invoke(
+            any(),
+            anyString(),
+            anyString(),
+            any(),
+            any(),
+            anyString(),
+            anyString(),
+            any()
+        )).thenReturn(new AgentDecisionDTO(
+            false,
+            null,
+            Map.of(),
+            "上下文已足够，直接给出一句建议",
+            "先聚焦一个最能体现后端能力的项目亮点。"
+        ));
+        when(sessionService.completeTurn(
+            eq(turnId),
+            eq("先聚焦一个最能体现后端能力的项目亮点。"),
+            eq(memory),
+            eq(AgentCompletionMode.SUCCESS)
+        )).thenReturn(completedTurn);
+        when(traceService.getTurnTrace(turnId)).thenReturn(trace);
+        when(sessionService.getTurnMessages(turnId)).thenReturn(messagesDelta);
+
+        AgentChatResponse response = orchestrator.chat(sessionId, request);
+
+        AgentExecutionSummaryDTO execution = response.execution();
+        assertThat(execution).isNotNull();
+        assertThat(execution.stopReason()).isEqualTo(AgentLoopStopReason.DIRECT_REPLY);
+        assertThat(execution.budgetStopReason()).isEqualTo(AgentLoopStopReason.TOKEN_BUDGET_EXHAUSTED);
+        assertThat(execution.estimatedModelTokensUsed()).isGreaterThan(execution.maxEstimatedModelTokens());
+        assertThat(response.reply()).isEqualTo("先聚焦一个最能体现后端能力的项目亮点。");
+        assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.SUCCESS);
+    }
+
+    @Test
+    @DisplayName("should expose step budget stop reason when direct reply consumes the last allowed step")
+    void shouldExposeStepBudgetStopReasonWhenDirectReplyConsumesTheLastAllowedStep() {
+        String sessionId = "session-step-budget-direct";
+        String turnId = "turn-step-budget-direct";
+        AgentChatRequest request = new AgentChatRequest(
+            "给我一句最终建议",
+            new AgentRuntimeConfig(true, 1, 15_000L, 4_000)
+        );
+        AgentSessionEntity session = createSession(sessionId, "准备 Java 面试", 42L);
+        AgentMemorySnapshot memory = createMemory();
+        AgentAssembledContext assembledContext = assembledContext(session, memory, request.message());
+        List<AgentTraceDTO> trace = List.of(createTrace("direct_answer", AgentExecutionState.COMPLETED));
+        List<AgentMessageDTO> messagesDelta = List.of(
+            createMessage("user", request.message(), 1),
+            createMessage("assistant", "先把一个项目亮点讲深，再补一轮追问。", 2)
+        );
+        AgentTurnEntity completedTurn = createCompletedTurn(turnId, session, AgentCompletionMode.SUCCESS);
+
+        when(sessionService.startTurn(sessionId, request.message()))
+            .thenReturn(new AgentSessionService.StartedTurn(session, turnId));
+        when(memoryService.readMemory(session)).thenReturn(memory);
+        when(traceService.estimateNextStepIndex(sessionId)).thenReturn(1);
+        when(toolRegistry.describeTools()).thenReturn("- get_resume_profile");
+        when(contextAssemblyService.assemble(session, memory, request.message())).thenReturn(assembledContext);
+        when(promptService.buildDecisionSystemPrompt(anyString(), anyString())).thenReturn("decision-system");
+        when(promptService.buildDecisionUserPrompt(eq(assembledContext), eq(1), anyString())).thenReturn("decision-user");
+        when(structuredOutputInvoker.invoke(
+            any(),
+            anyString(),
+            anyString(),
+            any(),
+            any(),
+            anyString(),
+            anyString(),
+            any()
+        )).thenReturn(new AgentDecisionDTO(
+            false,
+            null,
+            Map.of(),
+            "当前信息足够，直接给最终建议",
+            "先把一个项目亮点讲深，再补一轮追问。"
+        ));
+        when(sessionService.completeTurn(
+            eq(turnId),
+            eq("先把一个项目亮点讲深，再补一轮追问。"),
+            eq(memory),
+            eq(AgentCompletionMode.SUCCESS)
+        )).thenReturn(completedTurn);
+        when(traceService.getTurnTrace(turnId)).thenReturn(trace);
+        when(sessionService.getTurnMessages(turnId)).thenReturn(messagesDelta);
+
+        AgentChatResponse response = orchestrator.chat(sessionId, request);
+
+        AgentExecutionSummaryDTO execution = response.execution();
+        assertThat(execution).isNotNull();
+        assertThat(execution.stopReason()).isEqualTo(AgentLoopStopReason.DIRECT_REPLY);
+        assertThat(execution.budgetStopReason()).isEqualTo(AgentLoopStopReason.STEP_BUDGET_EXHAUSTED);
+        assertThat(execution.executedSteps()).isEqualTo(1);
+        assertThat(execution.remainingSteps()).isZero();
+        assertThat(response.reply()).isEqualTo("先把一个项目亮点讲深，再补一轮追问。");
+        assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.SUCCESS);
+    }
+
+    @Test
     @DisplayName("should stop with a degraded reply when the multi step budget is exhausted")
     void shouldStopWithDegradedReplyWhenTheMultiStepBudgetIsExhausted() {
         String sessionId = "session-step-budget";

@@ -1291,7 +1291,8 @@ public class AgentOrchestrator {
             runConfig.maxEstimatedModelTokens(),
             0,
             runConfig.maxEstimatedModelTokens(),
-            AgentLoopStopReason.INPUT_GUARDRAIL_BLOCKED
+            AgentLoopStopReason.INPUT_GUARDRAIL_BLOCKED,
+            null
         );
     }
 
@@ -2041,6 +2042,7 @@ public class AgentOrchestrator {
         }
 
         private AgentExecutionSummaryDTO finish(AgentLoopStopReason stopReason) {
+            AgentLoopStopReason budgetStopReason = resolveBudgetStopForSummary(stopReason);
             return new AgentExecutionSummaryDTO(
                 runConfig.multiStepEnabled(),
                 runConfig.maxSteps(),
@@ -2052,7 +2054,8 @@ public class AgentOrchestrator {
                 runConfig.maxEstimatedModelTokens(),
                 estimatedModelTokensUsed,
                 remainingEstimatedModelTokens(),
-                stopReason
+                stopReason,
+                budgetStopReason
             );
         }
 
@@ -2070,6 +2073,38 @@ public class AgentOrchestrator {
 
         private long remainingDurationMillis() {
             return Math.max(0L, runConfig.maxDurationMillis() - elapsedMillis());
+        }
+
+        /**
+         * 汇总执行摘要时，补充“预算是否已经被当前终态打穿”的语义。
+         * stopReason 保留真实收口原因；budgetStopReason 只表达预算边界是否已命中。
+         */
+        private AgentLoopStopReason resolveBudgetStopForSummary(AgentLoopStopReason stopReason) {
+            // 单步模式只是复用统一摘要结构，不对外暴露多步预算边界语义。
+            if (!runConfig.multiStepEnabled()) {
+                return null;
+            }
+            if (isBudgetStopReason(stopReason)) {
+                return stopReason;
+            }
+            // 摘要里的预算命中顺序与真正“下一步开始前”的预算检查保持一致，
+            // 避免 summary 语义和运行时 stop 判定顺序不一致。
+            if (executedSteps >= runConfig.maxSteps()) {
+                return AgentLoopStopReason.STEP_BUDGET_EXHAUSTED;
+            }
+            if (elapsedMillis() >= runConfig.maxDurationMillis()) {
+                return AgentLoopStopReason.TIME_BUDGET_EXHAUSTED;
+            }
+            if (estimatedModelTokensUsed >= runConfig.maxEstimatedModelTokens()) {
+                return AgentLoopStopReason.TOKEN_BUDGET_EXHAUSTED;
+            }
+            return null;
+        }
+
+        private boolean isBudgetStopReason(AgentLoopStopReason stopReason) {
+            return stopReason == AgentLoopStopReason.STEP_BUDGET_EXHAUSTED
+                || stopReason == AgentLoopStopReason.TIME_BUDGET_EXHAUSTED
+                || stopReason == AgentLoopStopReason.TOKEN_BUDGET_EXHAUSTED;
         }
     }
 
