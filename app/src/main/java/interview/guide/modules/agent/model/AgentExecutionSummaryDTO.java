@@ -3,7 +3,8 @@ package interview.guide.modules.agent.model;
 /**
  * Agent 执行摘要。
  * 对外暴露本轮是否启用了多步、预算消耗到哪里，以及最终如何收口。
- * stopReason 表示真实终态原因；budgetStopReason 表示是否命中预算边界。
+ * stopReason 表示真实终态原因；budgetStopReason 表示是否命中预算边界；
+ * terminalState / recoverable / recoveryHint 用于统一终态语义。
  */
 public record AgentExecutionSummaryDTO(
     boolean multiStepEnabled,
@@ -17,7 +18,10 @@ public record AgentExecutionSummaryDTO(
     int estimatedModelTokensUsed,
     int remainingEstimatedModelTokens,
     AgentLoopStopReason stopReason,
-    AgentLoopStopReason budgetStopReason
+    AgentLoopStopReason budgetStopReason,
+    AgentTerminalState terminalState,
+    boolean recoverable,
+    String recoveryHint
 ) {
 
     public AgentExecutionSummaryDTO {
@@ -30,5 +34,6 @@ public record AgentExecutionSummaryDTO(
         maxEstimatedModelTokens = Math.max(0, maxEstimatedModelTokens);
         estimatedModelTokensUsed = Math.max(0, estimatedModelTokensUsed);
         remainingEstimatedModelTokens = Math.max(0, remainingEstimatedModelTokens);
+        recoveryHint = recoveryHint == null || recoveryHint.isBlank() ? null : recoveryHint.trim();
     }
 }

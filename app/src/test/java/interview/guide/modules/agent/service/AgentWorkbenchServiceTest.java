@@ -9,8 +9,10 @@ import interview.guide.modules.agent.model.AgentApprovalDTO;
 import interview.guide.modules.agent.model.AgentApprovalStatus;
 import interview.guide.modules.agent.model.AgentCompletionMode;
 import interview.guide.modules.agent.model.AgentExecutionState;
+import interview.guide.modules.agent.model.AgentLoopStopReason;
 import interview.guide.modules.agent.model.AgentMessageEntity;
 import interview.guide.modules.agent.model.AgentSessionEntity;
+import interview.guide.modules.agent.model.AgentTerminalState;
 import interview.guide.modules.agent.model.AgentTraceDTO;
 import interview.guide.modules.agent.model.AgentTurnDetailDTO;
 import interview.guide.modules.agent.model.AgentTurnEntity;
@@ -137,6 +139,10 @@ class AgentWorkbenchServiceTest {
             List.of(guardrailResult),
             AgentExecutionState.WAITING_APPROVAL,
             null,
+            AgentTerminalState.WAITING_APPROVAL,
+            AgentLoopStopReason.PENDING_APPROVAL,
+            true,
+            "审批通过后可继续执行，拒绝或过期则终止当前 turn",
             LocalDateTime.parse("2026-04-25T16:00:05")
         );
         AgentApprovalDTO approval = new AgentApprovalDTO(

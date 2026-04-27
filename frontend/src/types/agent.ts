@@ -1,6 +1,7 @@
-export type AgentExecutionState = 'CREATED' | 'RUNNING' | 'WAITING_APPROVAL' | 'COMPLETED' | 'FAILED';
+export type AgentExecutionState = 'CREATED' | 'RUNNING' | 'WAITING_APPROVAL' | 'TERMINATED' | 'COMPLETED' | 'FAILED';
 export type AgentTurnStatus = 'CREATED' | 'RUNNING' | 'WAITING_APPROVAL' | 'COMPLETED' | 'FAILED' | 'ABORTED';
 export type AgentCompletionMode = 'SUCCESS' | 'DEGRADED' | 'WAITING_APPROVAL';
+export type AgentTerminalState = 'SUCCESS' | 'DEGRADED' | 'EXHAUSTED' | 'WAITING_APPROVAL' | 'FAILED';
 export type AgentApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
 export type AgentToolRiskLevel = 'READ_ONLY' | 'REQUIRES_APPROVAL';
 export type AgentLoopStopReason =
@@ -9,11 +10,16 @@ export type AgentLoopStopReason =
   | 'DEGRADED_REPLY'
   | 'TOOL_COMPLETED_SINGLE_STEP'
   | 'PENDING_APPROVAL'
+  | 'APPROVAL_REJECTED'
+  | 'APPROVAL_EXPIRED'
+  | 'APPROVAL_REPLAY_BLOCKED'
+  | 'APPROVAL_RESUME_FAILED'
   | 'STEP_BUDGET_EXHAUSTED'
   | 'TIME_BUDGET_EXHAUSTED'
   | 'TOKEN_BUDGET_EXHAUSTED'
   | 'TOOL_EXECUTION_FAILED'
-  | 'TOOL_POST_PROCESSING_FAILED';
+  | 'TOOL_POST_PROCESSING_FAILED'
+  | 'UNHANDLED_ERROR';
 export type AgentGuardrailStage = 'INPUT' | 'TOOL' | 'OUTPUT';
 export type AgentGuardrailCode =
   | 'INPUT_INTERNAL_DATA_REQUEST'
@@ -85,6 +91,10 @@ export interface AgentTraceStep {
   guardrailResults: AgentGuardrailResult[];
   status: AgentExecutionState;
   errorMessage: string | null;
+  terminalState: AgentTerminalState | null;
+  stopReason: AgentLoopStopReason | null;
+  recoverable: boolean;
+  recoveryHint: string | null;
   createdAt: string;
 }
 
@@ -119,6 +129,9 @@ export interface AgentExecutionSummary {
   remainingEstimatedModelTokens: number;
   stopReason: AgentLoopStopReason | null;
   budgetStopReason: AgentLoopStopReason | null;
+  terminalState: AgentTerminalState | null;
+  recoverable: boolean;
+  recoveryHint: string | null;
 }
 
 export interface CreateAgentSessionRequest {

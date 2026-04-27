@@ -7,17 +7,22 @@ import interview.guide.modules.agent.guardrail.AgentGuardrailCode;
 import interview.guide.modules.agent.guardrail.AgentGuardrailResolution;
 import interview.guide.modules.agent.guardrail.AgentGuardrailResult;
 import interview.guide.modules.agent.guardrail.AgentGuardrailStage;
+import interview.guide.modules.agent.model.AgentCompletionMode;
+import interview.guide.modules.agent.model.AgentApprovalDTO;
+import interview.guide.modules.agent.model.AgentApprovalStatus;
 import interview.guide.modules.agent.model.AgentLoopStopReason;
 import interview.guide.modules.agent.model.AgentExecutionState;
 import interview.guide.modules.agent.model.AgentMemorySnapshot;
 import interview.guide.modules.agent.model.AgentSessionEntity;
 import interview.guide.modules.agent.model.AgentStepTraceEntity;
+import interview.guide.modules.agent.model.AgentTerminalState;
 import interview.guide.modules.agent.model.AgentTurnEntity;
 import interview.guide.modules.agent.model.AgentTraceDTO;
 import interview.guide.modules.agent.repository.AgentSessionRepository;
 import interview.guide.modules.agent.repository.AgentStepTraceRepository;
 import interview.guide.modules.agent.repository.AgentTurnRepository;
 import interview.guide.modules.agent.support.AgentToolResult;
+import interview.guide.modules.agent.tool.AgentToolRiskLevel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,6 +34,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.util.Map;
 import java.util.Optional;
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -86,7 +92,8 @@ class AgentTraceServiceTest {
             "reply",
             memory,
             memory,
-            java.util.List.of()
+            java.util.List.of(),
+            AgentCompletionMode.SUCCESS
         ))
             .isInstanceOf(BusinessException.class)
             .satisfies(error -> assertThat(((BusinessException) error).getCode())
@@ -118,7 +125,7 @@ class AgentTraceServiceTest {
         String finalReply = "最终给用户的回复";
         when(objectMapper.writeValueAsString(any())).thenReturn("{\"ok\":true}");
 
-        traceService.completeToolStep(trace, result, memoryAfter, finalReply, java.util.List.of());
+        traceService.completeToolStep(trace, result, memoryAfter, finalReply, java.util.List.of(), AgentCompletionMode.SUCCESS);
 
         ArgumentCaptor<Object> payloadCaptor = ArgumentCaptor.forClass(Object.class);
         verify(objectMapper, times(2)).writeValueAsString(payloadCaptor.capture());
@@ -128,7 +135,54 @@ class AgentTraceServiceTest {
         assertThat(trace.getMemoryAfterJson()).isEqualTo("{\"ok\":true}");
         assertThat(trace.getObservationSummary()).isEqualTo("summary");
         assertThat(trace.getStatus()).isEqualTo(AgentExecutionState.COMPLETED);
-        assertThat(payloadCaptor.getAllValues()).contains(result.tracePayload(finalReply), memoryAfter);
+        assertThat(payloadCaptor.getAllValues()).hasSize(2);
+        assertThat(payloadCaptor.getAllValues()).contains(memoryAfter);
+        assertThat(payloadCaptor.getAllValues())
+            .anySatisfy(value -> assertThat(value)
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("reply", finalReply)
+                .containsEntry("completionMode", AgentCompletionMode.SUCCESS.name())
+                .containsKey("terminal"));
+    }
+
+    @Test
+    @DisplayName("should preserve successful tool payload when post processing fails")
+    void shouldPreserveSuccessfulToolPayloadWhenPostProcessingFails() throws Exception {
+        AgentStepTraceEntity trace = new AgentStepTraceEntity();
+        AgentMemorySnapshot memoryAfter = new AgentMemorySnapshot("goal", "phase", java.util.List.of("fact-1"), java.util.List.of("tool-1"), "next");
+        AgentToolResult result = new AgentToolResult(
+            "summary",
+            Map.of("answer", "业务结果"),
+            Map.of("retrievalQuery", "debug query"),
+            java.util.List.of("fact-1")
+        );
+        when(objectMapper.writeValueAsString(any())).thenReturn("{\"ok\":true}");
+
+        traceService.failToolPostProcessingStep(
+            trace,
+            result,
+            new RuntimeException("post processing boom"),
+            "后处理失败后的降级回复",
+            memoryAfter,
+            "tool_post_processing_failure",
+            "工具后处理失败，已回退为直接回复"
+        );
+
+        ArgumentCaptor<Object> payloadCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(objectMapper, times(2)).writeValueAsString(payloadCaptor.capture());
+        verify(traceRepository).save(trace);
+
+        assertThat(trace.getStatus()).isEqualTo(AgentExecutionState.FAILED);
+        assertThat(payloadCaptor.getAllValues())
+            .anySatisfy(value -> assertThat(value)
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("summary", "summary")
+                .containsEntry("reply", "后处理失败后的降级回复")
+                .containsEntry("completionMode", AgentCompletionMode.DEGRADED.name())
+                .containsKey("answer")
+                .containsKey("debug")
+                .containsKey("facts")
+                .containsKey("terminal"));
     }
 
     @Test
@@ -321,9 +375,157 @@ class AgentTraceServiceTest {
 
         AgentStepTraceEntity savedTrace = traceCaptor.getValue();
         assertThat(savedTrace.getSelectedTool()).isEqualTo("bounded_loop");
-        assertThat(savedTrace.getStatus()).isEqualTo(AgentExecutionState.FAILED);
+        assertThat(savedTrace.getStatus()).isEqualTo(AgentExecutionState.TERMINATED);
         assertThat(savedTrace.getObservationSummary()).contains("预算");
-        assertThat(savedTrace.getErrorMessage()).isEqualTo("STEP_BUDGET_EXHAUSTED");
+        assertThat(savedTrace.getErrorMessage()).isNull();
         assertThat(savedTrace.getToolOutputJson()).isEqualTo("{\"ok\":true}");
+    }
+
+    @Test
+    @DisplayName("should persist approval rejection as a terminated trace instead of a failure")
+    void shouldPersistApprovalRejectionAsATerminatedTraceInsteadOfAFailure() throws Exception {
+        AgentStepTraceEntity trace = new AgentStepTraceEntity();
+        AgentMemorySnapshot memoryAfter = new AgentMemorySnapshot("goal", "phase", java.util.List.of(), java.util.List.of(), "next");
+        AgentApprovalDTO approval = new AgentApprovalDTO(
+            "approval-1",
+            "session-1",
+            "turn-1",
+            "delete_resume",
+            AgentToolRiskLevel.REQUIRES_APPROVAL,
+            AgentApprovalStatus.REJECTED,
+            "高风险工具必须先审批后执行",
+            LocalDateTime.now().plusMinutes(1),
+            LocalDateTime.now(),
+            LocalDateTime.now()
+        );
+        when(objectMapper.writeValueAsString(any())).thenReturn("{\"ok\":true}");
+
+        traceService.markToolStepApprovalRejected(trace, approval, "审批已拒绝", memoryAfter);
+
+        assertThat(trace.getStatus()).isEqualTo(AgentExecutionState.TERMINATED);
+        assertThat(trace.getErrorMessage()).isNull();
+    }
+
+    @Test
+    @DisplayName("should expose terminal semantics from persisted trace output")
+    void shouldExposeTerminalSemanticsFromPersistedTraceOutput() throws Exception {
+        AgentSessionEntity session = new AgentSessionEntity();
+        session.setSessionId("session-terminal");
+        AgentTurnEntity turn = new AgentTurnEntity();
+        turn.setTurnId("turn-terminal");
+        turn.setSession(session);
+        AgentStepTraceEntity trace = new AgentStepTraceEntity();
+        trace.setTurn(turn);
+        trace.setSession(session);
+        trace.setStepIndex(1);
+        trace.setToolOutputJson("{terminal-trace}");
+        trace.setStatus(AgentExecutionState.FAILED);
+        trace.setCreatedAt(java.time.LocalDateTime.now());
+
+        when(turnRepository.findByTurnId("turn-terminal")).thenReturn(Optional.of(turn));
+        when(traceRepository.findByTurn_TurnIdOrderByStepIndexAsc("turn-terminal")).thenReturn(java.util.List.of(trace));
+        when(objectMapper.readValue(eq("{terminal-trace}"), any(tools.jackson.core.type.TypeReference.class)))
+            .thenReturn(Map.of(
+                "kind", "loop_budget_exhausted",
+                "summary", "预算耗尽",
+                "reply", "当前预算已用尽",
+                "terminal", Map.of(
+                    "state", "EXHAUSTED",
+                    "stopReason", "STEP_BUDGET_EXHAUSTED",
+                    "recoverable", false,
+                    "recoveryHint", "请在新一轮继续"
+                )
+            ));
+
+        java.util.List<AgentTraceDTO> traceDTOs = traceService.getTurnTrace("turn-terminal");
+
+        assertThat(traceDTOs).hasSize(1);
+        AgentTraceDTO traceDTO = traceDTOs.getFirst();
+        assertThat(traceDTO.terminalState()).isEqualTo(AgentTerminalState.EXHAUSTED);
+        assertThat(traceDTO.stopReason()).isEqualTo(AgentLoopStopReason.STEP_BUDGET_EXHAUSTED);
+        assertThat(traceDTO.recoverable()).isFalse();
+        assertThat(traceDTO.recoveryHint()).isEqualTo("请在新一轮继续");
+    }
+
+    @Test
+    @DisplayName("should map approval replay blocked to a dedicated stop reason")
+    void shouldMapApprovalReplayBlockedToADedicatedStopReason() throws Exception {
+        AgentStepTraceEntity trace = new AgentStepTraceEntity();
+        AgentMemorySnapshot memoryAfter = new AgentMemorySnapshot("goal", "phase", java.util.List.of(), java.util.List.of(), "next");
+        AgentApprovalDTO approval = new AgentApprovalDTO(
+            "approval-2",
+            "session-2",
+            "turn-2",
+            "delete_resume",
+            AgentToolRiskLevel.REQUIRES_APPROVAL,
+            AgentApprovalStatus.APPROVED,
+            "高风险工具必须先审批后执行",
+            LocalDateTime.now().plusMinutes(1),
+            LocalDateTime.now(),
+            LocalDateTime.now()
+        );
+        when(objectMapper.writeValueAsString(any())).thenReturn("{\"ok\":true}");
+
+        traceService.failApprovedToolStep(
+            trace,
+            approval,
+            new IllegalStateException("approved_tool_execution_replay_blocked"),
+            "为避免重复副作用，本次不再自动重放",
+            memoryAfter,
+            "approved_tool_execution_replay_blocked",
+            "审批通过后执行状态已不明确，为避免重复副作用，本次不再自动重放"
+        );
+
+        ArgumentCaptor<Object> payloadCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(objectMapper, times(2)).writeValueAsString(payloadCaptor.capture());
+        assertThat(payloadCaptor.getAllValues())
+            .anySatisfy(value -> {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> terminal = (Map<String, Object>) ((Map<String, Object>) value).get("terminal");
+                if (terminal != null) {
+                    assertThat(terminal.get("stopReason")).isEqualTo(AgentLoopStopReason.APPROVAL_REPLAY_BLOCKED.name());
+                }
+            });
+    }
+
+    @Test
+    @DisplayName("should map approval resume failure to a dedicated stop reason")
+    void shouldMapApprovalResumeFailureToADedicatedStopReason() throws Exception {
+        AgentStepTraceEntity trace = new AgentStepTraceEntity();
+        AgentMemorySnapshot memoryAfter = new AgentMemorySnapshot("goal", "phase", java.util.List.of(), java.util.List.of(), "next");
+        AgentApprovalDTO approval = new AgentApprovalDTO(
+            "approval-3",
+            "session-3",
+            "turn-3",
+            "delete_resume",
+            AgentToolRiskLevel.REQUIRES_APPROVAL,
+            AgentApprovalStatus.APPROVED,
+            "高风险工具必须先审批后执行",
+            LocalDateTime.now().plusMinutes(1),
+            LocalDateTime.now(),
+            LocalDateTime.now()
+        );
+        when(objectMapper.writeValueAsString(any())).thenReturn("{\"ok\":true}");
+
+        traceService.failApprovedToolStep(
+            trace,
+            approval,
+            new IllegalStateException("approved_tool_resume_failure"),
+            "审批恢复失败",
+            memoryAfter,
+            "approved_tool_resume_failure",
+            "Approval recovery failed before the tool could continue"
+        );
+
+        ArgumentCaptor<Object> payloadCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(objectMapper, times(2)).writeValueAsString(payloadCaptor.capture());
+        assertThat(payloadCaptor.getAllValues())
+            .anySatisfy(value -> {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> terminal = (Map<String, Object>) ((Map<String, Object>) value).get("terminal");
+                if (terminal != null) {
+                    assertThat(terminal.get("stopReason")).isEqualTo(AgentLoopStopReason.APPROVAL_RESUME_FAILED.name());
+                }
+            });
     }
 }

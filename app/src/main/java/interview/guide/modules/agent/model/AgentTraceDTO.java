@@ -21,10 +21,15 @@ public record AgentTraceDTO(
     List<AgentGuardrailResult> guardrailResults,
     AgentExecutionState status,
     String errorMessage,
+    AgentTerminalState terminalState,
+    AgentLoopStopReason stopReason,
+    boolean recoverable,
+    String recoveryHint,
     LocalDateTime createdAt
 ) {
 
     public AgentTraceDTO {
         guardrailResults = guardrailResults == null ? List.of() : List.copyOf(guardrailResults);
+        recoveryHint = recoveryHint == null || recoveryHint.isBlank() ? null : recoveryHint.trim();
     }
 }

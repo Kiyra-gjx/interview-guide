@@ -19,6 +19,8 @@ import interview.guide.modules.agent.model.AgentMemorySnapshot;
 import interview.guide.modules.agent.model.AgentRuntimeConfig;
 import interview.guide.modules.agent.model.AgentSessionEntity;
 import interview.guide.modules.agent.model.AgentStepTraceEntity;
+import interview.guide.modules.agent.model.AgentTerminalSemantics;
+import interview.guide.modules.agent.model.AgentTerminalState;
 import interview.guide.modules.agent.model.AgentTraceDTO;
 import interview.guide.modules.agent.model.AgentTurnEntity;
 import interview.guide.modules.agent.model.AgentTurnStatus;
@@ -38,6 +40,8 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Agent 运行时编排器。
@@ -58,6 +62,7 @@ public class AgentOrchestrator {
     private static final int MAX_ALLOWED_MULTI_STEP_STEPS = 5;
     private static final long MAX_ALLOWED_MULTI_STEP_DURATION_MILLIS = 30_000L;
     private static final int MAX_ALLOWED_MULTI_STEP_ESTIMATED_MODEL_TOKENS = 12_000;
+    private static final Pattern TRACE_JSON_STRING_FIELD_PATTERN = Pattern.compile("\"([^\"]+)\"\\s*:\\s*\"([^\"]*)\"");
 
     private final ChatClient chatClient;
     private final StructuredOutputInvoker structuredOutputInvoker;
@@ -113,6 +118,7 @@ public class AgentOrchestrator {
         AgentCompletionMode completionMode = null;
         AgentChatResponse response;
         AgentExecutionSummaryDTO executionSummary = null;
+        AgentMemorySnapshot lastKnownMemory = null;
 
         try {
             expirePendingApprovals(sessionId);
@@ -125,6 +131,7 @@ public class AgentOrchestrator {
 
             // 2. 先做输入 Guardrail，命中后直接返回安全回复，不再进入模型决策链路。
             AgentMemorySnapshot memory = memoryService.readMemory(session);
+            lastKnownMemory = memory;
             AgentGuardrailService.InputGuardrailDecision inputGuardrail = guardrailService.evaluateInput(request.message());
             ResolvedRunConfig runConfig = resolveRunConfig(request.runtimeConfig());
             if (inputGuardrail.blocked()) {
@@ -177,10 +184,16 @@ public class AgentOrchestrator {
                 execution.memorySnapshot(),
                 executionSummary
             );
+            lastKnownMemory = execution.memorySnapshot();
             metricsService.stopTurnLatency(latencySample, resolveLatencyOutcome(completionMode));
         } catch (Exception e) {
             // 5. 只有 turn 已创建时才补失败终态；终态保护由 sessionService 负责。
             if (turnId != null && !turnTerminalPersisted) {
+                try {
+                    traceService.recordUnhandledTurnFailure(turnId, e, lastKnownMemory, lastKnownMemory);
+                } catch (Exception traceError) {
+                    log.warn("Failed to persist runtime failure trace: turnId={}, error={}", turnId, traceError.getMessage());
+                }
                 sessionService.failTurn(turnId, e);
                 metricsService.recordTurnFailed();
                 metricsService.stopTurnLatency(latencySample, "failed");
@@ -215,7 +228,13 @@ public class AgentOrchestrator {
                 memory,
                 AgentCompletionMode.DEGRADED
             );
-            return ApprovalTransition.finalized(completedTurn, rejectedApproval, reply, memory);
+            return ApprovalTransition.finalized(
+                completedTurn,
+                rejectedApproval,
+                reply,
+                memory,
+                buildApprovalExecutionSummary(AgentCompletionMode.DEGRADED, AgentLoopStopReason.APPROVAL_REJECTED, 0)
+            );
         });
         return resolveApprovalTransition(transition);
     }
@@ -272,15 +291,25 @@ public class AgentOrchestrator {
 
         AgentMemorySnapshot memory = readApprovalMemory(session);
         if (claim.mode() == ApprovedExecutionMode.BLOCK_REPLAY) {
-            return finalizeApprovedFailure(
-                claim,
-                session,
+            String reply = buildApprovedReplayBlockedReply(approval.getSelectedTool());
+            traceService.markApprovedToolReplayBlocked(
+                approval.getTrace(),
+                claim.approvedApproval(),
+                reply,
+                memory
+            );
+            AgentTurnEntity completedTurn = sessionService.completeTurn(
+                approval.getTurn().getTurnId(),
+                reply,
                 memory,
-                new IllegalStateException("approved_tool_execution_replay_blocked"),
-                buildApprovedReplayBlockedReply(approval.getSelectedTool()),
-                "approved_tool_execution_replay_blocked",
-                "审批通过后执行状态已不明确，为避免重复副作用，本次不再自动重放",
-                false
+                AgentCompletionMode.DEGRADED
+            );
+            return buildApprovalTerminalResponse(
+                completedTurn,
+                claim.approvedApproval(),
+                reply,
+                memory,
+                buildApprovalExecutionSummary(AgentCompletionMode.DEGRADED, AgentLoopStopReason.APPROVAL_REPLAY_BLOCKED, 0)
             );
         }
 
@@ -358,7 +387,13 @@ public class AgentOrchestrator {
                     updatedMemory,
                     completionMode
                 );
-                return buildChatResponse(completedTurn, claim.approvedApproval(), outputGuardrail.reply(), updatedMemory, null);
+                return buildApprovalTerminalResponse(
+                    completedTurn,
+                    claim.approvedApproval(),
+                    outputGuardrail.reply(),
+                    updatedMemory,
+                    buildApprovalExecutionSummary(completionMode, AgentLoopStopReason.TOOL_COMPLETED_SINGLE_STEP, 1)
+                );
             } catch (Exception e) {
                 return finalizeApprovedFailure(
                     claim,
@@ -368,7 +403,8 @@ public class AgentOrchestrator {
                     buildToolPostProcessingFailureReply(session, tool.name()),
                     "approved_tool_post_processing_failure",
                     "审批通过后工具后处理失败，已回退为直接回复",
-                    false
+                    false,
+                    result
                 );
             }
         } catch (Exception e) {
@@ -402,7 +438,7 @@ public class AgentOrchestrator {
         DecisionEvaluation decision = decide(session, assembledContext, stepIndexHint);
         budgetTracker.recordEstimatedModelTokens(decision.estimatedModelTokensUsed());
         TurnExecution execution = executeDecision(turnId, session, memory, assembledContext, decision.decision(), budgetTracker);
-        return execution.withExecutionSummary(budgetTracker.finish(execution.stopReason()));
+        return execution.withExecutionSummary(budgetTracker.finish(execution.completionMode(), execution.stopReason()));
     }
 
     /**
@@ -449,7 +485,7 @@ public class AgentOrchestrator {
                         currentMemory,
                         decision.decision()
                     );
-                    return execution.withExecutionSummary(budgetTracker.finish(execution.stopReason()));
+                    return execution.withExecutionSummary(budgetTracker.finish(execution.completionMode(), execution.stopReason()));
                 }
                 case DEGRADED_REPLY -> {
                     TurnExecution execution = executeDegradedReply(
@@ -457,7 +493,7 @@ public class AgentOrchestrator {
                         currentMemory,
                         decision.decision()
                     );
-                    return execution.withExecutionSummary(budgetTracker.finish(execution.stopReason()));
+                    return execution.withExecutionSummary(budgetTracker.finish(execution.completionMode(), execution.stopReason()));
                 }
                 case PENDING_APPROVAL -> {
                     TurnExecution execution = executePendingApproval(
@@ -467,7 +503,7 @@ public class AgentOrchestrator {
                         assembledContext,
                         decision.decision()
                     );
-                    return execution.withExecutionSummary(budgetTracker.finish(execution.stopReason()));
+                    return execution.withExecutionSummary(budgetTracker.finish(execution.completionMode(), execution.stopReason()));
                 }
                 case TOOL_CALL -> {
                     ToolStepExecution toolExecution = executeLoopToolStep(
@@ -479,7 +515,12 @@ public class AgentOrchestrator {
                     );
                     if (toolExecution.terminalExecution() != null) {
                         return toolExecution.terminalExecution()
-                            .withExecutionSummary(budgetTracker.finish(toolExecution.stopReason()));
+                            .withExecutionSummary(
+                                budgetTracker.finish(
+                                    toolExecution.terminalExecution().completionMode(),
+                                    toolExecution.stopReason()
+                                )
+                            );
                     }
                     currentMemory = toolExecution.updatedMemory();
                     lastToolStep = toolExecution.completedToolStep();
@@ -669,17 +710,18 @@ public class AgentOrchestrator {
             buildFallbackReply(session)
         );
         String reply = outputGuardrail.reply();
+        AgentCompletionMode completionMode = outputGuardrail.degraded()
+            ? AgentCompletionMode.DEGRADED
+            : AgentCompletionMode.SUCCESS;
         traceService.recordDirectReply(
             turnId,
             decision.decisionSummary(),
             reply,
             memory,
             memory,
-            outputGuardrail.guardrailResults()
+            outputGuardrail.guardrailResults(),
+            completionMode
         );
-        AgentCompletionMode completionMode = outputGuardrail.degraded()
-            ? AgentCompletionMode.DEGRADED
-            : AgentCompletionMode.SUCCESS;
         return new TurnExecution(reply, memory, completionMode, null, null, AgentLoopStopReason.DIRECT_REPLY, null);
     }
 
@@ -791,16 +833,17 @@ public class AgentOrchestrator {
                     generatedAnswer.reply(),
                     buildFallbackReply(session)
                 );
+                AgentCompletionMode completionMode = outputGuardrail.degraded()
+                    ? AgentCompletionMode.DEGRADED
+                    : AgentCompletionMode.SUCCESS;
                 traceService.completeToolStep(
                     trace,
                     result,
                     postProcessedMemory,
                     outputGuardrail.reply(),
-                    outputGuardrail.guardrailResults()
+                    outputGuardrail.guardrailResults(),
+                    completionMode
                 );
-                AgentCompletionMode completionMode = outputGuardrail.degraded()
-                    ? AgentCompletionMode.DEGRADED
-                    : AgentCompletionMode.SUCCESS;
                 return new TurnExecution(
                     outputGuardrail.reply(),
                     postProcessedMemory,
@@ -812,8 +855,9 @@ public class AgentOrchestrator {
                 );
             } catch (Exception e) {
                 String reply = buildToolPostProcessingFailureReply(session, decision.tool().name());
-                traceService.failToolStep(
+                traceService.failToolPostProcessingStep(
                     trace,
+                    result,
                     e,
                     reply,
                     memory,
@@ -884,15 +928,16 @@ public class AgentOrchestrator {
             metricsService.recordToolExecution(decision.tool().name(), true);
             try {
                 AgentMemorySnapshot updatedMemory = memoryService.updateAfterTool(memory, decision.tool().name(), result);
-                traceService.completeToolStep(trace, result, updatedMemory, "", List.of());
+                traceService.completeToolStep(trace, result, updatedMemory, "", List.of(), null);
                 return ToolStepExecution.continueLoop(
                     updatedMemory,
                     new CompletedToolStep(decision.tool().name(), result)
                 );
             } catch (Exception e) {
                 String reply = buildToolPostProcessingFailureReply(session, decision.tool().name());
-                traceService.failToolStep(
+                traceService.failToolPostProcessingStep(
                     trace,
+                    result,
                     e,
                     reply,
                     memory,
@@ -967,7 +1012,7 @@ public class AgentOrchestrator {
             null,
             null,
             stopReason,
-            budgetTracker.finish(stopReason)
+            budgetTracker.finish(AgentCompletionMode.DEGRADED, stopReason)
         );
     }
 
@@ -999,6 +1044,33 @@ public class AgentOrchestrator {
             sessionService.getTurnMessages(turnId),
             executionSummary
         );
+    }
+
+    /**
+     * 审批驱动的终态响应也要补齐执行摘要与指标，
+     * 否则会出现 trace 看得到、response/metrics 看不到的语义断层。
+     */
+    private AgentChatResponse buildApprovalTerminalResponse(
+        AgentTurnEntity completedTurn,
+        AgentApprovalDTO approval,
+        String reply,
+        AgentMemorySnapshot memorySnapshot,
+        AgentExecutionSummaryDTO executionSummary
+    ) {
+        recordApprovalTerminalMetrics(completedTurn, executionSummary);
+        return buildChatResponse(completedTurn, approval, reply, memorySnapshot, executionSummary);
+    }
+
+    private void recordApprovalTerminalMetrics(
+        AgentTurnEntity completedTurn,
+        AgentExecutionSummaryDTO executionSummary
+    ) {
+        if (completedTurn.getCompletionMode() != null) {
+            metricsService.recordTurnCompleted(completedTurn.getCompletionMode());
+        } else {
+            metricsService.recordTurnFailed();
+        }
+        metricsService.recordExecutionSummary(executionSummary);
     }
 
     /**
@@ -1280,6 +1352,10 @@ public class AgentOrchestrator {
      * 输入 Guardrail 在模型决策前就终止，因此执行步数仍为 0。
      */
     private AgentExecutionSummaryDTO buildInputGuardrailExecutionSummary(ResolvedRunConfig runConfig) {
+        AgentTerminalSemantics terminalSemantics = AgentTerminalSemantics.from(
+            AgentCompletionMode.DEGRADED,
+            AgentLoopStopReason.INPUT_GUARDRAIL_BLOCKED
+        );
         return new AgentExecutionSummaryDTO(
             runConfig.multiStepEnabled(),
             runConfig.maxSteps(),
@@ -1292,8 +1368,103 @@ public class AgentOrchestrator {
             0,
             runConfig.maxEstimatedModelTokens(),
             AgentLoopStopReason.INPUT_GUARDRAIL_BLOCKED,
-            null
+            null,
+            terminalSemantics.terminalState(),
+            terminalSemantics.recoverable(),
+            terminalSemantics.recoveryHint()
         );
+    }
+
+    /**
+     * 审批驱动的终态不再携带多步预算，但仍需要统一的 stopReason / terminalState 语义。
+     */
+    private AgentExecutionSummaryDTO buildApprovalExecutionSummary(
+        AgentCompletionMode completionMode,
+        AgentLoopStopReason stopReason,
+        int executedSteps
+    ) {
+        AgentTerminalSemantics terminalSemantics = AgentTerminalSemantics.from(completionMode, stopReason);
+        return new AgentExecutionSummaryDTO(
+            false,
+            0,
+            Math.max(0, executedSteps),
+            0,
+            0L,
+            0L,
+            0L,
+            0,
+            0,
+            0,
+            stopReason,
+            null,
+            terminalSemantics.terminalState(),
+            terminalSemantics.recoverable(),
+            terminalSemantics.recoveryHint()
+        );
+    }
+
+    private AgentExecutionSummaryDTO buildRecoveredApprovalExecutionSummary(
+        AgentTraceService.ApprovedExecutionRecovery recovery,
+        AgentCompletionMode completionMode
+    ) {
+        AgentLoopStopReason stopReason = recovery.stopReason() == null
+            ? resolveRecoveredStopReason(recovery, completionMode)
+            : recovery.stopReason();
+        String recoveryHint = resolveRecoveredRecoveryHint(recovery, completionMode, stopReason);
+        int executedSteps = inferRecoveredApprovalExecutedSteps(stopReason);
+        if (recovery.terminalState() != null) {
+            AgentTerminalSemantics terminalSemantics = AgentTerminalSemantics.from(
+                completionMode,
+                stopReason,
+                recoveryHint
+            );
+            return new AgentExecutionSummaryDTO(
+                false,
+                0,
+                executedSteps,
+                0,
+                0L,
+                0L,
+                0L,
+                0,
+                0,
+                0,
+                stopReason,
+                null,
+                recovery.terminalState(),
+                recovery.recoverable() || terminalSemantics.recoverable(),
+                recoveryHint == null || recoveryHint.isBlank()
+                    ? terminalSemantics.recoveryHint()
+                    : recoveryHint
+            );
+        }
+        AgentTerminalSemantics terminalSemantics = AgentTerminalSemantics.from(completionMode, stopReason, recoveryHint);
+        return new AgentExecutionSummaryDTO(
+            false,
+            0,
+            executedSteps,
+            0,
+            0L,
+            0L,
+            0L,
+            0,
+            0,
+            0,
+            stopReason,
+            null,
+            terminalSemantics.terminalState(),
+            terminalSemantics.recoverable(),
+            terminalSemantics.recoveryHint()
+        );
+    }
+
+    private int inferRecoveredApprovalExecutedSteps(AgentLoopStopReason stopReason) {
+        if (stopReason == AgentLoopStopReason.TOOL_COMPLETED_SINGLE_STEP
+            || stopReason == AgentLoopStopReason.TOOL_EXECUTION_FAILED
+            || stopReason == AgentLoopStopReason.TOOL_POST_PROCESSING_FAILED) {
+            return 1;
+        }
+        return 0;
     }
 
     /**
@@ -1411,7 +1582,10 @@ public class AgentOrchestrator {
                     || !approvalService.isExpired(lockedApproval, LocalDateTime.now())) {
                     return null;
                 }
-                finalizeExpiredApproval(lockedApproval);
+                ApprovalTransition transition = finalizeExpiredApproval(lockedApproval);
+                if (transition.finalized() != null) {
+                    recordApprovalTerminalMetrics(transition.finalized().turn(), transition.finalized().executionSummary());
+                }
                 return null;
             });
         }
@@ -1489,7 +1663,13 @@ public class AgentOrchestrator {
             memory,
             AgentCompletionMode.DEGRADED
         );
-        return ApprovalTransition.finalized(completedTurn, expiredApproval, reply, memory);
+        return ApprovalTransition.finalized(
+            completedTurn,
+            expiredApproval,
+            reply,
+            memory,
+            buildApprovalExecutionSummary(AgentCompletionMode.DEGRADED, AgentLoopStopReason.APPROVAL_EXPIRED, 0)
+        );
     }
 
     /**
@@ -1520,7 +1700,9 @@ public class AgentOrchestrator {
         if (trace.getStatus() == AgentExecutionState.RUNNING) {
             return ApprovedExecutionMode.BLOCK_REPLAY;
         }
-        if (trace.getStatus() == AgentExecutionState.COMPLETED || trace.getStatus() == AgentExecutionState.FAILED) {
+        if (trace.getStatus() == AgentExecutionState.COMPLETED
+            || trace.getStatus() == AgentExecutionState.FAILED
+            || trace.getStatus() == AgentExecutionState.TERMINATED) {
             return ApprovedExecutionMode.FINALIZE_FROM_TRACE;
         }
         return ApprovedExecutionMode.EXECUTE_TOOL;
@@ -1540,10 +1722,9 @@ public class AgentOrchestrator {
             : recovery.reply();
         AgentCompletionMode completionMode = recovery.completionMode();
         if (completionMode == null) {
-            completionMode = recovery.status() == AgentExecutionState.FAILED
-                ? AgentCompletionMode.DEGRADED
-                : AgentCompletionMode.SUCCESS;
+            completionMode = resolveRecoveredCompletionMode(recovery);
         }
+        AgentExecutionSummaryDTO executionSummary = buildRecoveredApprovalExecutionSummary(recovery, completionMode);
         try {
             AgentTurnEntity completedTurn = sessionService.completeTurn(
                 claim.approval().getTurn().getTurnId(),
@@ -1551,15 +1732,256 @@ public class AgentOrchestrator {
                 memory,
                 completionMode
             );
-            return buildChatResponse(completedTurn, claim.approvedApproval(), reply, memory, null);
+            return buildApprovalTerminalResponse(
+                completedTurn,
+                claim.approvedApproval(),
+                reply,
+                memory,
+                executionSummary
+            );
         } catch (Exception e) {
             AgentTurnEntity failedTurn = sessionService.failTurn(
                 claim.approval().getTurn().getTurnId(),
                 e,
                 reply
             );
-            return buildChatResponse(failedTurn, claim.approvedApproval(), reply, memory, null);
+            return buildApprovalTerminalResponse(
+                failedTurn,
+                claim.approvedApproval(),
+                reply,
+                memory,
+                executionSummary
+            );
         }
+    }
+
+    /**
+     * 批准恢复链路在缺少 completionMode 时，优先使用 terminal metadata 判定收口模式。
+     * 对历史或损坏 payload，则至少保证 TERMINATED / FAILED 不会被误判成 SUCCESS。
+     */
+    private AgentCompletionMode resolveRecoveredCompletionMode(AgentTraceService.ApprovedExecutionRecovery recovery) {
+        if (recovery.terminalState() != null) {
+            return recovery.terminalState() == interview.guide.modules.agent.model.AgentTerminalState.SUCCESS
+                ? AgentCompletionMode.SUCCESS
+                : AgentCompletionMode.DEGRADED;
+        }
+        return switch (recovery.status()) {
+            case FAILED, TERMINATED -> AgentCompletionMode.DEGRADED;
+            default -> AgentCompletionMode.SUCCESS;
+        };
+    }
+
+    private AgentLoopStopReason resolveRecoveredStopReason(
+        AgentTraceService.ApprovedExecutionRecovery recovery,
+        AgentCompletionMode completionMode
+    ) {
+        if (recovery.stopReason() != null) {
+            return recovery.stopReason();
+        }
+        if (completionMode == AgentCompletionMode.SUCCESS) {
+            return AgentLoopStopReason.TOOL_COMPLETED_SINGLE_STEP;
+        }
+        if (recovery.status() == AgentExecutionState.TERMINATED) {
+            return AgentLoopStopReason.DEGRADED_REPLY;
+        }
+        if (recovery.status() == AgentExecutionState.FAILED) {
+            if (completionMode == AgentCompletionMode.DEGRADED) {
+                return resolveLegacyRecoveredFailureStopReason(recovery.payloadKind());
+            }
+            return AgentLoopStopReason.UNHANDLED_ERROR;
+        }
+        return AgentLoopStopReason.DEGRADED_REPLY;
+    }
+
+    private AgentLoopStopReason resolveLegacyRecoveredFailureStopReason(String payloadKind) {
+        if ("approved_tool_post_processing_failure".equals(payloadKind)
+            || "tool_post_processing_failure".equals(payloadKind)) {
+            return AgentLoopStopReason.TOOL_POST_PROCESSING_FAILED;
+        }
+        if ("approved_tool_execution_failure".equals(payloadKind)
+            || "tool_execution_failure".equals(payloadKind)) {
+            return AgentLoopStopReason.TOOL_EXECUTION_FAILED;
+        }
+        if ("approved_tool_execution_replay_blocked".equals(payloadKind)) {
+            return AgentLoopStopReason.APPROVAL_REPLAY_BLOCKED;
+        }
+        if ("approved_tool_resume_failure".equals(payloadKind)) {
+            return AgentLoopStopReason.APPROVAL_RESUME_FAILED;
+        }
+        return AgentLoopStopReason.DEGRADED_REPLY;
+    }
+
+    private AgentLoopStopReason resolveApprovalFailureStopReason(String failureKind) {
+        return switch (failureKind) {
+            case "approved_tool_execution_replay_blocked" -> AgentLoopStopReason.APPROVAL_REPLAY_BLOCKED;
+            case "approved_tool_resume_failure" -> AgentLoopStopReason.APPROVAL_RESUME_FAILED;
+            case "approved_tool_post_processing_failure", "tool_post_processing_failure" ->
+                AgentLoopStopReason.TOOL_POST_PROCESSING_FAILED;
+            case "approved_tool_execution_failure", "tool_execution_failure" ->
+                AgentLoopStopReason.TOOL_EXECUTION_FAILED;
+            default -> AgentLoopStopReason.DEGRADED_REPLY;
+        };
+    }
+
+    private String resolveRecoveredRecoveryHint(
+        AgentTraceService.ApprovedExecutionRecovery recovery,
+        AgentCompletionMode completionMode,
+        AgentLoopStopReason stopReason
+    ) {
+        if (recovery.recoveryHint() != null && !recovery.recoveryHint().isBlank()) {
+            return recovery.recoveryHint();
+        }
+        String legacyHint = resolveApprovalFailureRecoveryHint(recovery.payloadKind());
+        if (legacyHint != null) {
+            return legacyHint;
+        }
+        return AgentTerminalSemantics.from(completionMode, stopReason).recoveryHint();
+    }
+
+    private String resolveApprovalFailureRecoveryHint(String payloadKind) {
+        return switch (payloadKind) {
+            case "approved_tool_execution_replay_blocked" ->
+                "为避免重复副作用，当前 turn 不会自动重放；请确认外部结果后再重新发起。";
+            case "approved_tool_resume_failure" ->
+                "审批已通过，但恢复执行前准备失败；建议检查工具配置或冻结输入后重新发起。";
+            case "approved_tool_post_processing_failure", "tool_post_processing_failure" ->
+                "工具已执行，但后处理失败；建议先查看 trace，再重新发起。";
+            case "approved_tool_execution_failure", "tool_execution_failure" ->
+                "工具执行失败；建议检查输入与外部依赖后，再重新发起。";
+            default -> null;
+        };
+    }
+
+    private AgentExecutionSummaryDTO buildApprovalSnapshotExecutionSummary(
+        AgentApprovalDTO approval,
+        AgentTurnEntity turn
+    ) {
+        List<AgentTraceDTO> traceSteps = traceService.getTurnTrace(turn.getTurnId());
+        AgentTraceDTO latestTrace = traceSteps.isEmpty() ? null : traceSteps.getLast();
+        AgentTraceDTO terminalTrace = traceSteps.stream()
+            .filter(step -> step.terminalState() != null || step.stopReason() != null)
+            .reduce((first, second) -> second)
+            .orElse(null);
+        if (terminalTrace != null) {
+            AgentLoopStopReason stopReason = terminalTrace.stopReason() == null
+                ? resolveApprovalSnapshotStopReason(approval, turn)
+                : terminalTrace.stopReason();
+            AgentCompletionMode completionMode = resolveApprovalSnapshotCompletionMode(approval, turn);
+            AgentTerminalSemantics terminalSemantics = AgentTerminalSemantics.from(
+                completionMode,
+                stopReason,
+                terminalTrace.recoveryHint()
+            );
+            AgentTerminalState terminalState = terminalTrace.terminalState() == null
+                ? terminalSemantics.terminalState()
+                : terminalTrace.terminalState();
+            return new AgentExecutionSummaryDTO(
+                false,
+                0,
+                inferApprovalSnapshotExecutedSteps(approval, turn, stopReason),
+                0,
+                0L,
+                0L,
+                0L,
+                0,
+                0,
+                0,
+                stopReason,
+                null,
+                terminalState,
+                terminalTrace.recoverable() || terminalSemantics.recoverable(),
+                terminalTrace.recoveryHint() == null || terminalTrace.recoveryHint().isBlank()
+                    ? terminalSemantics.recoveryHint()
+                    : terminalTrace.recoveryHint()
+            );
+        }
+
+        AgentLoopStopReason stopReason = resolveApprovalSnapshotStopReason(approval, turn);
+        AgentCompletionMode completionMode = resolveApprovalSnapshotCompletionMode(approval, turn);
+        if ((stopReason == null || completionMode == null) && latestTrace != null) {
+            String payloadKind = extractTracePayloadString(latestTrace.toolOutputJson(), "kind");
+            String payloadCompletionMode = extractTracePayloadString(latestTrace.toolOutputJson(), "completionMode");
+            if (stopReason == null && approval.status() == AgentApprovalStatus.APPROVED) {
+                stopReason = resolveLegacyRecoveredFailureStopReason(payloadKind);
+            }
+            if (completionMode == null) {
+                completionMode = parseCompletionMode(payloadCompletionMode);
+            }
+        }
+        if (stopReason == null || completionMode == null) {
+            return null;
+        }
+        return buildApprovalExecutionSummary(
+            completionMode,
+            stopReason,
+            inferApprovalSnapshotExecutedSteps(approval, turn, stopReason)
+        );
+    }
+
+    private AgentLoopStopReason resolveApprovalSnapshotStopReason(AgentApprovalDTO approval, AgentTurnEntity turn) {
+        if (approval.status() == AgentApprovalStatus.REJECTED) {
+            return AgentLoopStopReason.APPROVAL_REJECTED;
+        }
+        if (approval.status() == AgentApprovalStatus.EXPIRED) {
+            return AgentLoopStopReason.APPROVAL_EXPIRED;
+        }
+        if (approval.status() == AgentApprovalStatus.APPROVED && turn.getStatus() == AgentTurnStatus.COMPLETED) {
+            return turn.getCompletionMode() == AgentCompletionMode.SUCCESS
+                ? AgentLoopStopReason.TOOL_COMPLETED_SINGLE_STEP
+                : AgentLoopStopReason.DEGRADED_REPLY;
+        }
+        return null;
+    }
+
+    private AgentCompletionMode resolveApprovalSnapshotCompletionMode(AgentApprovalDTO approval, AgentTurnEntity turn) {
+        if (turn.getCompletionMode() != null) {
+            return turn.getCompletionMode();
+        }
+        if (approval.status() == AgentApprovalStatus.REJECTED
+            || approval.status() == AgentApprovalStatus.EXPIRED) {
+            return AgentCompletionMode.DEGRADED;
+        }
+        return null;
+    }
+
+    private int inferApprovalSnapshotExecutedSteps(
+        AgentApprovalDTO approval,
+        AgentTurnEntity turn,
+        AgentLoopStopReason stopReason
+    ) {
+        int inferred = inferRecoveredApprovalExecutedSteps(stopReason);
+        if (inferred > 0) {
+            return inferred;
+        }
+        if (approval.status() == AgentApprovalStatus.APPROVED
+            && turn.getStatus() == AgentTurnStatus.COMPLETED) {
+            return 1;
+        }
+        return 0;
+    }
+
+    private AgentCompletionMode parseCompletionMode(String rawCompletionMode) {
+        if (rawCompletionMode == null || rawCompletionMode.isBlank()) {
+            return null;
+        }
+        try {
+            return AgentCompletionMode.valueOf(rawCompletionMode.trim());
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    private String extractTracePayloadString(String toolOutputJson, String fieldName) {
+        if (toolOutputJson == null || toolOutputJson.isBlank() || fieldName == null || fieldName.isBlank()) {
+            return null;
+        }
+        Matcher matcher = TRACE_JSON_STRING_FIELD_PATTERN.matcher(toolOutputJson);
+        while (matcher.find()) {
+            if (fieldName.equals(matcher.group(1))) {
+                return matcher.group(2);
+            }
+        }
+        return null;
     }
 
     /**
@@ -1571,7 +1993,13 @@ public class AgentOrchestrator {
     private AgentChatResponse resolveApprovalTransition(ApprovalTransition transition) {
         if (transition.finalized() != null) {
             FinalizedApproval finalized = transition.finalized();
-            return buildChatResponse(finalized.turn(), finalized.approval(), finalized.reply(), finalized.memory(), null);
+            return buildApprovalTerminalResponse(
+                finalized.turn(),
+                finalized.approval(),
+                finalized.reply(),
+                finalized.memory(),
+                finalized.executionSummary()
+            );
         }
         return buildApprovalSnapshotResponse(
             approvalService.getApproval(transition.snapshotApprovalId()),
@@ -1608,26 +2036,73 @@ public class AgentOrchestrator {
         String observationSummary,
         boolean recordToolFailure
     ) {
+        return finalizeApprovedFailure(
+            claim,
+            session,
+            memory,
+            error,
+            reply,
+            failureKind,
+            observationSummary,
+            recordToolFailure,
+            null
+        );
+    }
+
+    private AgentChatResponse finalizeApprovedFailure(
+        ApprovalExecutionClaim claim,
+        AgentSessionEntity session,
+        AgentMemorySnapshot memory,
+        Exception error,
+        String reply,
+        String failureKind,
+        String observationSummary,
+        boolean recordToolFailure,
+        AgentToolResult successfulToolResult
+    ) {
         if (recordToolFailure) {
             metricsService.recordToolExecution(claim.approval().getSelectedTool(), false);
         }
         try {
-            traceService.failApprovedToolStep(
-                claim.approval().getTrace(),
-                claim.approvedApproval(),
-                error,
-                reply,
-                memory,
-                failureKind,
-                observationSummary
-            );
+            if (successfulToolResult != null) {
+                traceService.failApprovedToolPostProcessingStep(
+                    claim.approval().getTrace(),
+                    claim.approvedApproval(),
+                    successfulToolResult,
+                    error,
+                    reply,
+                    memory,
+                    failureKind,
+                    observationSummary
+                );
+            } else {
+                traceService.failApprovedToolStep(
+                    claim.approval().getTrace(),
+                    claim.approvedApproval(),
+                    error,
+                    reply,
+                    memory,
+                    failureKind,
+                    observationSummary
+                );
+            }
             AgentTurnEntity completedTurn = sessionService.completeTurn(
                 claim.approval().getTurn().getTurnId(),
                 reply,
                 memory,
                 AgentCompletionMode.DEGRADED
             );
-            return buildChatResponse(completedTurn, claim.approvedApproval(), reply, memory, null);
+            return buildApprovalTerminalResponse(
+                completedTurn,
+                claim.approvedApproval(),
+                reply,
+                memory,
+                buildApprovalExecutionSummary(
+                    AgentCompletionMode.DEGRADED,
+                    resolveApprovalFailureStopReason(failureKind),
+                    successfulToolResult != null || recordToolFailure ? 1 : 0
+                )
+            );
         } catch (Exception finalizeError) {
             try {
                 AgentTurnEntity failedTurn = sessionService.failTurn(
@@ -1635,7 +2110,17 @@ public class AgentOrchestrator {
                     error,
                     reply
                 );
-                return buildChatResponse(failedTurn, claim.approvedApproval(), reply, memory, null);
+                return buildApprovalTerminalResponse(
+                    failedTurn,
+                    claim.approvedApproval(),
+                    reply,
+                    memory,
+                    buildApprovalExecutionSummary(
+                        AgentCompletionMode.DEGRADED,
+                        resolveApprovalFailureStopReason(failureKind),
+                        successfulToolResult != null || recordToolFailure ? 1 : 0
+                    )
+                );
             } catch (Exception failTurnError) {
                 finalizeError.addSuppressed(failTurnError);
             }
@@ -1664,11 +2149,12 @@ public class AgentOrchestrator {
             }
             return buildApprovedReplayBlockedReply(approval.selectedTool());
         }
-        if (!assistantReply.isBlank()) {
-            return assistantReply;
-        }
         if (!traceReply.isBlank()) {
             return traceReply;
+        }
+        String pendingReply = buildApprovalPendingReply(approval.selectedTool());
+        if (!assistantReply.isBlank() && !assistantReply.equals(pendingReply)) {
+            return assistantReply;
         }
         if (approval.status() == AgentApprovalStatus.REJECTED) {
             return buildApprovalRejectedReply(approval.selectedTool());
@@ -1698,7 +2184,13 @@ public class AgentOrchestrator {
      */
     private AgentChatResponse buildApprovalSnapshotResponse(AgentApprovalDTO approval, AgentTurnEntity turn) {
         AgentMemorySnapshot memory = readApprovalMemory(turn.getSession());
-        return buildChatResponse(turn, approval, resolveApprovalSnapshotReply(approval, turn), memory, null);
+        return buildChatResponse(
+            turn,
+            approval,
+            resolveApprovalSnapshotReply(approval, turn),
+            memory,
+            buildApprovalSnapshotExecutionSummary(approval, turn)
+        );
     }
 
     /**
@@ -1737,9 +2229,10 @@ public class AgentOrchestrator {
             AgentTurnEntity turn,
             AgentApprovalDTO approval,
             String reply,
-            AgentMemorySnapshot memory
+            AgentMemorySnapshot memory,
+            AgentExecutionSummaryDTO executionSummary
         ) {
-            return new ApprovalTransition(null, null, null, new FinalizedApproval(turn, approval, reply, memory));
+            return new ApprovalTransition(null, null, null, new FinalizedApproval(turn, approval, reply, memory, executionSummary));
         }
     }
 
@@ -1760,7 +2253,8 @@ public class AgentOrchestrator {
         AgentTurnEntity turn,
         AgentApprovalDTO approval,
         String reply,
-        AgentMemorySnapshot memory
+        AgentMemorySnapshot memory,
+        AgentExecutionSummaryDTO executionSummary
     ) {
     }
 
@@ -2041,8 +2535,12 @@ public class AgentOrchestrator {
             ).trim();
         }
 
-        private AgentExecutionSummaryDTO finish(AgentLoopStopReason stopReason) {
+        private AgentExecutionSummaryDTO finish(
+            AgentCompletionMode completionMode,
+            AgentLoopStopReason stopReason
+        ) {
             AgentLoopStopReason budgetStopReason = resolveBudgetStopForSummary(stopReason);
+            AgentTerminalSemantics terminalSemantics = AgentTerminalSemantics.from(completionMode, stopReason);
             return new AgentExecutionSummaryDTO(
                 runConfig.multiStepEnabled(),
                 runConfig.maxSteps(),
@@ -2055,7 +2553,10 @@ public class AgentOrchestrator {
                 estimatedModelTokensUsed,
                 remainingEstimatedModelTokens(),
                 stopReason,
-                budgetStopReason
+                budgetStopReason,
+                terminalSemantics.terminalState(),
+                terminalSemantics.recoverable(),
+                terminalSemantics.recoveryHint()
             );
         }
 

@@ -10,6 +10,8 @@ import interview.guide.modules.agent.model.AgentLoopStopReason;
 import interview.guide.modules.agent.model.AgentMemorySnapshot;
 import interview.guide.modules.agent.model.AgentSessionEntity;
 import interview.guide.modules.agent.model.AgentStepTraceEntity;
+import interview.guide.modules.agent.model.AgentTerminalSemantics;
+import interview.guide.modules.agent.model.AgentTerminalState;
 import interview.guide.modules.agent.model.AgentToolOutputDTO;
 import interview.guide.modules.agent.model.AgentToolOutputNormalizationDTO;
 import interview.guide.modules.agent.model.AgentTraceDTO;
@@ -86,13 +88,17 @@ public class AgentTraceService {
         String reply,
         AgentMemorySnapshot memoryBefore,
         AgentMemorySnapshot memoryAfter,
-        List<AgentGuardrailResult> guardrailResults
+        List<AgentGuardrailResult> guardrailResults,
+        AgentCompletionMode completionMode
     ) {
         AgentStepTraceEntity trace = newTrace(turnId, decisionSummary, "direct_answer", null, memoryBefore);
         trace.setToolOutputJson(writeJson(buildReplyTracePayload(
             "direct_reply",
             "已直接生成最终回复",
-            reply
+            reply,
+            completionMode,
+            AgentLoopStopReason.DIRECT_REPLY,
+            null
         )));
         trace.setObservationSummary(clip(reply, SUMMARY_LIMIT));
         trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
@@ -117,7 +123,10 @@ public class AgentTraceService {
         trace.setToolOutputJson(writeJson(buildReplyTracePayload(
             "input_guardrail_rejection",
             "输入触发安全拦截，已返回安全回复",
-            reply
+            reply,
+            AgentCompletionMode.DEGRADED,
+            AgentLoopStopReason.INPUT_GUARDRAIL_BLOCKED,
+            null
         )));
         trace.setObservationSummary("输入触发安全拦截，已返回安全回复");
         trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
@@ -146,7 +155,10 @@ public class AgentTraceService {
         trace.setToolOutputJson(writeJson(buildReplyTracePayload(
             "rejected_tool_decision",
             "工具决策不可执行，已降级为直接回复",
-            reply
+            reply,
+            AgentCompletionMode.DEGRADED,
+            AgentLoopStopReason.DEGRADED_REPLY,
+            null
         )));
         trace.setObservationSummary("工具决策不可执行，已降级为直接回复");
         trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
@@ -187,7 +199,10 @@ public class AgentTraceService {
             "approval_pending",
             "高风险工具已进入审批，等待显式决策",
             reply,
-            approval
+            approval,
+            AgentCompletionMode.WAITING_APPROVAL,
+            AgentLoopStopReason.PENDING_APPROVAL,
+            null
         )));
         trace.setObservationSummary("高风险工具已进入审批，等待显式决策");
         trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
@@ -213,7 +228,8 @@ public class AgentTraceService {
             reply,
             memoryAfter,
             "approval_rejected",
-            "审批已拒绝，本轮未执行高风险工具"
+            "审批已拒绝，本轮未执行高风险工具",
+            AgentLoopStopReason.APPROVAL_REJECTED
         );
     }
 
@@ -233,8 +249,36 @@ public class AgentTraceService {
             reply,
             memoryAfter,
             "approval_expired",
-            "审批已过期，本轮未执行高风险工具"
+            "审批已过期，本轮未执行高风险工具",
+            AgentLoopStopReason.APPROVAL_EXPIRED
         );
+    }
+
+    /**
+     * 审批通过后如果执行状态已不明确，为避免重复副作用需要显式终止重放。
+     * 这不是工具失败，而是一次受控终止。
+     */
+    @Transactional
+    public void markApprovedToolReplayBlocked(
+        AgentStepTraceEntity trace,
+        AgentApprovalDTO approval,
+        String reply,
+        AgentMemorySnapshot memoryAfter
+    ) {
+        trace.setToolOutputJson(writeJson(buildApprovalTracePayload(
+            "approved_tool_execution_replay_blocked",
+            "审批通过后执行状态已不明确，为避免重复副作用，本次不再自动重放",
+            reply,
+            approval,
+            AgentCompletionMode.DEGRADED,
+            AgentLoopStopReason.APPROVAL_REPLAY_BLOCKED,
+            "为避免重复副作用，当前 turn 不会自动重放；请确认外部结果后再重新发起。"
+        )));
+        trace.setObservationSummary("审批通过后执行状态已不明确，为避免重复副作用，本次不再自动重放");
+        trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
+        trace.setStatus(AgentExecutionState.TERMINATED);
+        trace.setErrorMessage(null);
+        traceRepository.save(trace);
     }
 
     /**
@@ -246,7 +290,10 @@ public class AgentTraceService {
             "approval_execution_started",
             "审批已通过，开始执行高风险工具",
             "",
-            approval
+            approval,
+            null,
+            null,
+            null
         )));
         trace.setObservationSummary("审批已通过，开始执行高风险工具");
         trace.setStatus(AgentExecutionState.RUNNING);
@@ -264,7 +311,14 @@ public class AgentTraceService {
         List<AgentGuardrailResult> guardrailResults,
         AgentCompletionMode completionMode
     ) {
-        trace.setToolOutputJson(writeJson(buildApprovedToolTracePayload(result, reply, approval, completionMode)));
+        trace.setToolOutputJson(writeJson(buildApprovedToolTracePayload(
+            result,
+            reply,
+            approval,
+            completionMode,
+            AgentLoopStopReason.TOOL_COMPLETED_SINGLE_STEP,
+            null
+        )));
         trace.setObservationSummary(clip(result.summary(), SUMMARY_LIMIT));
         trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
         trace.setGuardrailResultsJson(writeGuardrailResultsJson(guardrailResults));
@@ -291,7 +345,39 @@ public class AgentTraceService {
             observationSummary,
             reply,
             approval,
-            AgentCompletionMode.DEGRADED
+            AgentCompletionMode.DEGRADED,
+            resolveFailureStopReason(failureKind),
+            resolveFailureRecoveryHint(failureKind)
+        )));
+        trace.setObservationSummary(observationSummary);
+        trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
+        trace.setStatus(AgentExecutionState.FAILED);
+        trace.setErrorMessage(sanitize(error));
+        traceRepository.save(trace);
+    }
+
+    /**
+     * 审批通过后如果工具本体成功，但后处理失败，仍然要保留原始工具输出。
+     * 否则 trace 只剩降级回复，无法解释“工具已经成功、但后处理失败”的事实。
+     */
+    @Transactional
+    public void failApprovedToolPostProcessingStep(
+        AgentStepTraceEntity trace,
+        AgentApprovalDTO approval,
+        AgentToolResult result,
+        Exception error,
+        String reply,
+        AgentMemorySnapshot memoryAfter,
+        String failureKind,
+        String observationSummary
+    ) {
+        trace.setToolOutputJson(writeJson(buildApprovedToolTracePayload(
+            result,
+            reply,
+            approval,
+            AgentCompletionMode.DEGRADED,
+            resolveFailureStopReason(failureKind),
+            resolveFailureRecoveryHint(failureKind)
         )));
         trace.setObservationSummary(observationSummary);
         trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
@@ -309,9 +395,16 @@ public class AgentTraceService {
         AgentToolResult result,
         AgentMemorySnapshot memoryAfter,
         String reply,
-        List<AgentGuardrailResult> guardrailResults
+        List<AgentGuardrailResult> guardrailResults,
+        AgentCompletionMode completionMode
     ) {
-        trace.setToolOutputJson(writeJson(result.tracePayload(reply)));
+        trace.setToolOutputJson(writeJson(buildToolTracePayload(
+            result,
+            reply,
+            completionMode,
+            completionMode == null ? null : AgentLoopStopReason.TOOL_COMPLETED_SINGLE_STEP,
+            null
+        )));
         trace.setObservationSummary(clip(result.summary(), SUMMARY_LIMIT));
         trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
         trace.setGuardrailResultsJson(writeGuardrailResultsJson(guardrailResults));
@@ -334,7 +427,38 @@ public class AgentTraceService {
         trace.setToolOutputJson(writeJson(buildReplyTracePayload(
             failureKind,
             observationSummary,
-            reply
+            reply,
+            AgentCompletionMode.DEGRADED,
+            resolveFailureStopReason(failureKind),
+            resolveFailureRecoveryHint(failureKind)
+        )));
+        trace.setObservationSummary(observationSummary);
+        trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
+        trace.setStatus(AgentExecutionState.FAILED);
+        trace.setErrorMessage(sanitize(error));
+        traceRepository.save(trace);
+    }
+
+    /**
+     * 工具本体成功、后处理失败时，也要把工具输出本身留在 trace 里。
+     * 这样 Trace Browser 才能同时看到“工具给了什么”和“为什么最后降级”。
+     */
+    @Transactional
+    public void failToolPostProcessingStep(
+        AgentStepTraceEntity trace,
+        AgentToolResult result,
+        Exception error,
+        String reply,
+        AgentMemorySnapshot memoryAfter,
+        String failureKind,
+        String observationSummary
+    ) {
+        trace.setToolOutputJson(writeJson(buildToolTracePayload(
+            result,
+            reply,
+            AgentCompletionMode.DEGRADED,
+            resolveFailureStopReason(failureKind),
+            resolveFailureRecoveryHint(failureKind)
         )));
         trace.setObservationSummary(observationSummary);
         trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
@@ -360,13 +484,49 @@ public class AgentTraceService {
         trace.setToolOutputJson(writeJson(buildReplyTracePayload(
             "loop_budget_exhausted",
             resolveBudgetStopObservation(stopReason),
-            reply
+            reply,
+            AgentCompletionMode.DEGRADED,
+            stopReason,
+            null
         )));
         trace.setObservationSummary(resolveBudgetStopObservation(stopReason));
         trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
         trace.setGuardrailResultsJson(writeGuardrailResultsJson(guardrailResults));
+        trace.setStatus(AgentExecutionState.TERMINATED);
+        trace.setErrorMessage(null);
+        return traceRepository.save(trace);
+    }
+
+    /**
+     * 记录本轮未被显式处理的运行时失败。
+     * 该 trace 用来解释 turn 为什么直接落到 FAILED，而不是停留在“没有证据”的状态。
+     */
+    @Transactional
+    public AgentStepTraceEntity recordUnhandledTurnFailure(
+        String turnId,
+        Exception error,
+        AgentMemorySnapshot memoryBefore,
+        AgentMemorySnapshot memoryAfter
+    ) {
+        AgentStepTraceEntity trace = newTrace(
+            turnId,
+            "本轮执行发生未处理异常，已停止继续推进",
+            "turn_runtime",
+            null,
+            memoryBefore
+        );
+        trace.setToolOutputJson(writeJson(buildReplyTracePayload(
+            "turn_runtime_failure",
+            "本轮执行发生未处理异常，已停止继续推进",
+            "",
+            null,
+            AgentLoopStopReason.UNHANDLED_ERROR,
+            null
+        )));
+        trace.setObservationSummary("本轮执行发生未处理异常，已停止继续推进");
+        trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
         trace.setStatus(AgentExecutionState.FAILED);
-        trace.setErrorMessage(stopReason == null ? "UNKNOWN" : stopReason.name());
+        trace.setErrorMessage(sanitize(error));
         return traceRepository.save(trace);
     }
 
@@ -398,7 +558,8 @@ public class AgentTraceService {
         getTurnEntity(turnId);
         return traceRepository.findByTurn_TurnIdOrderByStepIndexAsc(turnId).stream()
             .map(AgentStepTraceEntity::getToolOutputJson)
-            .map(this::readReplyFromToolOutput)
+            .map(this::readTracePayload)
+            .map(TracePayloadProjection::reply)
             .filter(reply -> reply != null && !reply.isBlank())
             .reduce((first, second) -> second)
             .orElse("");
@@ -406,13 +567,19 @@ public class AgentTraceService {
 
     public ApprovedExecutionRecovery readApprovedExecutionRecovery(AgentStepTraceEntity trace) {
         if (trace == null) {
-            return new ApprovedExecutionRecovery(AgentExecutionState.CREATED, "", null, null);
+            return new ApprovedExecutionRecovery(AgentExecutionState.CREATED, "", null, null, null, null, null, false, null);
         }
+        TracePayloadProjection payload = readTracePayload(trace.getToolOutputJson());
         return new ApprovedExecutionRecovery(
             trace.getStatus(),
-            readReplyFromToolOutput(trace.getToolOutputJson()),
+            payload.reply(),
             readMemorySnapshot(trace.getMemoryAfterJson()),
-            readCompletionMode(trace.getToolOutputJson())
+            payload.completionMode(),
+            payload.toolOutput() == null ? null : payload.toolOutput().kind(),
+            payload.terminalState(),
+            payload.stopReason(),
+            payload.recoverable(),
+            payload.recoveryHint()
         );
     }
 
@@ -441,19 +608,24 @@ public class AgentTraceService {
     }
 
     private AgentTraceDTO toTraceDTO(AgentStepTraceEntity trace) {
+        TracePayloadProjection payload = readTracePayload(trace.getToolOutputJson());
         return new AgentTraceDTO(
             trace.getStepIndex(),
             trace.getDecisionSummary(),
             trace.getSelectedTool(),
             trace.getToolInputJson(),
             trace.getToolOutputJson(),
-            readToolOutput(trace.getToolOutputJson()),
+            payload.toolOutput(),
             trace.getObservationSummary(),
             readMemorySnapshot(trace.getMemoryBeforeJson()),
             readMemorySnapshot(trace.getMemoryAfterJson()),
             readGuardrailResults(trace.getGuardrailResultsJson()),
             trace.getStatus(),
             trace.getErrorMessage(),
+            payload.terminalState(),
+            payload.stopReason(),
+            payload.recoverable(),
+            payload.recoveryHint(),
             trace.getCreatedAt()
         );
     }
@@ -596,83 +768,121 @@ public class AgentTraceService {
         return value == null ? "" : value.trim();
     }
 
-    private String readReplyFromToolOutput(String json) {
-        if (json == null || json.isBlank()) {
-            return "";
-        }
-        try {
-            Map<String, Object> payload = objectMapper.readValue(json, new TypeReference<>() {
-            });
-            Object reply = payload.get("reply");
-            return reply == null ? "" : reply.toString().trim();
-        } catch (Exception e) {
-            log.warn("Agent trace reply read failed: json={}, error={}", clip(json, 120), e.getMessage());
-            return "";
-        }
-    }
-
     /**
-     * 从持久化的 trace JSON 中恢复统一 Tool 输出视图。
-     * 兼容新字段名与历史 legacy 字段名，避免旧 trace 无法读取。
+     * 从持久化的 trace JSON 中恢复结构化输出与终态语义。
+     * 兼容历史 trace 缺失 terminal 字段的情况，避免旧数据无法展示。
      */
-    private AgentToolOutputDTO readToolOutput(String json) {
+    private TracePayloadProjection readTracePayload(String json) {
         if (json == null || json.isBlank()) {
-            return null;
+            return TracePayloadProjection.empty();
         }
         try {
-            // .1 先读取原始 JSON，并优先按新字段名解析；历史字段名作为兼容回退。
             Map<String, Object> payload = objectMapper.readValue(json, new TypeReference<>() {
             });
             if (payload == null || payload.isEmpty()) {
-                return null;
+                return TracePayloadProjection.empty();
             }
-            return new AgentToolOutputDTO(
-                readString(payload.get("kind")),
-                readString(payload.get("summary")),
+            return new TracePayloadProjection(
+                new AgentToolOutputDTO(
+                    readString(payload.get("kind")),
+                    readString(payload.get("summary")),
+                    readString(payload.get("reply")),
+                    readObjectMap(firstNonNull(payload.get("answer"), payload.get("answerPayload"))),
+                    readObjectMap(firstNonNull(payload.get("debug"), payload.get("debugPayload"))),
+                    readStringList(firstNonNull(payload.get("facts"), payload.get("confirmedFacts"))),
+                    readNormalization(payload.get("normalization"))
+                ),
                 readString(payload.get("reply")),
-                readObjectMap(firstNonNull(payload.get("answer"), payload.get("answerPayload"))),
-                readObjectMap(firstNonNull(payload.get("debug"), payload.get("debugPayload"))),
-                readStringList(firstNonNull(payload.get("facts"), payload.get("confirmedFacts"))),
-                readNormalization(payload.get("normalization"))
+                readCompletionMode(payload),
+                readTerminalState(payload),
+                readStopReason(payload),
+                readRecoverable(payload),
+                readRecoveryHint(payload)
             );
         } catch (Exception e) {
-            // .2 解析失败时返回显式占位结构，避免上层把“读取失败”误判成“没有输出”。
-            log.warn("Agent trace toolOutput read failed: json={}, error={}", clip(json, 120), e.getMessage());
-            return new AgentToolOutputDTO(
-                "tool_output_unavailable",
-                "tool_output_read_failed",
-                "",
-                Map.of(),
-                Map.of(),
-                List.of(),
-                new AgentToolOutputNormalizationDTO(false, false, false, false)
-            );
+            log.warn("Agent trace payload read failed: json={}, error={}", clip(json, 120), e.getMessage());
+            return TracePayloadProjection.unavailable();
         }
     }
 
-    private AgentCompletionMode readCompletionMode(String json) {
-        if (json == null || json.isBlank()) {
+    private AgentCompletionMode readCompletionMode(Map<String, Object> payload) {
+        Object completionMode = payload.get("completionMode");
+        if (completionMode == null) {
             return null;
         }
         try {
-            Map<String, Object> payload = objectMapper.readValue(json, new TypeReference<>() {
-            });
-            Object completionMode = payload.get("completionMode");
-            if (completionMode == null) {
-                return null;
-            }
             String normalized = completionMode.toString().trim();
             return normalized.isEmpty() ? null : AgentCompletionMode.valueOf(normalized);
         } catch (Exception e) {
-            log.warn("Agent trace completionMode read failed: json={}, error={}", clip(json, 120), e.getMessage());
+            log.warn("Agent trace completionMode read failed: value={}, error={}", completionMode, e.getMessage());
             return null;
         }
+    }
+
+    private AgentTerminalState readTerminalState(Map<String, Object> payload) {
+        Object terminal = payload.get("terminal");
+        if (!(terminal instanceof Map<?, ?> map)) {
+            return null;
+        }
+        Object state = map.get("state");
+        if (state == null) {
+            return null;
+        }
+        try {
+            String normalized = state.toString().trim();
+            return normalized.isEmpty() ? null : AgentTerminalState.valueOf(normalized);
+        } catch (Exception e) {
+            log.warn("Agent trace terminalState read failed: value={}, error={}", state, e.getMessage());
+            return null;
+        }
+    }
+
+    private AgentLoopStopReason readStopReason(Map<String, Object> payload) {
+        Object terminal = payload.get("terminal");
+        if (!(terminal instanceof Map<?, ?> map)) {
+            return null;
+        }
+        Object stopReason = map.get("stopReason");
+        if (stopReason == null) {
+            return null;
+        }
+        try {
+            String normalized = stopReason.toString().trim();
+            return normalized.isEmpty() ? null : AgentLoopStopReason.valueOf(normalized);
+        } catch (Exception e) {
+            log.warn("Agent trace stopReason read failed: value={}, error={}", stopReason, e.getMessage());
+            return null;
+        }
+    }
+
+    private boolean readRecoverable(Map<String, Object> payload) {
+        Object terminal = payload.get("terminal");
+        if (!(terminal instanceof Map<?, ?> map)) {
+            return false;
+        }
+        return readBoolean(map, "recoverable");
+    }
+
+    private String readRecoveryHint(Map<String, Object> payload) {
+        Object terminal = payload.get("terminal");
+        if (!(terminal instanceof Map<?, ?> map)) {
+            return null;
+        }
+        Object recoveryHint = map.get("recoveryHint");
+        if (recoveryHint == null) {
+            return null;
+        }
+        String normalized = recoveryHint.toString().trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 
     private Map<String, Object> buildReplyTracePayload(
         String kind,
         String summary,
-        String reply
+        String reply,
+        AgentCompletionMode completionMode,
+        AgentLoopStopReason stopReason,
+        String recoveryHint
     ) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("kind", kind);
@@ -682,6 +892,10 @@ public class AgentTraceService {
         payload.put("debug", Map.of());
         payload.put("facts", List.of());
         payload.put("normalization", emptyNormalizationPayload());
+        if (completionMode != null) {
+            payload.put("completionMode", completionMode.name());
+        }
+        putTerminalPayload(payload, completionMode, stopReason, recoveryHint);
         return payload;
     }
 
@@ -689,17 +903,10 @@ public class AgentTraceService {
         String kind,
         String summary,
         String reply,
-        AgentApprovalDTO approval
-    ) {
-        return buildApprovalTracePayload(kind, summary, reply, approval, null);
-    }
-
-    private Map<String, Object> buildApprovalTracePayload(
-        String kind,
-        String summary,
-        String reply,
         AgentApprovalDTO approval,
-        AgentCompletionMode completionMode
+        AgentCompletionMode completionMode,
+        AgentLoopStopReason stopReason,
+        String recoveryHint
     ) {
         Map<String, Object> payload = new java.util.LinkedHashMap<>();
         payload.put("kind", kind);
@@ -713,6 +920,22 @@ public class AgentTraceService {
         if (completionMode != null) {
             payload.put("completionMode", completionMode.name());
         }
+        putTerminalPayload(payload, completionMode, stopReason, recoveryHint);
+        return payload;
+    }
+
+    private Map<String, Object> buildToolTracePayload(
+        AgentToolResult result,
+        String reply,
+        AgentCompletionMode completionMode,
+        AgentLoopStopReason stopReason,
+        String recoveryHint
+    ) {
+        Map<String, Object> payload = new java.util.LinkedHashMap<>(result.tracePayload(reply));
+        if (completionMode != null) {
+            payload.put("completionMode", completionMode.name());
+        }
+        putTerminalPayload(payload, completionMode, stopReason, recoveryHint);
         return payload;
     }
 
@@ -720,14 +943,39 @@ public class AgentTraceService {
         AgentToolResult result,
         String reply,
         AgentApprovalDTO approval,
-        AgentCompletionMode completionMode
+        AgentCompletionMode completionMode,
+        AgentLoopStopReason stopReason,
+        String recoveryHint
     ) {
-        Map<String, Object> payload = new java.util.LinkedHashMap<>(result.tracePayload(reply));
+        Map<String, Object> payload = new java.util.LinkedHashMap<>(buildToolTracePayload(
+            result,
+            reply,
+            completionMode,
+            stopReason,
+            recoveryHint
+        ));
         payload.put("approval", approvalPayload(approval));
-        if (completionMode != null) {
-            payload.put("completionMode", completionMode.name());
-        }
         return payload;
+    }
+
+    private void putTerminalPayload(
+        Map<String, Object> payload,
+        AgentCompletionMode completionMode,
+        AgentLoopStopReason stopReason,
+        String recoveryHint
+    ) {
+        if (completionMode == null
+            && stopReason == null
+            && (recoveryHint == null || recoveryHint.isBlank())) {
+            return;
+        }
+        AgentTerminalSemantics terminalSemantics = AgentTerminalSemantics.from(completionMode, stopReason, recoveryHint);
+        Map<String, Object> terminalPayload = new LinkedHashMap<>();
+        terminalPayload.put("state", terminalSemantics.terminalState().name());
+        terminalPayload.put("stopReason", stopReason == null ? "" : stopReason.name());
+        terminalPayload.put("recoverable", terminalSemantics.recoverable());
+        terminalPayload.put("recoveryHint", blankToEmpty(terminalSemantics.recoveryHint()));
+        payload.put("terminal", terminalPayload);
     }
 
     private Map<String, Object> approvalPayload(AgentApprovalDTO approval) {
@@ -858,14 +1106,59 @@ public class AgentTraceService {
         String reply,
         AgentMemorySnapshot memoryAfter,
         String kind,
-        String summary
+        String summary,
+        AgentLoopStopReason stopReason
     ) {
-        trace.setToolOutputJson(writeJson(buildApprovalTracePayload(kind, summary, reply, approval)));
+        trace.setToolOutputJson(writeJson(buildApprovalTracePayload(
+            kind,
+            summary,
+            reply,
+            approval,
+            AgentCompletionMode.DEGRADED,
+            stopReason,
+            null
+        )));
         trace.setObservationSummary(summary);
         trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
-        trace.setStatus(AgentExecutionState.FAILED);
-        trace.setErrorMessage(approval == null ? null : clip(approval.reason(), ERROR_LIMIT));
+        trace.setStatus(AgentExecutionState.TERMINATED);
+        trace.setErrorMessage(null);
         traceRepository.save(trace);
+    }
+
+    private AgentLoopStopReason resolveFailureStopReason(String failureKind) {
+        if ("approved_tool_execution_replay_blocked".equals(failureKind)) {
+            return AgentLoopStopReason.APPROVAL_REPLAY_BLOCKED;
+        }
+        if ("approved_tool_resume_failure".equals(failureKind)) {
+            return AgentLoopStopReason.APPROVAL_RESUME_FAILED;
+        }
+        if ("tool_post_processing_failure".equals(failureKind)
+            || "approved_tool_post_processing_failure".equals(failureKind)) {
+            return AgentLoopStopReason.TOOL_POST_PROCESSING_FAILED;
+        }
+        if ("tool_execution_failure".equals(failureKind)
+            || "approved_tool_execution_failure".equals(failureKind)) {
+            return AgentLoopStopReason.TOOL_EXECUTION_FAILED;
+        }
+        return AgentLoopStopReason.DEGRADED_REPLY;
+    }
+
+    private String resolveFailureRecoveryHint(String failureKind) {
+        if ("approved_tool_execution_replay_blocked".equals(failureKind)) {
+            return "为避免重复副作用，当前 turn 不会自动重放；请确认外部结果后再重新发起。";
+        }
+        if ("approved_tool_resume_failure".equals(failureKind)) {
+            return "审批已通过，但恢复执行前准备失败；建议检查工具配置或冻结输入后重新发起。";
+        }
+        if ("tool_post_processing_failure".equals(failureKind)
+            || "approved_tool_post_processing_failure".equals(failureKind)) {
+            return "工具已执行，但后处理失败；建议先查看 trace，再重新发起。";
+        }
+        if ("tool_execution_failure".equals(failureKind)
+            || "approved_tool_execution_failure".equals(failureKind)) {
+            return "工具执行失败；建议检查输入与外部依赖后，再重新发起。";
+        }
+        return null;
     }
 
     private String resolveBudgetStopDecisionSummary(AgentLoopStopReason stopReason) {
@@ -888,11 +1181,50 @@ public class AgentTraceService {
         return "本轮多步执行已达到步数预算，系统按边界主动收口";
     }
 
+    private record TracePayloadProjection(
+        AgentToolOutputDTO toolOutput,
+        String reply,
+        AgentCompletionMode completionMode,
+        AgentTerminalState terminalState,
+        AgentLoopStopReason stopReason,
+        boolean recoverable,
+        String recoveryHint
+    ) {
+        private static TracePayloadProjection empty() {
+            return new TracePayloadProjection(null, "", null, null, null, false, null);
+        }
+
+        private static TracePayloadProjection unavailable() {
+            return new TracePayloadProjection(
+                new AgentToolOutputDTO(
+                    "tool_output_unavailable",
+                    "tool_output_read_failed",
+                    "",
+                    Map.of(),
+                    Map.of(),
+                    List.of(),
+                    new AgentToolOutputNormalizationDTO(false, false, false, false)
+                ),
+                "",
+                null,
+                null,
+                null,
+                false,
+                null
+            );
+        }
+    }
+
     public record ApprovedExecutionRecovery(
         AgentExecutionState status,
         String reply,
         AgentMemorySnapshot memoryAfter,
-        AgentCompletionMode completionMode
+        AgentCompletionMode completionMode,
+        String payloadKind,
+        AgentTerminalState terminalState,
+        AgentLoopStopReason stopReason,
+        boolean recoverable,
+        String recoveryHint
     ) {
     }
 }

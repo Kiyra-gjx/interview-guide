@@ -20,6 +20,7 @@ import interview.guide.modules.agent.model.AgentMemorySnapshot;
 import interview.guide.modules.agent.model.AgentMessageDTO;
 import interview.guide.modules.agent.model.AgentSessionEntity;
 import interview.guide.modules.agent.model.AgentStepTraceEntity;
+import interview.guide.modules.agent.model.AgentTerminalState;
 import interview.guide.modules.agent.model.AgentTraceDTO;
 import interview.guide.modules.agent.model.AgentTurnEntity;
 import interview.guide.modules.agent.model.AgentTurnStatus;
@@ -731,6 +732,10 @@ class AgentStage2RegressionEvalTest {
             createMemory(),
             guardrailResults,
             status,
+            null,
+            null,
+            null,
+            false,
             null,
             LocalDateTime.now()
         );

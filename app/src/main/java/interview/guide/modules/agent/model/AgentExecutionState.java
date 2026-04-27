@@ -7,6 +7,7 @@ public enum AgentExecutionState {
     CREATED,
     RUNNING,
     WAITING_APPROVAL,
+    TERMINATED,
     COMPLETED,
     FAILED
 }

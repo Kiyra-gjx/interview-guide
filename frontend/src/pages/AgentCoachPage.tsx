@@ -446,7 +446,6 @@ export default function AgentCoachPage() {
         <div className="flex flex-wrap items-center gap-2">
           {session && (
             <>
-              <AgentStatusBadge kind="execution" value={session.status} />
               <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                 {turns.length} 个 turn
               </span>

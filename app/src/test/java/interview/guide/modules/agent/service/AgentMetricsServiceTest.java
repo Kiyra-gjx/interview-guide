@@ -3,6 +3,7 @@ package interview.guide.modules.agent.service;
 import interview.guide.modules.agent.model.AgentCompletionMode;
 import interview.guide.modules.agent.model.AgentExecutionSummaryDTO;
 import interview.guide.modules.agent.model.AgentLoopStopReason;
+import interview.guide.modules.agent.model.AgentTerminalState;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.junit.jupiter.api.DisplayName;
@@ -54,6 +55,9 @@ class AgentMetricsServiceTest {
             1_280,
             2_720,
             AgentLoopStopReason.DIRECT_REPLY,
+            null,
+            AgentTerminalState.SUCCESS,
+            false,
             null
         ));
         metricsService.recordExecutionSummary(new AgentExecutionSummaryDTO(
@@ -68,7 +72,10 @@ class AgentMetricsServiceTest {
             128,
             0,
             AgentLoopStopReason.DIRECT_REPLY,
-            AgentLoopStopReason.TOKEN_BUDGET_EXHAUSTED
+            AgentLoopStopReason.TOKEN_BUDGET_EXHAUSTED,
+            AgentTerminalState.SUCCESS,
+            false,
+            null
         ));
         metricsService.recordExecutionSummary(new AgentExecutionSummaryDTO(
             true,
@@ -82,25 +89,31 @@ class AgentMetricsServiceTest {
             1_600,
             2_400,
             AgentLoopStopReason.STEP_BUDGET_EXHAUSTED,
-            AgentLoopStopReason.STEP_BUDGET_EXHAUSTED
+            AgentLoopStopReason.STEP_BUDGET_EXHAUSTED,
+            AgentTerminalState.EXHAUSTED,
+            false,
+            "当前 turn 已停止，可在新一轮继续"
         ));
 
         assertThat(meterRegistry.get("agent.execution.summary")
             .tag("multiStep", "true")
             .tag("stopReason", "DIRECT_REPLY")
             .tag("budgetStopReason", "NONE")
+            .tag("terminalState", "SUCCESS")
             .counter()
             .count()).isEqualTo(1.0);
         assertThat(meterRegistry.get("agent.execution.summary")
             .tag("multiStep", "true")
             .tag("stopReason", "DIRECT_REPLY")
             .tag("budgetStopReason", "TOKEN_BUDGET_EXHAUSTED")
+            .tag("terminalState", "SUCCESS")
             .counter()
             .count()).isEqualTo(1.0);
         assertThat(meterRegistry.get("agent.execution.summary")
             .tag("multiStep", "true")
             .tag("stopReason", "STEP_BUDGET_EXHAUSTED")
             .tag("budgetStopReason", "STEP_BUDGET_EXHAUSTED")
+            .tag("terminalState", "EXHAUSTED")
             .counter()
             .count()).isEqualTo(1.0);
         assertThat(meterRegistry.get("agent.execution.budget.exhausted")

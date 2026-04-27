@@ -3,6 +3,7 @@ package interview.guide.modules.agent.service;
 import interview.guide.modules.agent.model.AgentCompletionMode;
 import interview.guide.modules.agent.model.AgentExecutionSummaryDTO;
 import interview.guide.modules.agent.model.AgentLoopStopReason;
+import interview.guide.modules.agent.model.AgentTerminalState;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -85,7 +86,8 @@ public class AgentMetricsService {
             EXECUTION_SUMMARY_METRIC,
             "multiStep", Boolean.toString(executionSummary.multiStepEnabled()),
             "stopReason", normalizeStopReason(executionSummary.stopReason()),
-            "budgetStopReason", normalizeBudgetStopReason(executionSummary.budgetStopReason())
+            "budgetStopReason", normalizeBudgetStopReason(executionSummary.budgetStopReason()),
+            "terminalState", normalizeTerminalState(executionSummary.terminalState())
         ).increment();
 
         DistributionSummary.builder(EXECUTION_STEPS_METRIC)
@@ -111,6 +113,10 @@ public class AgentMetricsService {
 
     private String normalizeBudgetStopReason(AgentLoopStopReason budgetStopReason) {
         return budgetStopReason == null ? "NONE" : budgetStopReason.name();
+    }
+
+    private String normalizeTerminalState(AgentTerminalState terminalState) {
+        return terminalState == null ? "UNKNOWN" : terminalState.name();
     }
 
     private String resolveExhaustedBudget(AgentLoopStopReason stopReason) {

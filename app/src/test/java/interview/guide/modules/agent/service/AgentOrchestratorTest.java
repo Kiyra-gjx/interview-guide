@@ -14,6 +14,7 @@ import interview.guide.modules.agent.model.AgentDecisionDTO;
 import interview.guide.modules.agent.model.AgentExecutionState;
 import interview.guide.modules.agent.model.AgentExecutionSummaryDTO;
 import interview.guide.modules.agent.model.AgentLoopStopReason;
+import interview.guide.modules.agent.model.AgentTerminalState;
 import interview.guide.modules.agent.guardrail.AgentGuardrailAction;
 import interview.guide.modules.agent.guardrail.AgentGuardrailCode;
 import interview.guide.modules.agent.guardrail.AgentGuardrailResolution;
@@ -64,6 +65,8 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
@@ -297,6 +300,9 @@ class AgentOrchestratorTest {
         assertThat(response.reply()).isEqualTo(replyCaptor.getValue());
         assertThat(response.guardrailResults()).containsExactly(guardrailResult);
         assertThat(response.traceSteps()).isEqualTo(trace);
+        assertThat(response.execution()).isNotNull();
+        assertThat(response.execution().terminalState()).isEqualTo(AgentTerminalState.DEGRADED);
+        assertThat(response.execution().recoverable()).isFalse();
     }
 
     @Test
@@ -389,6 +395,9 @@ class AgentOrchestratorTest {
         assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.WAITING_APPROVAL);
         assertThat(response.approval()).isEqualTo(approval);
         assertThat(response.guardrailResults()).containsExactly(guardrailResult);
+        assertThat(response.execution()).isNotNull();
+        assertThat(response.execution().terminalState()).isEqualTo(AgentTerminalState.WAITING_APPROVAL);
+        assertThat(response.execution().recoverable()).isTrue();
     }
 
     @Test
@@ -455,11 +464,17 @@ class AgentOrchestratorTest {
             eq(memory)
         );
         verify(tool, never()).execute(anyMap(), any());
+        verify(metricsService).recordTurnCompleted(AgentCompletionMode.DEGRADED);
+        ArgumentCaptor<AgentExecutionSummaryDTO> rejectExecutionCaptor = ArgumentCaptor.forClass(AgentExecutionSummaryDTO.class);
+        verify(metricsService).recordExecutionSummary(rejectExecutionCaptor.capture());
 
         assertThat(replyCaptor.getValue()).contains("审批已拒绝");
         assertThat(response.turnStatus()).isEqualTo(AgentTurnStatus.COMPLETED);
         assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.DEGRADED);
         assertThat(response.approval()).isEqualTo(rejectedApproval);
+        assertThat(response.execution()).isNotNull();
+        assertThat(response.execution().stopReason()).isEqualTo(AgentLoopStopReason.APPROVAL_REJECTED);
+        assertThat(rejectExecutionCaptor.getValue().stopReason()).isEqualTo(AgentLoopStopReason.APPROVAL_REJECTED);
     }
 
     @Test
@@ -557,9 +572,13 @@ class AgentOrchestratorTest {
             eq(AgentCompletionMode.DEGRADED)
         );
         inOrder.verify(sessionService).startTurn(sessionId, request.message());
+        ArgumentCaptor<AgentExecutionSummaryDTO> expiredExecutionCaptor = ArgumentCaptor.forClass(AgentExecutionSummaryDTO.class);
+        verify(metricsService, atLeastOnce()).recordExecutionSummary(expiredExecutionCaptor.capture());
 
         assertThat(response.turnId()).isEqualTo(newTurnId);
         assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.DEGRADED);
+        assertThat(expiredExecutionCaptor.getAllValues()).anySatisfy(summary ->
+            assertThat(summary.stopReason()).isEqualTo(AgentLoopStopReason.APPROVAL_EXPIRED));
     }
 
     @Test
@@ -816,10 +835,16 @@ class AgentOrchestratorTest {
         );
         verify(sessionService, never()).failTurn(anyString(), any(Exception.class));
         verify(tool, never()).execute(anyMap(), any());
+        verify(metricsService).recordTurnCompleted(AgentCompletionMode.DEGRADED);
+        ArgumentCaptor<AgentExecutionSummaryDTO> resumeFailureExecutionCaptor = ArgumentCaptor.forClass(AgentExecutionSummaryDTO.class);
+        verify(metricsService).recordExecutionSummary(resumeFailureExecutionCaptor.capture());
 
         assertThat(response.turnStatus()).isEqualTo(AgentTurnStatus.COMPLETED);
         assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.DEGRADED);
         assertThat(response.approval()).isEqualTo(approvedApproval);
+        assertThat(response.execution()).isNotNull();
+        assertThat(response.execution().stopReason()).isEqualTo(AgentLoopStopReason.APPROVAL_RESUME_FAILED);
+        assertThat(resumeFailureExecutionCaptor.getValue().stopReason()).isEqualTo(AgentLoopStopReason.APPROVAL_RESUME_FAILED);
     }
 
     @Test
@@ -972,19 +997,22 @@ class AgentOrchestratorTest {
         verify(sessionService).claimTurnForApprovedExecution(turnId);
         verify(traceService, never()).markApprovedToolExecutionStarted(any(), any());
         verify(tool, never()).execute(anyMap(), any());
-        verify(traceService).failApprovedToolStep(
+        verify(traceService).markApprovedToolReplayBlocked(
             eq(traceEntity),
             eq(approvedApproval),
-            any(Exception.class),
             replyCaptor.capture(),
-            eq(memory),
-            eq("approved_tool_execution_replay_blocked"),
-            eq("审批通过后执行状态已不明确，为避免重复副作用，本次不再自动重放")
+            eq(memory)
         );
+        verify(metricsService).recordTurnCompleted(AgentCompletionMode.DEGRADED);
+        ArgumentCaptor<AgentExecutionSummaryDTO> replayBlockedExecutionCaptor = ArgumentCaptor.forClass(AgentExecutionSummaryDTO.class);
+        verify(metricsService).recordExecutionSummary(replayBlockedExecutionCaptor.capture());
         assertThat(replyCaptor.getValue()).contains("不再自动重放");
         assertThat(response.reply()).isEqualTo(replyCaptor.getValue());
         assertThat(response.turnStatus()).isEqualTo(AgentTurnStatus.COMPLETED);
         assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.DEGRADED);
+        assertThat(response.execution()).isNotNull();
+        assertThat(response.execution().stopReason()).isEqualTo(AgentLoopStopReason.APPROVAL_REPLAY_BLOCKED);
+        assertThat(replayBlockedExecutionCaptor.getValue().stopReason()).isEqualTo(AgentLoopStopReason.APPROVAL_REPLAY_BLOCKED);
     }
 
     @Test
@@ -1016,7 +1044,7 @@ class AgentOrchestratorTest {
         List<AgentTraceDTO> trace = List.of(createTrace(
             "delete_resume",
             AgentExecutionState.FAILED,
-            "{\"kind\":\"approved_tool_execution_replay_blocked\",\"summary\":\"blocked\",\"reply\":\"approved terminal reply\",\"completionMode\":\"DEGRADED\"}"
+            "{\"kind\":\"approved_tool_execution_replay_blocked\",\"summary\":\"blocked\",\"reply\":\"approved terminal reply\",\"completionMode\":\"DEGRADED\",\"terminal\":{\"state\":\"DEGRADED\",\"stopReason\":\"APPROVAL_REPLAY_BLOCKED\",\"recoverable\":false,\"recoveryHint\":\"为避免重复副作用，当前 turn 不会自动重放；请确认外部结果后再重新发起。\"}}"
         ));
         List<AgentMessageDTO> messagesDelta = List.of(
             createMessage("user", "delete this resume", 1),
@@ -1041,6 +1069,119 @@ class AgentOrchestratorTest {
         assertThat(response.reply()).isEqualTo("approved terminal reply");
         assertThat(response.turnStatus()).isEqualTo(AgentTurnStatus.FAILED);
         assertThat(response.approval()).isEqualTo(approvedApproval);
+        assertThat(response.execution()).isNotNull();
+        assertThat(response.execution().stopReason()).isEqualTo(AgentLoopStopReason.APPROVAL_REPLAY_BLOCKED);
+        assertThat(response.execution().executedSteps()).isZero();
+    }
+
+    @Test
+    @DisplayName("should infer one executed step for legacy approved completed degraded snapshots")
+    void shouldInferOneExecutedStepForLegacyApprovedCompletedDegradedSnapshots() {
+        String approvalId = "approval-approved-legacy-completed";
+        String sessionId = "session-approved-legacy-completed";
+        String turnId = "turn-approved-legacy-completed";
+        AgentSessionEntity session = createSession(sessionId, "prepare interview", 42L);
+        AgentTurnEntity completedTurn = createTurn(turnId, session, AgentTurnStatus.COMPLETED, AgentCompletionMode.DEGRADED);
+        AgentStepTraceEntity traceEntity = new AgentStepTraceEntity();
+        traceEntity.setTurn(completedTurn);
+        traceEntity.setStatus(AgentExecutionState.COMPLETED);
+        AgentApprovalEntity approvalEntity = createApprovalEntity(approvalId, completedTurn, traceEntity, AgentApprovalStatus.APPROVED);
+        approvalEntity.setSelectedTool("get_resume_profile");
+        AgentApprovalDTO approvedApproval = new AgentApprovalDTO(
+            approvalId,
+            sessionId,
+            turnId,
+            "get_resume_profile",
+            AgentToolRiskLevel.REQUIRES_APPROVAL,
+            AgentApprovalStatus.APPROVED,
+            "approval required",
+            approvalEntity.getExpiresAt(),
+            LocalDateTime.now().minusMinutes(1),
+            approvalEntity.getCreatedAt()
+        );
+        AgentMemorySnapshot memory = createMemory();
+        List<AgentTraceDTO> trace = List.of(createTrace(
+            "get_resume_profile",
+            AgentExecutionState.COMPLETED,
+            "{\"kind\":\"tool_result\",\"summary\":\"legacy degraded reply\",\"reply\":\"legacy degraded reply\",\"completionMode\":\"DEGRADED\"}"
+        ));
+        List<AgentMessageDTO> messagesDelta = List.of(
+            createMessage("user", "summarize this resume", 1),
+            createMessage("assistant", "legacy degraded reply", 2)
+        );
+
+        when(approvalService.withLockedApproval(eq(approvalId), any())).thenAnswer(invocation ->
+            ((Function<AgentApprovalEntity, Object>) invocation.getArgument(1)).apply(approvalEntity)
+        );
+        when(approvalService.getApproval(approvalId)).thenReturn(approvedApproval);
+        when(approvalService.toDTO(approvalEntity)).thenReturn(approvedApproval);
+        when(sessionService.claimTurnForApprovedExecution(turnId))
+            .thenReturn(new AgentSessionService.ApprovedTurnClaim(false, completedTurn));
+        when(memoryService.readMemory(session)).thenReturn(memory);
+        when(traceService.readLatestReply(turnId)).thenReturn("legacy degraded reply");
+        when(traceService.getTurnTrace(turnId)).thenReturn(trace);
+        when(sessionService.getTurnMessages(turnId)).thenReturn(messagesDelta);
+
+        AgentChatResponse response = orchestrator.approveApproval(approvalId);
+
+        assertThat(response.execution()).isNotNull();
+        assertThat(response.execution().stopReason()).isEqualTo(AgentLoopStopReason.DEGRADED_REPLY);
+        assertThat(response.execution().executedSteps()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("should prefer trace terminal reply over stale waiting approval message in rejected snapshots")
+    void shouldPreferTraceTerminalReplyOverStaleWaitingApprovalMessageInRejectedSnapshots() {
+        String approvalId = "approval-rejected-snapshot";
+        String sessionId = "session-rejected-snapshot";
+        String turnId = "turn-rejected-snapshot";
+        AgentSessionEntity session = createSession(sessionId, "prepare interview", 42L);
+        AgentTurnEntity terminatedTurn = createTurn(turnId, session, AgentTurnStatus.COMPLETED, AgentCompletionMode.DEGRADED);
+        AgentStepTraceEntity traceEntity = new AgentStepTraceEntity();
+        traceEntity.setTurn(terminatedTurn);
+        traceEntity.setStatus(AgentExecutionState.TERMINATED);
+        AgentApprovalEntity approvalEntity = createApprovalEntity(approvalId, terminatedTurn, traceEntity, AgentApprovalStatus.REJECTED);
+        approvalEntity.setSelectedTool("delete_resume");
+        AgentApprovalDTO rejectedApproval = new AgentApprovalDTO(
+            approvalId,
+            sessionId,
+            turnId,
+            "delete_resume",
+            AgentToolRiskLevel.REQUIRES_APPROVAL,
+            AgentApprovalStatus.REJECTED,
+            "approval required",
+            approvalEntity.getExpiresAt(),
+            LocalDateTime.now().minusMinutes(1),
+            approvalEntity.getCreatedAt()
+        );
+        AgentMemorySnapshot memory = createMemory();
+        List<AgentTraceDTO> trace = List.of(createTrace(
+            "delete_resume",
+            AgentExecutionState.TERMINATED,
+            "{\"kind\":\"approval_rejected\",\"summary\":\"rejected\",\"reply\":\"approval terminal reply\",\"completionMode\":\"DEGRADED\",\"terminal\":{\"state\":\"DEGRADED\",\"stopReason\":\"APPROVAL_REJECTED\",\"recoverable\":false,\"recoveryHint\":\"当前高风险动作已被拒绝；如需继续，请修改请求后重新发起。\"}}"
+        ));
+        List<AgentMessageDTO> messagesDelta = List.of(
+            createMessage("user", "delete this resume", 1),
+            createMessage("assistant", "这个动作属于高风险操作，需要审批后才能继续执行。我已经先停在等待审批状态。", 2)
+        );
+
+        when(approvalService.withLockedApproval(eq(approvalId), any())).thenAnswer(invocation ->
+            ((Function<AgentApprovalEntity, Object>) invocation.getArgument(1)).apply(approvalEntity)
+        );
+        when(approvalService.getApproval(approvalId)).thenReturn(rejectedApproval);
+        when(memoryService.readMemory(session)).thenReturn(memory);
+        when(traceService.readLatestReply(turnId)).thenReturn("approval terminal reply");
+        when(traceService.getTurnTrace(turnId)).thenReturn(trace);
+        when(sessionService.getTurnMessages(turnId)).thenReturn(messagesDelta);
+
+        AgentChatResponse response = orchestrator.approveApproval(approvalId);
+
+        assertThat(response.reply()).isEqualTo("approval terminal reply");
+        assertThat(response.turnStatus()).isEqualTo(AgentTurnStatus.COMPLETED);
+        assertThat(response.approval()).isEqualTo(rejectedApproval);
+        assertThat(response.execution()).isNotNull();
+        assertThat(response.execution().stopReason()).isEqualTo(AgentLoopStopReason.APPROVAL_REJECTED);
+        assertThat(response.execution().executedSteps()).isZero();
     }
 
     @Test
@@ -1099,7 +1240,12 @@ class AgentOrchestratorTest {
                 AgentExecutionState.FAILED,
                 "trace recovered reply",
                 recoveredMemory,
-                AgentCompletionMode.DEGRADED
+                AgentCompletionMode.DEGRADED,
+                "approved_tool_execution_failure",
+                AgentTerminalState.DEGRADED,
+                AgentLoopStopReason.TOOL_EXECUTION_FAILED,
+                false,
+                "工具执行失败；建议检查输入与外部依赖后，再重新发起。"
             )
         );
         when(sessionService.completeTurn(
@@ -1125,6 +1271,257 @@ class AgentOrchestratorTest {
         assertThat(response.reply()).isEqualTo("trace recovered reply");
         assertThat(response.turnStatus()).isEqualTo(AgentTurnStatus.COMPLETED);
         assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.DEGRADED);
+        assertThat(response.execution()).isNotNull();
+        assertThat(response.execution().stopReason()).isEqualTo(AgentLoopStopReason.TOOL_EXECUTION_FAILED);
+        assertThat(response.execution().executedSteps()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("should recover terminated approved trace as degraded when completion mode is missing")
+    void shouldRecoverTerminatedApprovedTraceAsDegradedWhenCompletionModeIsMissing() {
+        String approvalId = "approval-approved-trace-terminated";
+        String sessionId = "session-approved-trace-terminated";
+        String turnId = "turn-approved-trace-terminated";
+        AgentSessionEntity session = createSession(sessionId, "prepare interview", 42L);
+        AgentTurnEntity runningTurn = createTurn(turnId, session, AgentTurnStatus.RUNNING, null);
+        runningTurn.setLeaseExpiresAt(LocalDateTime.now().minusMinutes(1));
+        AgentTurnEntity reclaimedTurn = createTurn(turnId, session, AgentTurnStatus.RUNNING, null);
+        AgentStepTraceEntity traceEntity = new AgentStepTraceEntity();
+        traceEntity.setTurn(runningTurn);
+        traceEntity.setStatus(AgentExecutionState.TERMINATED);
+        AgentApprovalEntity approvalEntity = createApprovalEntity(approvalId, runningTurn, traceEntity, AgentApprovalStatus.APPROVED);
+        approvalEntity.setSelectedTool("delete_resume");
+        AgentApprovalDTO approvedApproval = new AgentApprovalDTO(
+            approvalId,
+            sessionId,
+            turnId,
+            "delete_resume",
+            AgentToolRiskLevel.REQUIRES_APPROVAL,
+            AgentApprovalStatus.APPROVED,
+            "approval required",
+            approvalEntity.getExpiresAt(),
+            LocalDateTime.now().minusMinutes(1),
+            approvalEntity.getCreatedAt()
+        );
+        AgentMemorySnapshot recoveredMemory = new AgentMemorySnapshot(
+            "prepare interview",
+            "approval_recovered",
+            List.of("fact-1"),
+            List.of("delete_resume"),
+            "manual follow-up"
+        );
+        AgentTurnEntity completedTurn = createCompletedTurn(turnId, session, AgentCompletionMode.DEGRADED);
+        List<AgentTraceDTO> trace = List.of(createTrace(
+            "delete_resume",
+            AgentExecutionState.TERMINATED,
+            "{\"kind\":\"approved_tool_execution_replay_blocked\",\"summary\":\"blocked\",\"reply\":\"trace recovered reply\"}"
+        ));
+        List<AgentMessageDTO> messagesDelta = List.of(
+            createMessage("user", "delete this resume", 1),
+            createMessage("assistant", "trace recovered reply", 2)
+        );
+
+        when(approvalService.withLockedApproval(eq(approvalId), any())).thenAnswer(invocation ->
+            ((Function<AgentApprovalEntity, Object>) invocation.getArgument(1)).apply(approvalEntity)
+        );
+        when(approvalService.toDTO(approvalEntity)).thenReturn(approvedApproval);
+        when(sessionService.claimTurnForApprovedExecution(turnId))
+            .thenReturn(new AgentSessionService.ApprovedTurnClaim(true, reclaimedTurn));
+        when(traceService.readApprovedExecutionRecovery(traceEntity)).thenReturn(
+            new AgentTraceService.ApprovedExecutionRecovery(
+                AgentExecutionState.TERMINATED,
+                "trace recovered reply",
+                recoveredMemory,
+                null,
+                "approved_tool_execution_replay_blocked",
+                AgentTerminalState.DEGRADED,
+                AgentLoopStopReason.APPROVAL_REPLAY_BLOCKED,
+                false,
+                "为避免重复副作用，本次不再自动重放"
+            )
+        );
+        when(sessionService.completeTurn(
+            eq(turnId),
+            eq("trace recovered reply"),
+            eq(recoveredMemory),
+            eq(AgentCompletionMode.DEGRADED)
+        )).thenReturn(completedTurn);
+        when(traceService.getTurnTrace(turnId)).thenReturn(trace);
+        when(sessionService.getTurnMessages(turnId)).thenReturn(messagesDelta);
+
+        AgentChatResponse response = orchestrator.approveApproval(approvalId);
+
+        verify(sessionService).completeTurn(
+            eq(turnId),
+            eq("trace recovered reply"),
+            eq(recoveredMemory),
+            eq(AgentCompletionMode.DEGRADED)
+        );
+        assertThat(response.turnStatus()).isEqualTo(AgentTurnStatus.COMPLETED);
+        assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.DEGRADED);
+        assertThat(response.execution()).isNotNull();
+        assertThat(response.execution().stopReason()).isEqualTo(AgentLoopStopReason.APPROVAL_REPLAY_BLOCKED);
+        assertThat(response.execution().executedSteps()).isZero();
+    }
+
+    @Test
+    @DisplayName("should map legacy degraded failed approval recoveries to controlled failure reasons instead of unhandled error")
+    void shouldMapLegacyDegradedFailedApprovalRecoveriesToControlledFailureReasonsInsteadOfUnhandledError() {
+        String approvalId = "approval-approved-trace-legacy-failed";
+        String sessionId = "session-approved-trace-legacy-failed";
+        String turnId = "turn-approved-trace-legacy-failed";
+        AgentSessionEntity session = createSession(sessionId, "prepare interview", 42L);
+        AgentTurnEntity runningTurn = createTurn(turnId, session, AgentTurnStatus.RUNNING, null);
+        runningTurn.setLeaseExpiresAt(LocalDateTime.now().minusMinutes(1));
+        AgentTurnEntity reclaimedTurn = createTurn(turnId, session, AgentTurnStatus.RUNNING, null);
+        AgentStepTraceEntity traceEntity = new AgentStepTraceEntity();
+        traceEntity.setTurn(runningTurn);
+        traceEntity.setStatus(AgentExecutionState.FAILED);
+        AgentApprovalEntity approvalEntity = createApprovalEntity(approvalId, runningTurn, traceEntity, AgentApprovalStatus.APPROVED);
+        approvalEntity.setSelectedTool("delete_resume");
+        AgentApprovalDTO approvedApproval = new AgentApprovalDTO(
+            approvalId,
+            sessionId,
+            turnId,
+            "delete_resume",
+            AgentToolRiskLevel.REQUIRES_APPROVAL,
+            AgentApprovalStatus.APPROVED,
+            "approval required",
+            approvalEntity.getExpiresAt(),
+            LocalDateTime.now().minusMinutes(1),
+            approvalEntity.getCreatedAt()
+        );
+        AgentMemorySnapshot recoveredMemory = new AgentMemorySnapshot(
+            "prepare interview",
+            "approval_recovered",
+            List.of("fact-1"),
+            List.of("delete_resume"),
+            "manual follow-up"
+        );
+        AgentTurnEntity completedTurn = createCompletedTurn(turnId, session, AgentCompletionMode.DEGRADED);
+        List<AgentTraceDTO> trace = List.of(createTrace(
+            "delete_resume",
+            AgentExecutionState.FAILED,
+            "{\"kind\":\"approved_tool_execution_failure\",\"summary\":\"failed\",\"reply\":\"legacy degraded failed reply\",\"completionMode\":\"DEGRADED\"}"
+        ));
+        List<AgentMessageDTO> messagesDelta = List.of(
+            createMessage("user", "delete this resume", 1),
+            createMessage("assistant", "legacy degraded failed reply", 2)
+        );
+
+        when(approvalService.withLockedApproval(eq(approvalId), any())).thenAnswer(invocation ->
+            ((Function<AgentApprovalEntity, Object>) invocation.getArgument(1)).apply(approvalEntity)
+        );
+        when(approvalService.toDTO(approvalEntity)).thenReturn(approvedApproval);
+        when(sessionService.claimTurnForApprovedExecution(turnId))
+            .thenReturn(new AgentSessionService.ApprovedTurnClaim(true, reclaimedTurn));
+        when(traceService.readApprovedExecutionRecovery(traceEntity)).thenReturn(
+            new AgentTraceService.ApprovedExecutionRecovery(
+                AgentExecutionState.FAILED,
+                "legacy degraded failed reply",
+                recoveredMemory,
+                AgentCompletionMode.DEGRADED,
+                "approved_tool_execution_failure",
+                null,
+                null,
+                false,
+                null
+            )
+        );
+        when(sessionService.completeTurn(
+            eq(turnId),
+            eq("legacy degraded failed reply"),
+            eq(recoveredMemory),
+            eq(AgentCompletionMode.DEGRADED)
+        )).thenReturn(completedTurn);
+        when(traceService.getTurnTrace(turnId)).thenReturn(trace);
+        when(sessionService.getTurnMessages(turnId)).thenReturn(messagesDelta);
+
+        AgentChatResponse response = orchestrator.approveApproval(approvalId);
+
+        assertThat(response.execution()).isNotNull();
+        assertThat(response.execution().stopReason()).isEqualTo(AgentLoopStopReason.TOOL_EXECUTION_FAILED);
+        assertThat(response.execution().recoveryHint()).contains("检查输入与外部依赖");
+    }
+
+    @Test
+    @DisplayName("should record terminal metrics when approval trace recovery falls back to failTurn")
+    void shouldRecordTerminalMetricsWhenApprovalTraceRecoveryFallsBackToFailTurn() {
+        String approvalId = "approval-approved-trace-failover";
+        String sessionId = "session-approved-trace-failover";
+        String turnId = "turn-approved-trace-failover";
+        AgentSessionEntity session = createSession(sessionId, "prepare interview", 42L);
+        AgentTurnEntity runningTurn = createTurn(turnId, session, AgentTurnStatus.RUNNING, null);
+        runningTurn.setLeaseExpiresAt(LocalDateTime.now().minusMinutes(1));
+        AgentTurnEntity reclaimedTurn = createTurn(turnId, session, AgentTurnStatus.RUNNING, null);
+        AgentStepTraceEntity traceEntity = new AgentStepTraceEntity();
+        traceEntity.setTurn(runningTurn);
+        traceEntity.setStatus(AgentExecutionState.FAILED);
+        AgentApprovalEntity approvalEntity = createApprovalEntity(approvalId, runningTurn, traceEntity, AgentApprovalStatus.APPROVED);
+        approvalEntity.setSelectedTool("delete_resume");
+        AgentApprovalDTO approvedApproval = new AgentApprovalDTO(
+            approvalId,
+            sessionId,
+            turnId,
+            "delete_resume",
+            AgentToolRiskLevel.REQUIRES_APPROVAL,
+            AgentApprovalStatus.APPROVED,
+            "approval required",
+            approvalEntity.getExpiresAt(),
+            LocalDateTime.now().minusMinutes(1),
+            approvalEntity.getCreatedAt()
+        );
+        AgentMemorySnapshot recoveredMemory = createMemory();
+        AgentTurnEntity failedTurn = createTurn(turnId, session, AgentTurnStatus.FAILED, null);
+        BusinessException completionFailure = new BusinessException(ErrorCode.AGENT_TURN_EXPIRED, "turn closed during recovery");
+        List<AgentTraceDTO> trace = List.of(createTrace(
+            "delete_resume",
+            AgentExecutionState.FAILED,
+            "{\"kind\":\"approved_tool_execution_failure\",\"summary\":\"failed\",\"reply\":\"trace recovered reply\",\"completionMode\":\"DEGRADED\"}"
+        ));
+        List<AgentMessageDTO> messagesDelta = List.of(
+            createMessage("user", "delete this resume", 1),
+            createMessage("assistant", "trace recovered reply", 2)
+        );
+
+        when(approvalService.withLockedApproval(eq(approvalId), any())).thenAnswer(invocation ->
+            ((Function<AgentApprovalEntity, Object>) invocation.getArgument(1)).apply(approvalEntity)
+        );
+        when(approvalService.toDTO(approvalEntity)).thenReturn(approvedApproval);
+        when(sessionService.claimTurnForApprovedExecution(turnId))
+            .thenReturn(new AgentSessionService.ApprovedTurnClaim(true, reclaimedTurn));
+        when(traceService.readApprovedExecutionRecovery(traceEntity)).thenReturn(
+            new AgentTraceService.ApprovedExecutionRecovery(
+                AgentExecutionState.FAILED,
+                "trace recovered reply",
+                recoveredMemory,
+                AgentCompletionMode.DEGRADED,
+                "approved_tool_execution_failure",
+                AgentTerminalState.DEGRADED,
+                AgentLoopStopReason.TOOL_EXECUTION_FAILED,
+                false,
+                "工具执行失败；建议检查输入与外部依赖后，再重新发起。"
+            )
+        );
+        when(sessionService.completeTurn(
+            eq(turnId),
+            eq("trace recovered reply"),
+            eq(recoveredMemory),
+            eq(AgentCompletionMode.DEGRADED)
+        )).thenThrow(completionFailure);
+        when(sessionService.failTurn(turnId, completionFailure, "trace recovered reply"))
+            .thenReturn(failedTurn);
+        when(traceService.getTurnTrace(turnId)).thenReturn(trace);
+        when(sessionService.getTurnMessages(turnId)).thenReturn(messagesDelta);
+
+        AgentChatResponse response = orchestrator.approveApproval(approvalId);
+
+        verify(metricsService).recordTurnFailed();
+        ArgumentCaptor<AgentExecutionSummaryDTO> executionCaptor = ArgumentCaptor.forClass(AgentExecutionSummaryDTO.class);
+        verify(metricsService).recordExecutionSummary(executionCaptor.capture());
+        assertThat(response.execution()).isNotNull();
+        assertThat(response.execution().stopReason()).isEqualTo(AgentLoopStopReason.TOOL_EXECUTION_FAILED);
+        assertThat(executionCaptor.getValue().stopReason()).isEqualTo(AgentLoopStopReason.TOOL_EXECUTION_FAILED);
     }
 
     @Test
@@ -1363,7 +1760,8 @@ class AgentOrchestratorTest {
             replyCaptor.capture(),
             eq(memory),
             eq(memory),
-            eq(List.of(guardrailResult))
+            eq(List.of(guardrailResult)),
+            eq(AgentCompletionMode.DEGRADED)
         );
         assertThat(replyCaptor.getValue()).contains("我已经记录你的目标");
         assertThat(replyCaptor.getValue()).isNotEqualTo("{\"debugPayload\":{\"token\":\"abc\"}}");
@@ -1464,7 +1862,8 @@ class AgentOrchestratorTest {
             eq(toolResult),
             eq(updatedMemory),
             replyCaptor.capture(),
-            eq(List.of(guardrailResult))
+            eq(List.of(guardrailResult)),
+            eq(AgentCompletionMode.DEGRADED)
         );
         assertThat(replyCaptor.getValue()).isEqualTo(response.reply());
         assertThat(response.reply()).isNotEqualTo("{\"debugPayload\":{\"token\":\"abc\"}}");
@@ -1543,7 +1942,7 @@ class AgentOrchestratorTest {
             eq("tool_execution_failure"),
             eq("工具执行失败，已回退为直接回复")
         );
-        verify(traceService, never()).completeToolStep(any(), any(AgentToolResult.class), any(), anyString(), any());
+        verify(traceService, never()).completeToolStep(any(), any(AgentToolResult.class), any(), anyString(), any(), any());
         verify(memoryService, never()).updateAfterTool(any(), anyString(), any());
         verify(sessionService, never()).failTurn(anyString(), any(Exception.class));
         verify(metricsService).recordToolExecution("get_resume_profile", false);
@@ -1631,8 +2030,9 @@ class AgentOrchestratorTest {
         AgentChatResponse response = orchestrator.chat(sessionId, request);
 
         ArgumentCaptor<String> replyCaptor = ArgumentCaptor.forClass(String.class);
-        verify(traceService).failToolStep(
+        verify(traceService).failToolPostProcessingStep(
             eq(stepTrace),
+            eq(toolResult),
             any(Exception.class),
             replyCaptor.capture(),
             eq(memory),
@@ -1713,7 +2113,7 @@ class AgentOrchestratorTest {
         when(tool.execute(anyMap(), any())).thenReturn(toolResult);
         when(memoryService.updateAfterTool(memory, "get_resume_profile", toolResult)).thenReturn(updatedMemory);
         doThrow(new RuntimeException("trace boom"))
-            .when(traceService).completeToolStep(eq(stepTrace), eq(toolResult), eq(updatedMemory), anyString(), any());
+            .when(traceService).completeToolStep(eq(stepTrace), eq(toolResult), eq(updatedMemory), anyString(), any(), any());
         when(sessionService.completeTurn(
             eq(turnId),
             anyString(),
@@ -1726,8 +2126,9 @@ class AgentOrchestratorTest {
         AgentChatResponse response = orchestrator.chat(sessionId, request);
 
         ArgumentCaptor<String> replyCaptor = ArgumentCaptor.forClass(String.class);
-        verify(traceService).failToolStep(
+        verify(traceService).failToolPostProcessingStep(
             eq(stepTrace),
+            eq(toolResult),
             any(Exception.class),
             replyCaptor.capture(),
             eq(memory),
@@ -1850,6 +2251,7 @@ class AgentOrchestratorTest {
             .satisfies(error -> assertThat(((BusinessException) error).getCode())
                 .isEqualTo(ErrorCode.AGENT_TURN_EXPIRED.getCode()));
 
+        verify(traceService).recordUnhandledTurnFailure(eq(turnId), any(Exception.class), eq(memory), eq(memory));
         verify(sessionService).failTurn(eq(turnId), any(Exception.class));
         verify(metricsService).recordTurnFailed();
         verify(sessionService, never()).getSessionEntity(sessionId);
@@ -1938,7 +2340,8 @@ class AgentOrchestratorTest {
             eq(toolResult),
             eq(updatedMemory),
             eq("已提炼主要短板和练习优先级"),
-            eq(List.of())
+            eq(List.of()),
+            eq(AgentCompletionMode.SUCCESS)
         );
         verify(sessionService).completeTurn(
             eq(turnId),
@@ -2125,7 +2528,8 @@ class AgentOrchestratorTest {
             eq(toolResult),
             eq(updatedMemory),
             anyString(),
-            eq(List.of())
+            eq(List.of()),
+            isNull()
         );
         verify(promptService).buildDecisionUserPrompt(eq(firstContext), eq(1), anyString());
         verify(promptService).buildDecisionUserPrompt(eq(secondContext), eq(2), anyString());
@@ -2203,6 +2607,8 @@ class AgentOrchestratorTest {
         assertThat(execution.multiStepEnabled()).isFalse();
         assertThat(execution.stopReason()).isEqualTo(AgentLoopStopReason.DIRECT_REPLY);
         assertThat(execution.budgetStopReason()).isNull();
+        assertThat(execution.terminalState()).isEqualTo(AgentTerminalState.SUCCESS);
+        assertThat(execution.recoverable()).isFalse();
         assertThat(execution.executedSteps()).isEqualTo(1);
         assertThat(response.reply()).isEqualTo("先把一个项目亮点讲深，再补一轮追问。");
         assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.SUCCESS);
@@ -2433,6 +2839,9 @@ class AgentOrchestratorTest {
         assertThat(execution.multiStepEnabled()).isTrue();
         assertThat(execution.executedSteps()).isEqualTo(1);
         assertThat(execution.stopReason()).isEqualTo(AgentLoopStopReason.STEP_BUDGET_EXHAUSTED);
+        assertThat(execution.terminalState()).isEqualTo(AgentTerminalState.EXHAUSTED);
+        assertThat(execution.recoverable()).isFalse();
+        assertThat(execution.recoveryHint()).contains("新一轮");
         assertThat(replyCaptor.getValue()).contains("预算");
         assertThat(response.reply()).isEqualTo(replyCaptor.getValue());
         assertThat(response.memory()).isEqualTo(updatedMemory);
@@ -2521,6 +2930,10 @@ class AgentOrchestratorTest {
             List.of(),
             status,
             null,
+            null,
+            null,
+            false,
+            null,
             LocalDateTime.now()
         );
     }
@@ -2542,6 +2955,10 @@ class AgentOrchestratorTest {
             createMemory(),
             guardrailResults,
             status,
+            null,
+            null,
+            null,
+            false,
             null,
             LocalDateTime.now()
         );

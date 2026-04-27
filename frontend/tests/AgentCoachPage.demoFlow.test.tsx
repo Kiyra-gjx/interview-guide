@@ -465,6 +465,59 @@ describe('AgentCoachPage demo flow surface', () => {
     expect(screen.getByText('建议先看 guardrail 原因，再到 Trace Browser 对照 fallback 回复。')).toBeInTheDocument();
   });
 
+  it('explains replay-blocked approval recovery as a dedicated degraded narrative', async () => {
+    const session = createSession('session-replay-blocked', 'Replay Blocked Demo Session');
+    const turnId = 'turn-replay-blocked';
+    const detail: AgentTurnDetail = {
+      turn: {
+        ...createDegradedTurnSummary(turnId),
+        status: 'FAILED',
+        completionMode: null,
+        userMessagePreview: '为什么这次审批没有继续执行？',
+        assistantReplyPreview: '审批已通过，但上一次执行状态已不明确。为避免重复副作用，本次不再自动重放。',
+      },
+      messages: [
+        {
+          role: 'user',
+          content: '为什么这次审批没有继续执行？',
+          messageOrder: 1,
+          createdAt: '2026-04-26T12:10:00',
+        },
+        {
+          role: 'assistant',
+          content: '审批已通过，但上一次执行状态已不明确。为避免重复副作用，本次不再自动重放。',
+          messageOrder: 2,
+          createdAt: '2026-04-26T12:10:03',
+        },
+      ],
+      traceSteps: [
+        {
+          ...createSuccessTraceStep(),
+          status: 'TERMINATED',
+          terminalState: 'DEGRADED',
+          stopReason: 'APPROVAL_REPLAY_BLOCKED',
+          recoverable: false,
+          recoveryHint: '为避免重复副作用，当前 turn 不会自动重放；请确认外部结果后再重新发起。',
+          observationSummary: '审批通过后执行状态已不明确，为避免重复副作用，本次不再自动重放。',
+        },
+      ],
+      approvals: [],
+      guardrailResults: [],
+    };
+
+    mockedAgentApi.createSession.mockResolvedValue(session);
+    mockedAgentApi.getSession.mockResolvedValue(session);
+    mockedAgentApi.getMemory.mockResolvedValue(createMemorySnapshot());
+    mockedAgentApi.getTurns.mockResolvedValue([createDegradedTurnSummary(turnId)]);
+    mockedAgentApi.getTurnDetail.mockResolvedValue(detail);
+
+    await renderPage();
+    await createSessionThroughUi('Replay Blocked Demo Session');
+
+    expect(await screen.findByText('本轮已阻止自动重放')).toBeInTheDocument();
+    expect(screen.getAllByText('为避免重复副作用，当前 turn 不会自动重放；请确认外部结果后再重新发起。').length).toBeGreaterThan(0);
+  });
+
   it('keeps the narrative evidence scoped to the selected historical turn', async () => {
     const session = createSession('session-history', 'History Demo Session');
     const latestTurnId = 'turn-latest-demo';

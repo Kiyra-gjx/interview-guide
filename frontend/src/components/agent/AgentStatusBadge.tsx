@@ -2,15 +2,16 @@ import type {
   AgentApprovalStatus,
   AgentCompletionMode,
   AgentExecutionState,
+  AgentTerminalState,
   AgentToolRiskLevel,
   AgentTurnStatus,
 } from '../../types/agent';
 
-type AgentBadgeKind = 'turn' | 'execution' | 'completion' | 'approval' | 'risk';
+type AgentBadgeKind = 'turn' | 'execution' | 'completion' | 'terminal' | 'approval' | 'risk';
 
 interface AgentStatusBadgeProps {
   kind: AgentBadgeKind;
-  value: AgentTurnStatus | AgentExecutionState | AgentCompletionMode | AgentApprovalStatus | AgentToolRiskLevel | null | undefined;
+  value: AgentTurnStatus | AgentExecutionState | AgentCompletionMode | AgentTerminalState | AgentApprovalStatus | AgentToolRiskLevel | null | undefined;
   className?: string;
 }
 
@@ -47,6 +48,8 @@ function resolveBadgeMeta(kind: AgentBadgeKind, value: AgentStatusBadgeProps['va
       return executionStateMeta(value as AgentExecutionState | null | undefined);
     case 'completion':
       return completionModeMeta(value as AgentCompletionMode | null | undefined);
+    case 'terminal':
+      return terminalStateMeta(value as AgentTerminalState | null | undefined);
     case 'approval':
       return approvalStatusMeta(value as AgentApprovalStatus | null | undefined);
     case 'risk':
@@ -89,6 +92,8 @@ function executionStateMeta(value: AgentExecutionState | null | undefined): Badg
       return badge('运行中', 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300');
     case 'WAITING_APPROVAL':
       return badge('审批中', 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300');
+    case 'TERMINATED':
+      return badge('已终止', 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200');
     case 'COMPLETED':
       return badge('已完成', 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300');
     case 'FAILED':
@@ -111,6 +116,26 @@ function completionModeMeta(value: AgentCompletionMode | null | undefined): Badg
       return badge('等待审批', 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300');
     default:
       return badge('未收口', 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300');
+  }
+}
+
+/**
+ * 解析统一终态徽标。
+ */
+function terminalStateMeta(value: AgentTerminalState | null | undefined): BadgeMeta {
+  switch (value) {
+    case 'SUCCESS':
+      return badge('终态: 成功', 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300');
+    case 'DEGRADED':
+      return badge('终态: 降级', 'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300');
+    case 'EXHAUSTED':
+      return badge('终态: 耗尽', 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300');
+    case 'WAITING_APPROVAL':
+      return badge('终态: 待审批', 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300');
+    case 'FAILED':
+      return badge('终态: 失败', 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300');
+    default:
+      return badge('终态: 未知', 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300');
   }
 }
 

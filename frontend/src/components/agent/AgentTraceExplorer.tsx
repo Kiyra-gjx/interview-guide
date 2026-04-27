@@ -137,12 +137,31 @@ export default function AgentTraceExplorer({ detail, loading = false }: AgentTra
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">状态信息</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <AgentStatusBadge kind="execution" value={selectedStep.status} />
+                    {selectedStep.terminalState && (
+                      <AgentStatusBadge kind="terminal" value={selectedStep.terminalState} />
+                    )}
                     {selectedStep.toolOutput?.kind ? (
                       <span className="inline-flex items-center rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
                         {selectedStep.toolOutput.kind}
                       </span>
                     ) : null}
                   </div>
+                  {(selectedStep.stopReason || selectedStep.recoveryHint) && (
+                    <div className="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                      {selectedStep.stopReason && (
+                        <p>
+                          <span className="font-semibold text-slate-900 dark:text-white">停止原因：</span>
+                          {selectedStep.stopReason}
+                        </p>
+                      )}
+                      {selectedStep.recoveryHint && (
+                        <p>
+                          <span className="font-semibold text-slate-900 dark:text-white">恢复提示：</span>
+                          {selectedStep.recoveryHint}
+                        </p>
+                      )}
+                    </div>
+                  )}
                   {selectedStep.errorMessage && (
                     <div className="mt-4 flex items-start gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
                       <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />

@@ -131,6 +131,45 @@ export function buildExecutionNarrative(
   const primaryApproval = detail.approvals[0] ?? approvals.find((approval) => approval.turnId === detail.turn.turnId) ?? null;
   const turnEvidence = resolveTurnEvidence(detail, approvals);
   const executedTool = turnEvidence.executedTool;
+  const terminalStep = resolveTerminalTraceStep(detail.traceSteps);
+  const terminalState = terminalStep?.terminalState ?? null;
+  const terminalStopReason = terminalStep?.stopReason ?? null;
+  const recoveryHint = terminalStep?.recoveryHint ?? null;
+
+  if (terminalState === 'WAITING_APPROVAL') {
+    return {
+      tone: 'warning',
+      title: '本轮已停在等待审批',
+      summary: primaryApproval?.reason || primaryGuardrail?.reason || recoveryHint || '高风险动作需要人工确认后才会继续。',
+      evidence: buildEvidenceLines(turnEvidence),
+      nextStep: recoveryHint || '先在审批队列做决定，再刷新工作台观察 turn 与 trace 的恢复结果。',
+    };
+  }
+
+  if (terminalState === 'FAILED') {
+    return {
+      tone: 'danger',
+      title: '本轮执行失败',
+      summary: detail.turn.errorMessage
+        || terminalStep?.errorMessage
+        || recoveryHint
+        || '执行没有正常收口，需要回到 trace 对照失败位置。',
+      evidence: buildEvidenceLines(turnEvidence),
+      nextStep: recoveryHint || '建议先看错误信息，再到 Trace Browser 对照工具输入、原始输出和 memory 快照。',
+    };
+  }
+
+  if (terminalState === 'EXHAUSTED') {
+    return {
+      tone: 'warning',
+      title: '本轮因预算边界而停止',
+      summary: resolveExhaustedSummary(terminalStopReason, recoveryHint),
+      evidence: buildEvidenceLines(turnEvidence),
+      nextStep: recoveryHint || '建议把问题拆小，或在下一轮带着更明确目标继续。',
+    };
+  }
+
+  const shouldTreatAsDegradedTerminal = terminalState === 'DEGRADED';
 
   // 先处理等待审批和显式失败，这两类状态比 completionMode 更需要优先解释。
   if (detail.turn.status === 'WAITING_APPROVAL' || detail.turn.completionMode === 'WAITING_APPROVAL') {
@@ -143,7 +182,7 @@ export function buildExecutionNarrative(
     };
   }
 
-  if (detail.turn.status === 'FAILED' || detail.turn.errorMessage) {
+  if (!shouldTreatAsDegradedTerminal && (detail.turn.status === 'FAILED' || detail.turn.errorMessage)) {
     return {
       tone: 'danger',
       title: '本轮执行失败',
@@ -156,7 +195,7 @@ export function buildExecutionNarrative(
   }
 
   // 其次处理降级收口，优先区分 guardrail 和审批未通过两种最常见路径。
-  if (detail.turn.completionMode === 'DEGRADED') {
+  if (shouldTreatAsDegradedTerminal || detail.turn.completionMode === 'DEGRADED') {
     if (primaryGuardrail) {
       return {
         tone: 'warning',
@@ -177,12 +216,39 @@ export function buildExecutionNarrative(
         nextStep: '建议先看审批队列，再到 Trace Browser 对照等待审批后的终态记录。',
       };
     }
+    if (terminalStopReason === 'APPROVAL_REJECTED' || terminalStopReason === 'APPROVAL_EXPIRED') {
+      return {
+        tone: 'warning',
+        title: terminalStopReason === 'APPROVAL_REJECTED' ? '本轮已拒绝高风险动作' : '本轮审批已过期',
+        summary: recoveryHint || '系统没有继续推进当前高风险动作，而是显式终止了本轮执行。',
+        evidence: buildEvidenceLines(turnEvidence),
+        nextStep: recoveryHint || '建议重新发起新一轮请求，而不是继续依赖旧审批状态。',
+      };
+    }
+    if (terminalStopReason === 'APPROVAL_REPLAY_BLOCKED') {
+      return {
+        tone: 'warning',
+        title: '本轮已阻止自动重放',
+        summary: recoveryHint || '系统为了避免重复副作用，主动终止了这次审批恢复。',
+        evidence: buildEvidenceLines(turnEvidence),
+        nextStep: recoveryHint || '建议先确认外部系统结果，再决定是否重新发起新的高风险请求。',
+      };
+    }
+    if (terminalStopReason === 'APPROVAL_RESUME_FAILED') {
+      return {
+        tone: 'warning',
+        title: '本轮审批恢复准备失败',
+        summary: recoveryHint || '审批虽然通过了，但恢复执行前的准备步骤没有成功完成。',
+        evidence: buildEvidenceLines(turnEvidence),
+        nextStep: recoveryHint || '建议先检查冻结输入和工具配置，再重新发起新的执行请求。',
+      };
+    }
     return {
       tone: 'warning',
       title: '本轮走了保守降级路径',
-      summary: detail.turn.assistantReplyPreview || '系统没有直接失败，而是返回了更保守的可展示结果。',
+      summary: recoveryHint || detail.turn.assistantReplyPreview || '系统没有直接失败，而是返回了更保守的可展示结果。',
       evidence: buildEvidenceLines(turnEvidence),
-      nextStep: '建议继续到 Trace Browser 查看是否存在未显式暴露到页面的降级原因。',
+      nextStep: recoveryHint || '建议继续到 Trace Browser 查看是否存在未显式暴露到页面的降级原因。',
     };
   }
 
@@ -209,6 +275,30 @@ export function buildExecutionNarrative(
     evidence: buildEvidenceLines(turnEvidence),
     nextStep: '建议先刷新工作台，再根据状态继续查看用户视角或 Trace Browser。',
   };
+}
+
+/**
+ * 优先取当前 turn 最后一条带终态语义的 trace。
+ * 历史数据可能还没有 terminalState 字段，因此这里保留回退逻辑。
+ */
+function resolveTerminalTraceStep(traceSteps: AgentTraceStep[]): AgentTraceStep | null {
+  if (traceSteps.length === 0) {
+    return null;
+  }
+  return [...traceSteps].reverse().find((step) => step.terminalState != null) ?? traceSteps[traceSteps.length - 1];
+}
+
+function resolveExhaustedSummary(
+  stopReason: AgentTraceStep['stopReason'],
+  recoveryHint: string | null,
+): string {
+  if (stopReason === 'TIME_BUDGET_EXHAUSTED') {
+    return recoveryHint || '本轮因为时间预算耗尽而主动停止，不是异常崩溃。';
+  }
+  if (stopReason === 'TOKEN_BUDGET_EXHAUSTED') {
+    return recoveryHint || '本轮因为模型预算耗尽而主动停止，不是异常崩溃。';
+  }
+  return recoveryHint || '本轮因为步数预算耗尽而主动停止，不是异常崩溃。';
 }
 
 /**
