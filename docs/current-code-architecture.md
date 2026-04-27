@@ -258,7 +258,7 @@ sequenceDiagram
 - Tool 调用前后都落 trace，Agent 前端可以读取 trace/memory/approval，并直接消费统一的 `toolOutput` 做可观测界面。
 - 当前已注册的 Tool 主要是只读型能力：读取简历画像、检索知识库。
 - 当前默认仍是单步 Agent；只有显式传入 `runtimeConfig.multiStepEnabled=true` 时，`AgentOrchestrator` 才会进入受控多步 loop。
-- 当前已落地第一版多步预算：`maxSteps`、`maxDurationMillis`、`maxEstimatedModelTokens`，并通过响应里的 `execution` 摘要与 `bounded_loop` trace 暴露停止原因。
+- 当前已落地第一版多步预算：`maxSteps`、`maxDurationMillis`、`maxEstimatedModelTokens`，并通过响应里的 `execution` 摘要与 `bounded_loop` trace 暴露停止原因；其中 `execution.stopReason` 表达真实收口分支，`execution.budgetStopReason` 单独表达预算是否已命中。
 
 ### 工作台读模型链路
 

@@ -11,6 +11,7 @@
 - 已在后端引入显式 `runtimeConfig` 开关，默认仍保持单步执行
 - 已落地第一版 bounded loop 与三类预算：`maxSteps`、`maxDurationMillis`、`maxEstimatedModelTokens`
 - 已补齐 `execution` 执行摘要、预算耗尽后的降级回复，以及 `bounded_loop` trace / metrics
+- `execution` 现已区分“本轮如何收口”的 `stopReason` 与“是否命中预算边界”的 `budgetStopReason`，避免把终态语义和预算语义混在一起
 - 当前仍需继续补强预算语义解释、固定样例证据，以及与后续 S5-02 / S5-03 的边界衔接
 
 ## 1. 任务目标
