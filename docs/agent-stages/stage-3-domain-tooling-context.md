@@ -3,7 +3,7 @@
 ## 0. 阶段状态
 - 阶段状态：已完成
 - 已完成任务：S3-01、S3-02、S3-03
-- 后续承接任务：Stage 4 已完成，当前主线已进入 [S5-01：Bounded Loop and Budget Control](../agent-tasks/s5-task-01-bounded-loop-and-budget-control.md)
+- 后续承接任务：Stage 4 已完成，S5-01、S5-02 也已完成，下一步建议推进 [S5-03：Handoff and Subagent Boundary](../agent-tasks/s5-task-03-handoff-and-subagent-boundary.md)
 - 前置条件：Stage 2 完成
 
 ## 0.1 当前进展

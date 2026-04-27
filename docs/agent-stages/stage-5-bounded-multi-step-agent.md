@@ -2,8 +2,8 @@
 
 ## 0. 阶段状态
 - 阶段状态：进行中
-- 已完成任务：无
-- 当前任务：[S5-01：Bounded Loop and Budget Control](../agent-tasks/s5-task-01-bounded-loop-and-budget-control.md)
+- 已完成任务：S5-01、S5-02
+- 当前任务：[S5-03：Handoff and Subagent Boundary](../agent-tasks/s5-task-03-handoff-and-subagent-boundary.md)
 - 前置条件：Stage 4 完成
 
 ## 1. 阶段目标
@@ -41,7 +41,8 @@
 - 已支持通过 `runtimeConfig.multiStepEnabled=true` 显式开启 bounded multi-step loop，默认仍保持单步执行
 - 已支持 `maxSteps`、`maxDurationMillis`、`maxEstimatedModelTokens` 三类预算
 - 已支持预算耗尽后的降级收口、`execution` 执行摘要，以及 `bounded_loop` trace
-- 这些能力当前仍属于 S5-01 的第一版骨架，不代表 Stage 5 已完成
+- 已支持统一的 `terminalState / stopReason / recoverable / recoveryHint` 终态契约，并对齐审批恢复、trace、metrics 与工作台叙事
+- 这些能力当前已覆盖 S5-01 与 S5-02，不代表 Stage 5 已完成
 
 ## 6. 不在本阶段范围内
 

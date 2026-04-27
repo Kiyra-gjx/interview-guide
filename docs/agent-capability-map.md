@@ -40,7 +40,7 @@
 
 ## Observability
 
-- 当前状态：Stage 2 已完成，S2-01、S2-02、S2-03、S2-04 已建立 trace、memory、metrics、guardrail、approval 与 eval 基线；S3-03 进一步让 trace / API 暴露统一 `toolOutput` 与 normalization 元数据；S4 已把这些数据面接到 turn 级工作台与 demo flow 中；S5-01 又补上了 `execution` 执行摘要、预算停止原因与 `bounded_loop` trace
+- 当前状态：Stage 2 已完成，S2-01、S2-02、S2-03、S2-04 已建立 trace、memory、metrics、guardrail、approval 与 eval 基线；S3-03 进一步让 trace / API 暴露统一 `toolOutput` 与 normalization 元数据；S4 已把这些数据面接到 turn 级工作台与 demo flow 中；S5-01 / S5-02 又补上了 `execution` 执行摘要、预算停止原因、`terminalState / stopReason / recoverable / recoveryHint` 终态契约，以及 `bounded_loop` / approval recovery trace
 - 完成标准：能清楚解释一轮执行为何成功、降级、被拒绝或失败，并具备稳定指标入口
 - 对应 stage/task：
   - [Stage 2：Safe and Observable Runtime](./agent-stages/stage-2-observability-guardrails.md)
@@ -77,7 +77,7 @@
 
 ## Controlled Loop
 
-- 当前状态：S5-01 进行中。后端已支持显式开启的 bounded multi-step loop、`maxSteps / maxDurationMillis / maxEstimatedModelTokens` 预算、预算耗尽降级收口、`execution` 执行摘要，以及 `bounded_loop` trace；但 stop condition 细化、失败语义扩展与 handoff / subagent 边界仍未完成
+- 当前状态：S5-01 与 S5-02 已完成。系统已支持显式开启的 bounded multi-step loop、`maxSteps / maxDurationMillis / maxEstimatedModelTokens` 预算、预算耗尽降级收口、`execution` 执行摘要，以及统一的 `terminalState / stopReason / recoverable / recoveryHint` 终态语义；当前主要剩余 handoff / subagent 边界治理
 - 完成标准：多步执行具备预算、停止条件、失败语义与 handoff 边界，并仍处于可观测、可约束范围内
 - 对应 stage/task：
   - [Stage 5：Bounded Multi-Step Agent](./agent-stages/stage-5-bounded-multi-step-agent.md)
@@ -88,5 +88,5 @@
 ## 总结
 
 - “它是什么”：见 [Agent Overview](./agent-overview.md)
-- “它还差什么”：当前主要缺口集中在受控多步执行的预算语义、停止条件与边界收口
-- “它接下来做什么”：当前主线已进入 [S5-01：Bounded Loop and Budget Control](./agent-tasks/s5-task-01-bounded-loop-and-budget-control.md)
+- “它还差什么”：当前主要缺口集中在 handoff / subagent 边界治理，以及多步固定样例证据继续补强
+- “它接下来做什么”：当前建议推进 [S5-03：Handoff and Subagent Boundary](./agent-tasks/s5-task-03-handoff-and-subagent-boundary.md)

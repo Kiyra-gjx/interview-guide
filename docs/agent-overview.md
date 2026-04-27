@@ -67,16 +67,18 @@ Level B 不是最低完成线，而是在 Level A 之上的增强层。
 - S3-03 已完成
 - S4-01 已完成
 - S4-02 已完成
-- 当前进行中任务是 [S5-01：Bounded Loop and Budget Control](./agent-tasks/s5-task-01-bounded-loop-and-budget-control.md)
+- S5-01 已完成
+- S5-02 已完成
+- 下一步任务是 [S5-03：Handoff and Subagent Boundary](./agent-tasks/s5-task-03-handoff-and-subagent-boundary.md)
 
-这意味着项目已经建立了单 Agent 的执行基础、安全可观测运行时基线、首批 interview domain 工具能力、统一 context assembly 基线、统一的 tool output 消费视图、turn 级 Agent Workbench，以及可复现的 demo flow 收口，已经达到完整单 Agent（Level A）。当前正在进入 Stage 5，开始补受控多步执行的增强层。
+这意味着项目已经建立了单 Agent 的执行基础、安全可观测运行时基线、首批 interview domain 工具能力、统一 context assembly 基线、统一的 tool output 消费视图、turn 级 Agent Workbench，以及可复现的 demo flow 收口，已经达到完整单 Agent（Level A）。当前已进入 Stage 5，并完成了多步预算骨架与终态语义收口两项前置任务，开始转向 handoff / subagent 边界治理。
 
 ## 它还差什么
 
-从顶层看，当前最低完成线已经达到，剩余工作集中在 Stage 5 增强层：
+从顶层看，当前最低完成线已经达到；Stage 5 中已完成 S5-01 与 S5-02，剩余正式任务集中在：
 
-- S5-01：把多步 loop、预算约束和执行摘要收口成稳定且可解释的运行时语义
-- S5-02 / S5-03：继续补停止条件、失败语义，以及 handoff / subagent 边界
+- S5-03：补 handoff / subagent 的引入边界、适用场景与治理规则
+- 多步固定样例与 benchmark 证据继续补强，用来验证 Stage 5 机制收益
 
 ## 文档分工
 

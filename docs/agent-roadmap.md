@@ -4,8 +4,8 @@
 
 - 当前整体状态：Stage 4 已完成，Stage 5 进行中
 - 已完成阶段：Stage 1、Stage 2、Stage 3、Stage 4
-- 当前已完成任务：S3-01、S3-02、S3-03、S4-01、S4-02
-- 当前进行中任务：[S5-01：Bounded Loop and Budget Control](./agent-tasks/s5-task-01-bounded-loop-and-budget-control.md)
+- 当前已完成任务：S3-01、S3-02、S3-03、S4-01、S4-02、S5-01、S5-02
+- 当前建议推进任务：[S5-03：Handoff and Subagent Boundary](./agent-tasks/s5-task-03-handoff-and-subagent-boundary.md)
 - 当前最低完成线定义：完成 Stage 4 即达到完整单 Agent（Level A）
 - 更高一级目标：Stage 5 是受控多步 Agent（Level B），不是最低完成线
 
@@ -88,19 +88,20 @@
   - handoff / subagent 仍处于受控边界内
   - 达到 Level B
 - 当前状态：进行中
-- 当前完成情况：S5-01 已启动并落地第一版受控多步执行骨架，包括显式 `runtimeConfig`、`maxSteps / maxDurationMillis / maxEstimatedModelTokens` 预算、`execution` 执行摘要，以及预算耗尽时的 `bounded_loop` trace 收口
-- 说明：Stage 5 是增强目标，不是最低完成线；当前仍处于 S5-01 进行中阶段，S5-02 / S5-03 尚未开始
+- 当前完成情况：S5-01 已完成，已落地显式 `runtimeConfig`、`maxSteps / maxDurationMillis / maxEstimatedModelTokens` 预算、`execution` 执行摘要，以及预算耗尽时的 `bounded_loop` trace / metrics 收口
+- 当前完成情况：S5-02 已完成，已引入 `terminalState / stopReason / recoverable / recoveryHint` 统一终态契约，并对齐审批恢复、trace、metrics、workbench 与 demo narrative
+- 说明：Stage 5 是增强目标，不是最低完成线；当前剩余正式任务是 S5-03 的 handoff / subagent 边界治理
 - 参考文档：[Stage 5：Bounded Multi-Step Agent](./agent-stages/stage-5-bounded-multi-step-agent.md)
 
 ## 当前推荐推进任务
 
-当前建议继续推进 [S5-01：Bounded Loop and Budget Control](./agent-tasks/s5-task-01-bounded-loop-and-budget-control.md)。
+当前建议推进 [S5-03：Handoff and Subagent Boundary](./agent-tasks/s5-task-03-handoff-and-subagent-boundary.md)。
 
 推荐原因：
 
 - Stage 4 已完成，项目已经达到完整单 Agent（Level A），具备继续做受控多步增强的前提
-- 当前已经落地的是 S5-01 的第一版后端骨架，接下来需要继续补齐预算解释、收口证据与边界验证
-- S5-02 / S5-03 依赖 S5-01 的预算与循环语义先稳定下来，再继续推进更合理
+- S5-01 与 S5-02 已经把多步预算骨架和统一终态契约收口完毕，handoff / subagent 可以开始建立明确边界
+- 在没有把委派收益、恢复规则与治理约束讲清楚之前，不应继续引入更强自治能力
 
 ## 评测与证据原则
 

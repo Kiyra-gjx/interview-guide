@@ -2,9 +2,17 @@
 
 ## 0. 任务状态
 
-- 状态：未开始
+- 状态：已完成
 - 当前定位：Stage 5 的终态语义任务
-- 前置依赖：S5-01 已完成
+- 前置依赖：S5-01 已完成并提供稳定的 `execution` / budget 基线
+
+## 0.1 当前进展
+
+- 已引入 `AgentTerminalState` 与 `AgentTerminalSemantics`，把 `completionMode + stopReason` 映射成统一的 `terminalState / recoverable / recoveryHint`
+- 已把 `execution` 摘要、trace DTO、审批恢复读取结果与前端类型统一扩展为终态语义契约
+- 已细化 `APPROVAL_REJECTED / APPROVAL_EXPIRED / APPROVAL_REPLAY_BLOCKED / APPROVAL_RESUME_FAILED / TOOL_POST_PROCESSING_FAILED / UNHANDLED_ERROR` 等 stop reason
+- 已把预算耗尽、审批拒绝、审批过期、恢复阻断与未处理异常区分为受控终止、降级收口或失败终态，而不是混成单一失败路径
+- 已让 metrics、workbench trace explorer 与 demo narrative 统一消费同一套终态字段
 
 ## 1. 任务目标
 

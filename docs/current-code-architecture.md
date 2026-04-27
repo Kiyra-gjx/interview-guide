@@ -1,6 +1,6 @@
 # 当前代码架构图与设计细节
 
-> 更新时间：2026-04-26
+> 更新时间：2026-04-27
 >
 > 图形工具：Mermaid
 >
@@ -258,7 +258,7 @@ sequenceDiagram
 - Tool 调用前后都落 trace，Agent 前端可以读取 trace/memory/approval，并直接消费统一的 `toolOutput` 做可观测界面。
 - 当前已注册的 Tool 主要是只读型能力：读取简历画像、检索知识库。
 - 当前默认仍是单步 Agent；只有显式传入 `runtimeConfig.multiStepEnabled=true` 时，`AgentOrchestrator` 才会进入受控多步 loop。
-- 当前已落地第一版多步预算：`maxSteps`、`maxDurationMillis`、`maxEstimatedModelTokens`，并通过响应里的 `execution` 摘要与 `bounded_loop` trace 暴露停止原因；其中 `execution.stopReason` 表达真实收口分支，`execution.budgetStopReason` 单独表达预算是否已命中。
+- 当前已落地受控多步执行的前两层语义：`maxSteps`、`maxDurationMillis`、`maxEstimatedModelTokens` 三类预算，以及 `terminalState / stopReason / recoverable / recoveryHint` 统一终态契约；其中 `execution.stopReason` 表达真实收口分支，`execution.budgetStopReason` 单独表达预算是否已命中，`execution.terminalState` 再负责给 UI / metrics 提供稳定聚合语义。
 
 ### 工作台读模型链路
 
@@ -318,23 +318,23 @@ flowchart TD
     D -->|是| E{"trace.status"}
 
     E -->|WAITING_APPROVAL / null| ET["EXECUTE_TOOL<br/>读取冻结 toolInput 后真正执行一次"]
-    E -->|COMPLETED / FAILED| FT["FINALIZE_FROM_TRACE<br/>不重放工具，只从 trace 恢复结果"]
+    E -->|COMPLETED / FAILED / TERMINATED| FT["FINALIZE_FROM_TRACE<br/>不重放工具，只从 trace 恢复结果"]
     E -->|RUNNING| BR["BLOCK_REPLAY<br/>禁止自动重放，避免重复副作用"]
 
     ET --> ET2["markApprovedToolExecutionStarted()"]
     ET2 --> ET3{"执行结果"}
     ET3 -->|成功| ETC["completeApprovedToolStep()<br/>completeTurn(SUCCESS / DEGRADED)"]
-    ET3 -->|失败| ETF["failApprovedToolStep()<br/>completeTurn(DEGRADED)"]
+    ET3 -->|失败| ETF["failApprovedToolStep() / failApprovedToolPostProcessingStep()<br/>completeTurn(DEGRADED)"]
 
     FT --> FTC["readApprovedExecutionRecovery()<br/>completeTurn(from trace)"]
-    BR --> BRC["failApprovedToolStep()<br/>completeTurn(DEGRADED)"]
+    BR --> BRC["markApprovedToolReplayBlocked()<br/>completeTurn(DEGRADED)"]
 ```
 
 ### 批准后的三种恢复语义
 
 - `EXECUTE_TOOL`：trace 还停在 `WAITING_APPROVAL`，说明工具尚未真正开始执行；批准后可以用冻结的 `toolInput` 与 `latestUserMessage` 安全执行一次。
-- `FINALIZE_FROM_TRACE`：trace 已经是 `COMPLETED` 或 `FAILED`，说明工具结果或失败已经落盘；这时不重放工具，只把 turn 按 trace 恢复到最终结果。
-- `BLOCK_REPLAY`：trace 还是 `RUNNING`，说明之前可能已经开始执行，但当前请求无法确认副作用是否发生；为避免重复执行，系统会阻止自动重放并降级收口。
+- `FINALIZE_FROM_TRACE`：trace 已经是 `COMPLETED`、`FAILED` 或 `TERMINATED`，说明工具结果、受控终止或失败已经落盘；这时不重放工具，只把 turn 按 trace 恢复到最终结果。
+- `BLOCK_REPLAY`：trace 还是 `RUNNING`，说明之前可能已经开始执行，但当前请求无法确认副作用是否发生；为避免重复执行，系统会显式标记 `APPROVAL_REPLAY_BLOCKED` 并降级收口。
 - `resolveApprovalTransition(...)` 只处理“当前请求没有拿到继续执行 claim”的情况：要么审批已经在本次调用里直接终结，要么当前请求只能返回当前快照，不能继续推进工具执行。
 
 ## 6. 具体设计细节
@@ -401,8 +401,8 @@ flowchart TD
 2. AI 密集型长耗时步骤基本都被拆到 Redis Stream，避免接口长时间阻塞。
 3. 面试模块是“Redis 过程态 + PostgreSQL 恢复态”的混合模型。
 4. 知识库模块把“上传向量化”和“检索问答”拆成两条链路，分别优化。
-5. Agent 模块是当前最复杂的子系统，已经具备 guardrail、approval、trace、memory、turn lease、统一的 tool output normalization，以及 Stage 4 workbench 只读聚合层。
-6. Stage 5 的第一步已经启动，但仍保持“显式开启、默认单步”的保守策略：多步 loop 不会默认接管所有请求，预算耗尽时也会通过降级回复和 trace 显式收口，而不是继续无限执行。
+5. Agent 模块是当前最复杂的子系统，已经具备 guardrail、approval、trace、memory、turn lease、统一的 tool output normalization，以及 Stage 4 workbench 只读聚合层；S5-02 又把终态语义统一收口到 `terminalState / stopReason / recoverable / recoveryHint`。
+6. Stage 5 的前两步已经落地，但仍保持“显式开启、默认单步”的保守策略：多步 loop 不会默认接管所有请求，预算耗尽、审批拒绝、恢复阻断与未处理异常都会通过 trace、execution 与前端 narrative 显式收口，而不是继续无限执行或混成单一失败态。
 
 ## 7. 阅读源码时的推荐入口
 

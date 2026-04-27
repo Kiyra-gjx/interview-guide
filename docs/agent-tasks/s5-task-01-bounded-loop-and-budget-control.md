@@ -2,7 +2,7 @@
 
 ## 0. 任务状态
 
-- 状态：进行中
+- 状态：已完成
 - 当前定位：Stage 5 的多步执行入口任务
 - 前置依赖：Stage 4 完成
 
@@ -12,7 +12,7 @@
 - 已落地第一版 bounded loop 与三类预算：`maxSteps`、`maxDurationMillis`、`maxEstimatedModelTokens`
 - 已补齐 `execution` 执行摘要、预算耗尽后的降级回复，以及 `bounded_loop` trace / metrics
 - `execution` 现已区分“本轮如何收口”的 `stopReason` 与“是否命中预算边界”的 `budgetStopReason`，避免把终态语义和预算语义混在一起
-- 当前仍需继续补强预算语义解释、固定样例证据，以及与后续 S5-02 / S5-03 的边界衔接
+- 当前这项入口任务已完成；后续固定样例证据与 handoff / subagent 边界衔接转入 Stage 5 后续任务继续补强
 
 ## 1. 任务目标
 
