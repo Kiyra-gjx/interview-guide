@@ -74,6 +74,7 @@ powershell -ExecutionPolicy Bypass -File scripts/init-agent-evidence-suite.ps1 `
 ## 7. 当前已填实的证据包
 
 - `stage-2-fixed-regression`：已有报告、diff、baseline 归档
+- `stage-3-context-set`：已有固定样本、真实 report、diff、baseline 与可写简历句子
 - `stage-5-benchmark`：已有固定样本、原始结果、summary、resume pack、报告与 diff 归档
 
 ## 8. 使用原则

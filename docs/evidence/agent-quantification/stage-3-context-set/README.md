@@ -25,6 +25,15 @@
 - `reports/`：JSON / Markdown / diff 报告
 - `traces/`：代表性 section 截图、API 输出或 workbench 观察结果
 
+## 当前基线
+
+- 固定样本数：`10`
+- 已归档报告：
+  - `reports/stage-3-context-set-report.json`
+  - `reports/stage-3-context-set-report.md`
+  - `reports/stage-3-context-set-diff.md`
+- 当前 baseline：`baselines/stage-3-context-set-baseline-2026-04-28.json`
+
 ## 当前边界
 
 - 这套样本关注的是 `budget / section status / requestBroken`

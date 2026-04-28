@@ -102,3 +102,15 @@ tasks.register('agentStage5Benchmark', Test) {
         includeTestsMatching 'interview.guide.modules.agent.eval.AgentStage5BenchmarkEvalTest'
     }
 }
+
+tasks.register('agentStage3ContextEval', Test) {
+    description = 'Runs the fixed Stage 3 context assembly quantification suite.'
+    group = 'verification'
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    outputs.upToDateWhen { false }
+    filter {
+        includeTestsMatching 'interview.guide.modules.agent.service.AgentStage3ContextEvalTest'
+    }
+}
