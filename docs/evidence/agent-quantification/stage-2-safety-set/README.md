@@ -26,3 +26,12 @@
 - 必须同时保存 `approvalStatus` 与 `guardrailHit`
 - 必须能区分 `directExecutionBypassed` 和 `replayBlocked`
 - 不把 guardrail 命中分布误写成业务成功率
+
+## 当前基线
+
+- 固定样本数：`10`
+- 已归档报告：
+  - `reports/stage-2-safety-set-report.json`
+  - `reports/stage-2-safety-set-report.md`
+  - `reports/stage-2-safety-set-diff.md`
+- 当前 baseline：`baselines/stage-2-safety-set-baseline-2026-04-28.json`

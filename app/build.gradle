@@ -114,3 +114,15 @@ tasks.register('agentStage3ContextEval', Test) {
         includeTestsMatching 'interview.guide.modules.agent.service.AgentStage3ContextEvalTest'
     }
 }
+
+tasks.register('agentStage2SafetyEval', Test) {
+    description = 'Runs the fixed Stage 2 safety quantification suite.'
+    group = 'verification'
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    outputs.upToDateWhen { false }
+    filter {
+        includeTestsMatching 'interview.guide.modules.agent.eval.AgentStage2SafetyEvalTest'
+    }
+}
