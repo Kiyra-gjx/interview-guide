@@ -125,14 +125,18 @@ public record AgentToolResult(
     }
 
     public Map<String, Object> tracePayload() {
-        return tracePayload(null);
+        return tracePayload("tool_result", null);
     }
 
     /**
      * 生成可直接写入 trace 的统一输出快照。
      */
     public Map<String, Object> tracePayload(String reply) {
-        AgentToolOutputDTO output = toToolOutput("tool_result", reply);
+        return tracePayload("tool_result", reply);
+    }
+
+    public Map<String, Object> tracePayload(String kind, String reply) {
+        AgentToolOutputDTO output = toToolOutput(kind, reply);
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("kind", output.kind());
         payload.put("summary", output.summary());

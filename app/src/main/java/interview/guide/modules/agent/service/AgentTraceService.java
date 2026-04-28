@@ -169,6 +169,38 @@ public class AgentTraceService {
     }
 
     /**
+     * 记录“委派提议被本地边界拒绝”的 trace。
+     * 这里显式保留委派任务与拒绝原因，避免 workbench 里只剩一条模糊的降级回复。
+     */
+    @Transactional
+    public AgentStepTraceEntity recordRejectedHandoffDecision(
+        String turnId,
+        String decisionSummary,
+        String selectedTool,
+        Map<String, Object> handoffInput,
+        AgentToolResult handoffResult,
+        String errorMessage,
+        String reply,
+        AgentMemorySnapshot memoryBefore,
+        AgentMemorySnapshot memoryAfter
+    ) {
+        AgentStepTraceEntity trace = newTrace(turnId, decisionSummary, selectedTool, handoffInput, memoryBefore);
+        trace.setToolOutputJson(writeJson(buildToolTracePayload(
+            handoffResult,
+            "delegation_rejected",
+            reply,
+            AgentCompletionMode.DEGRADED,
+            AgentLoopStopReason.HANDOFF_NOT_ALLOWED,
+            "当前请求不满足受控委派边界；如需继续，请开启多步模式并保留后续整合步数。"
+        )));
+        trace.setObservationSummary("委派请求未通过本地边界校验，已降级收口");
+        trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
+        trace.setStatus(AgentExecutionState.FAILED);
+        trace.setErrorMessage(clip(blankToEmpty(errorMessage), ERROR_LIMIT));
+        return traceRepository.save(trace);
+    }
+
+    /**
      * 为工具调用创建一条 RUNNING 状态的 trace。
      */
     @Transactional
@@ -413,6 +445,31 @@ public class AgentTraceService {
     }
 
     /**
+     * 记录只读委派成功返回的中间结果。
+     * 委派结果不是终态回复，而是供主链路继续整合的只读上下文增量。
+     */
+    @Transactional
+    public void completeHandoffStep(
+        AgentStepTraceEntity trace,
+        AgentToolResult result,
+        AgentMemorySnapshot memoryAfter
+    ) {
+        trace.setToolOutputJson(writeJson(buildToolTracePayload(
+            result,
+            "delegation_result",
+            "",
+            null,
+            null,
+            null
+        )));
+        trace.setObservationSummary(clip(result.summary(), SUMMARY_LIMIT));
+        trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
+        trace.setStatus(AgentExecutionState.COMPLETED);
+        trace.setErrorMessage(null);
+        traceRepository.save(trace);
+    }
+
+    /**
      * 记录工具执行失败结果，并保存面向用户的降级回复。
      */
     @Transactional
@@ -528,6 +585,34 @@ public class AgentTraceService {
         trace.setStatus(AgentExecutionState.FAILED);
         trace.setErrorMessage(sanitize(error));
         return traceRepository.save(trace);
+    }
+
+    /**
+     * 记录只读委派执行失败。
+     * 失败后不保留“继续委派”的歧义，而是明确收口为可解释的降级终态。
+     */
+    @Transactional
+    public void failHandoffStep(
+        AgentStepTraceEntity trace,
+        AgentToolResult result,
+        Exception error,
+        String reply,
+        AgentMemorySnapshot memoryAfter,
+        String observationSummary
+    ) {
+        trace.setToolOutputJson(writeJson(buildToolTracePayload(
+            result,
+            "delegation_failed",
+            reply,
+            AgentCompletionMode.DEGRADED,
+            AgentLoopStopReason.HANDOFF_EXECUTION_FAILED,
+            "只读委派未能完成；建议直接基于当前上下文继续，或把问题拆得更小。"
+        )));
+        trace.setObservationSummary(observationSummary);
+        trace.setMemoryAfterJson(writeMemorySnapshotJson(memoryAfter));
+        trace.setStatus(AgentExecutionState.FAILED);
+        trace.setErrorMessage(sanitize(error));
+        traceRepository.save(trace);
     }
 
     /**
@@ -931,7 +1016,18 @@ public class AgentTraceService {
         AgentLoopStopReason stopReason,
         String recoveryHint
     ) {
-        Map<String, Object> payload = new java.util.LinkedHashMap<>(result.tracePayload(reply));
+        return buildToolTracePayload(result, "tool_result", reply, completionMode, stopReason, recoveryHint);
+    }
+
+    private Map<String, Object> buildToolTracePayload(
+        AgentToolResult result,
+        String kind,
+        String reply,
+        AgentCompletionMode completionMode,
+        AgentLoopStopReason stopReason,
+        String recoveryHint
+    ) {
+        Map<String, Object> payload = new java.util.LinkedHashMap<>(result.tracePayload(kind, reply));
         if (completionMode != null) {
             payload.put("completionMode", completionMode.name());
         }

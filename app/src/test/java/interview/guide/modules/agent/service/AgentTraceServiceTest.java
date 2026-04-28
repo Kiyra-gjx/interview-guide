@@ -382,6 +382,37 @@ class AgentTraceServiceTest {
     }
 
     @Test
+    @DisplayName("should not mark a successful handoff step as a degraded terminal state")
+    void shouldNotMarkASuccessfulHandoffStepAsADegradedTerminalState() throws Exception {
+        AgentStepTraceEntity trace = new AgentStepTraceEntity();
+        AgentMemorySnapshot memoryAfter = new AgentMemorySnapshot(
+            "goal",
+            "phase",
+            java.util.List.of("fact-1"),
+            java.util.List.of("subagent_handoff"),
+            "next"
+        );
+        AgentToolResult result = new AgentToolResult(
+            "delegated summary",
+            Map.of("nextFocus", "继续整合最终回答"),
+            Map.of("readOnly", true),
+            java.util.List.of("fact-1")
+        );
+
+        when(objectMapper.writeValueAsString(any())).thenReturn("{\"ok\":true}");
+        traceService.completeHandoffStep(trace, result, memoryAfter);
+
+        ArgumentCaptor<Object> payloadCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(objectMapper, times(2)).writeValueAsString(payloadCaptor.capture());
+        assertThat(payloadCaptor.getAllValues())
+            .anySatisfy(value -> assertThat(value)
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("kind", "delegation_result")
+                .doesNotContainKey("terminal")
+                .doesNotContainKey("completionMode"));
+    }
+
+    @Test
     @DisplayName("should persist approval rejection as a terminated trace instead of a failure")
     void shouldPersistApprovalRejectionAsATerminatedTraceInsteadOfAFailure() throws Exception {
         AgentStepTraceEntity trace = new AgentStepTraceEntity();

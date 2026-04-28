@@ -13,6 +13,7 @@ import interview.guide.modules.agent.model.AgentCompletionMode;
 import interview.guide.modules.agent.model.AgentDecisionDTO;
 import interview.guide.modules.agent.model.AgentExecutionState;
 import interview.guide.modules.agent.model.AgentExecutionSummaryDTO;
+import interview.guide.modules.agent.model.AgentHandoffResultDTO;
 import interview.guide.modules.agent.model.AgentLoopStopReason;
 import interview.guide.modules.agent.model.AgentTerminalState;
 import interview.guide.modules.agent.guardrail.AgentGuardrailAction;
@@ -114,9 +115,14 @@ class AgentOrchestratorTest {
         lenient().when(promptService.buildDecisionSystemPrompt(anyString(), anyString())).thenReturn("decision-system");
         lenient().when(promptService.buildDecisionUserPrompt(any(AgentAssembledContext.class), anyInt()))
             .thenReturn("decision-user");
+        lenient().when(promptService.buildDecisionUserPrompt(any(AgentAssembledContext.class), anyInt(), anyString()))
+            .thenReturn("decision-user-budget");
         lenient().when(promptService.buildAnswerSystemPrompt()).thenReturn("answer-system");
         lenient().when(promptService.buildAnswerUserPrompt(any(AgentAssembledContext.class), anyString(), any()))
             .thenReturn("answer-user");
+        lenient().when(promptService.buildHandoffSystemPrompt()).thenReturn("handoff-system");
+        lenient().when(promptService.buildHandoffUserPrompt(any(AgentAssembledContext.class), anyString(), anyString(), anyString()))
+            .thenReturn("handoff-user");
         orchestrator = new AgentOrchestrator(
             chatClientBuilder,
             structuredOutputInvoker,
@@ -2549,6 +2555,213 @@ class AgentOrchestratorTest {
         assertThat(response.reply()).isEqualTo("先把简历优势沉淀成项目亮点，再补一轮面试追问。");
         assertThat(response.memory()).isEqualTo(updatedMemory);
         assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.SUCCESS);
+    }
+
+    @Test
+    @DisplayName("should continue after a bounded read only handoff when multi step mode is enabled")
+    void shouldContinueAfterABoundedReadOnlyHandoffWhenMultiStepModeIsEnabled() {
+        String sessionId = "session-handoff";
+        String turnId = "turn-handoff";
+        AgentChatRequest request = new AgentChatRequest(
+            "先帮我拆解一下现在最值得先讲的亮点，再给最终建议",
+            new AgentRuntimeConfig(true, 3, 15_000L, 4_000)
+        );
+        AgentSessionEntity session = createSession(sessionId, "准备 Java 面试", 42L);
+        AgentMemorySnapshot memory = createMemory();
+        AgentMemorySnapshot delegatedMemory = new AgentMemorySnapshot(
+            "准备 Java 面试",
+            "delegated_context_ready",
+            List.of("fact-1", "最值得先讲的是一个后端项目亮点"),
+            List.of("subagent_handoff"),
+            "围绕一个后端项目亮点给最终建议"
+        );
+        AgentAssembledContext firstContext = assembledContext(session, memory, request.message());
+        AgentAssembledContext secondContext = assembledContext(session, delegatedMemory, request.message());
+        AgentStepTraceEntity handoffTrace = new AgentStepTraceEntity();
+        AgentHandoffResultDTO handoffResult = new AgentHandoffResultDTO(
+            "先聚焦一个能体现 Java 和 Spring Boot 深度的项目亮点",
+            List.of("最值得先讲的是一个后端项目亮点"),
+            "围绕一个后端项目亮点给最终建议",
+            "先突出一个能体现 Java 与 Spring Boot 深度的项目亮点。"
+        );
+        List<AgentTraceDTO> trace = List.of(
+            createTrace("subagent_handoff", AgentExecutionState.COMPLETED),
+            createTrace("direct_answer", AgentExecutionState.COMPLETED)
+        );
+        List<AgentMessageDTO> messagesDelta = List.of(
+            createMessage("user", request.message(), 1),
+            createMessage("assistant", "先突出一个能体现 Java 与 Spring Boot 深度的项目亮点。", 2)
+        );
+        AgentTurnEntity completedTurn = createCompletedTurn(turnId, session, AgentCompletionMode.SUCCESS);
+
+        when(sessionService.startTurn(sessionId, request.message()))
+            .thenReturn(new AgentSessionService.StartedTurn(session, turnId));
+        when(memoryService.readMemory(session)).thenReturn(memory);
+        when(traceService.estimateNextStepIndex(sessionId)).thenReturn(1, 2);
+        when(toolRegistry.describeTools()).thenReturn("- get_resume_profile");
+        when(contextAssemblyService.assemble(session, memory, request.message())).thenReturn(firstContext);
+        when(contextAssemblyService.assemble(session, delegatedMemory, request.message())).thenReturn(secondContext);
+        when(promptService.buildDecisionSystemPrompt(anyString(), anyString())).thenReturn("decision-system");
+        when(promptService.buildDecisionUserPrompt(eq(firstContext), eq(1), anyString())).thenReturn("decision-user-step-1");
+        when(promptService.buildDecisionUserPrompt(eq(secondContext), eq(2), anyString())).thenReturn("decision-user-step-2");
+        when(promptService.buildHandoffSystemPrompt()).thenReturn("handoff-system");
+        when(promptService.buildHandoffUserPrompt(
+            eq(firstContext),
+            eq("基于当前上下文拆解最值得先讲的亮点"),
+            eq("当前问题更适合先做只读拆解"),
+            eq("返回 summary / confirmedFacts / nextFocus")
+        )).thenReturn("handoff-user");
+        when(structuredOutputInvoker.invoke(
+            any(),
+            anyString(),
+            anyString(),
+            any(),
+            any(),
+            anyString(),
+            anyString(),
+            any()
+        )).thenReturn(
+            new AgentDecisionDTO(
+                false,
+                null,
+                Map.of(),
+                "先把问题拆小再继续",
+                null,
+                true,
+                "基于当前上下文拆解最值得先讲的亮点",
+                "当前问题更适合先做只读拆解",
+                "返回 summary / confirmedFacts / nextFocus"
+            ),
+            handoffResult,
+            new AgentDecisionDTO(
+                false,
+                null,
+                Map.of(),
+                "上下文已足够直接给建议",
+                "先突出一个能体现 Java 与 Spring Boot 深度的项目亮点。"
+            )
+        );
+        when(traceService.startToolStep(
+            eq(turnId),
+            eq("先把问题拆小再继续"),
+            eq("subagent_handoff"),
+            anyMap(),
+            eq(memory)
+        )).thenReturn(handoffTrace);
+        when(memoryService.updateAfterTool(eq(memory), eq("subagent_handoff"), any(AgentToolResult.class)))
+            .thenReturn(delegatedMemory);
+        when(sessionService.completeTurn(
+            eq(turnId),
+            eq("先突出一个能体现 Java 与 Spring Boot 深度的项目亮点。"),
+            eq(delegatedMemory),
+            eq(AgentCompletionMode.SUCCESS)
+        )).thenReturn(completedTurn);
+        when(traceService.getTurnTrace(turnId)).thenReturn(trace);
+        when(sessionService.getTurnMessages(turnId)).thenReturn(messagesDelta);
+
+        AgentChatResponse response = orchestrator.chat(sessionId, request);
+
+        ArgumentCaptor<AgentToolResult> handoffResultCaptor = ArgumentCaptor.forClass(AgentToolResult.class);
+        verify(traceService).completeHandoffStep(eq(handoffTrace), handoffResultCaptor.capture(), eq(delegatedMemory));
+        verify(memoryService).updateAfterTool(eq(memory), eq("subagent_handoff"), any(AgentToolResult.class));
+        verify(sessionService).completeTurn(
+            eq(turnId),
+            eq("先突出一个能体现 Java 与 Spring Boot 深度的项目亮点。"),
+            eq(delegatedMemory),
+            eq(AgentCompletionMode.SUCCESS)
+        );
+
+        assertThat(handoffResultCaptor.getValue().summary()).contains("项目亮点");
+        assertThat(handoffResultCaptor.getValue().debugPayload()).containsEntry("readOnly", true);
+        AgentExecutionSummaryDTO execution = response.execution();
+        assertThat(execution).isNotNull();
+        assertThat(execution.multiStepEnabled()).isTrue();
+        assertThat(execution.executedSteps()).isEqualTo(2);
+        assertThat(execution.stopReason()).isEqualTo(AgentLoopStopReason.DIRECT_REPLY);
+        assertThat(response.reply()).isEqualTo("先突出一个能体现 Java 与 Spring Boot 深度的项目亮点。");
+        assertThat(response.memory()).isEqualTo(delegatedMemory);
+        assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.SUCCESS);
+    }
+
+    @Test
+    @DisplayName("should reject handoff requests on the single step path")
+    void shouldRejectHandoffRequestsOnTheSingleStepPath() {
+        String sessionId = "session-handoff-rejected";
+        String turnId = "turn-handoff-rejected";
+        AgentChatRequest request = new AgentChatRequest("先帮我拆解回答结构");
+        AgentSessionEntity session = createSession(sessionId, "准备 Java 面试", 42L);
+        AgentMemorySnapshot memory = createMemory();
+        AgentAssembledContext assembledContext = assembledContext(session, memory, request.message());
+        List<AgentTraceDTO> trace = List.of(createTrace("subagent_handoff", AgentExecutionState.FAILED));
+        List<AgentMessageDTO> messagesDelta = List.of(
+            createMessage("user", request.message(), 1),
+            createMessage("assistant", "这次请求不适合继续走子委派，我先不扩散执行。", 2)
+        );
+        AgentTurnEntity completedTurn = createCompletedTurn(turnId, session, AgentCompletionMode.DEGRADED);
+
+        when(sessionService.startTurn(sessionId, request.message()))
+            .thenReturn(new AgentSessionService.StartedTurn(session, turnId));
+        when(memoryService.readMemory(session)).thenReturn(memory);
+        when(traceService.estimateNextStepIndex(sessionId)).thenReturn(1);
+        when(toolRegistry.describeTools()).thenReturn("- get_resume_profile");
+        when(contextAssemblyService.assemble(session, memory, request.message())).thenReturn(assembledContext);
+        when(promptService.buildDecisionSystemPrompt(anyString(), anyString())).thenReturn("decision-system");
+        when(promptService.buildDecisionUserPrompt(eq(assembledContext), eq(1))).thenReturn("decision-user");
+        when(structuredOutputInvoker.invoke(
+            any(),
+            anyString(),
+            anyString(),
+            any(),
+            any(),
+            anyString(),
+            anyString(),
+            any()
+        )).thenReturn(new AgentDecisionDTO(
+            false,
+            null,
+            Map.of(),
+            "先做只读拆解再继续",
+            null,
+            true,
+            "基于当前上下文拆解回答结构",
+            "直接回答收益不稳定",
+            "返回 summary / nextFocus"
+        ));
+        when(sessionService.completeTurn(
+            eq(turnId),
+            anyString(),
+            eq(memory),
+            eq(AgentCompletionMode.DEGRADED)
+        )).thenReturn(completedTurn);
+        when(traceService.getTurnTrace(turnId)).thenReturn(trace);
+        when(sessionService.getTurnMessages(turnId)).thenReturn(messagesDelta);
+
+        AgentChatResponse response = orchestrator.chat(sessionId, request);
+
+        ArgumentCaptor<String> replyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(traceService).recordRejectedHandoffDecision(
+            eq(turnId),
+            eq("先做只读拆解再继续"),
+            eq("subagent_handoff"),
+            anyMap(),
+            any(AgentToolResult.class),
+            anyString(),
+            replyCaptor.capture(),
+            eq(memory),
+            eq(memory)
+        );
+        verify(traceService, never()).startToolStep(anyString(), anyString(), eq("subagent_handoff"), anyMap(), any());
+        verify(tool, never()).execute(anyMap(), any());
+
+        AgentExecutionSummaryDTO execution = response.execution();
+        assertThat(execution).isNotNull();
+        assertThat(execution.multiStepEnabled()).isFalse();
+        assertThat(execution.executedSteps()).isEqualTo(1);
+        assertThat(execution.stopReason()).isEqualTo(AgentLoopStopReason.HANDOFF_NOT_ALLOWED);
+        assertThat(execution.terminalState()).isEqualTo(AgentTerminalState.DEGRADED);
+        assertThat(execution.recoveryHint()).contains("委派");
+        assertThat(response.reply()).isEqualTo(replyCaptor.getValue());
+        assertThat(response.completionMode()).isEqualTo(AgentCompletionMode.DEGRADED);
     }
 
     @Test

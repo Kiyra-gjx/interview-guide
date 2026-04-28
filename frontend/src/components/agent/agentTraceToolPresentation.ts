@@ -1,8 +1,9 @@
 /**
  * 后端会把部分“非业务工具路径”写成 internal trace marker，方便前端还原执行过程。
- * 这些 marker 不能直接当成真实工具名展示，否则会把 direct reply / guardrail 误讲成工具命中。
+ * 这些 marker 不能直接当成真实业务工具展示，否则会把 direct reply、guardrail、
+ * handoff 之类的内部路径误讲成业务工具命中。
  */
-export type AgentTraceToolPresentationKind = 'tool' | 'direct_reply' | 'guardrail';
+export type AgentTraceToolPresentationKind = 'tool' | 'direct_reply' | 'guardrail' | 'handoff';
 
 interface AgentTraceToolPresentation {
   kind: AgentTraceToolPresentationKind;
@@ -21,6 +22,11 @@ const INTERNAL_TRACE_TOOL_PRESENTATIONS: Record<string, AgentTraceToolPresentati
   input_guardrail: {
     kind: 'guardrail',
     label: '输入 guardrail 拦截',
+    fieldLabel: '路径',
+  },
+  subagent_handoff: {
+    kind: 'handoff',
+    label: '受控只读委派',
     fieldLabel: '路径',
   },
 };

@@ -12,6 +12,7 @@ import interview.guide.modules.agent.model.AgentChatRequest;
 import interview.guide.modules.agent.model.AgentChatResponse;
 import interview.guide.modules.agent.model.AgentCompletionMode;
 import interview.guide.modules.agent.model.AgentDecisionDTO;
+import interview.guide.modules.agent.model.AgentHandoffResultDTO;
 import interview.guide.modules.agent.model.AgentExecutionSummaryDTO;
 import interview.guide.modules.agent.model.AgentExecutionState;
 import interview.guide.modules.agent.model.AgentLoopStopReason;
@@ -55,6 +56,7 @@ public class AgentOrchestrator {
     private static final String DECISION_FALLBACK_TOOL = "decision_fallback";
     private static final String INVALID_TOOL_NAME = "invalid_tool";
     private static final String BOUNDED_LOOP_TOOL = "bounded_loop";
+    private static final String SUBAGENT_HANDOFF_TOOL = "subagent_handoff";
     private static final String SESSION_OR_RESUME_INPUT = "sessionId/resumeId";
     private static final int DEFAULT_MULTI_STEP_MAX_STEPS = 3;
     private static final long DEFAULT_MULTI_STEP_MAX_DURATION_MILLIS = 15_000L;
@@ -62,6 +64,8 @@ public class AgentOrchestrator {
     private static final int MAX_ALLOWED_MULTI_STEP_STEPS = 5;
     private static final long MAX_ALLOWED_MULTI_STEP_DURATION_MILLIS = 30_000L;
     private static final int MAX_ALLOWED_MULTI_STEP_ESTIMATED_MODEL_TOKENS = 12_000;
+    private static final int MAX_HANDOFF_TASK_LENGTH = 240;
+    private static final int MAX_HANDOFF_EXPECTED_OUTPUT_LENGTH = 160;
     private static final Pattern TRACE_JSON_STRING_FIELD_PATTERN = Pattern.compile("\"([^\"]+)\"\\s*:\\s*\"([^\"]*)\"");
 
     private final ChatClient chatClient;
@@ -77,6 +81,7 @@ public class AgentOrchestrator {
     private final AgentApprovalService approvalService;
     private final AgentApprovalRuntimeService approvalRuntimeService;
     private final BeanOutputConverter<AgentDecisionDTO> decisionOutputConverter;
+    private final BeanOutputConverter<AgentHandoffResultDTO> handoffOutputConverter;
 
     public AgentOrchestrator(
         ChatClient.Builder chatClientBuilder,
@@ -105,6 +110,7 @@ public class AgentOrchestrator {
         this.approvalService = approvalService;
         this.approvalRuntimeService = approvalRuntimeService;
         this.decisionOutputConverter = new BeanOutputConverter<>(AgentDecisionDTO.class);
+        this.handoffOutputConverter = new BeanOutputConverter<>(AgentHandoffResultDTO.class);
     }
 
     /**
@@ -422,6 +428,129 @@ public class AgentOrchestrator {
     }
 
     /**
+     * 运行受控只读委派，并返回结构化结果与预算估算。
+     */
+    private HandoffEvaluation runHandoff(
+        AgentSessionEntity session,
+        AgentAssembledContext assembledContext,
+        ResolvedDecision decision
+    ) {
+        String systemPrompt = promptService.buildHandoffSystemPrompt();
+        String userPrompt = promptService.buildHandoffUserPrompt(
+            assembledContext,
+            decision.delegateTask(),
+            decision.delegateReason(),
+            decision.delegateExpectedOutput()
+        );
+        int estimatedTokens = estimateModelTokens(systemPrompt, userPrompt);
+        AgentHandoffResultDTO result = structuredOutputInvoker.invoke(
+            chatClient,
+            systemPrompt,
+            userPrompt,
+            handoffOutputConverter,
+            ErrorCode.AI_RESPONSE_FORMAT_INVALID,
+            "Agent 只读委派执行失败",
+            "Agent 只读委派",
+            log
+        );
+        estimatedTokens += estimateHandoffOutputTokens(result);
+        return new HandoffEvaluation(result, estimatedTokens);
+    }
+
+    /**
+     * 统一判断当前委派请求是否满足受控边界。
+     */
+    private HandoffPermissionDecision evaluateHandoffPermission(
+        ResolvedDecision decision,
+        LoopBudgetTracker budgetTracker,
+        boolean handoffUsed
+    ) {
+        if (handoffUsed) {
+            return HandoffPermissionDecision.rejectedDecision(
+                "当前 turn 已经执行过一次只读委派，不能继续扩散新的子执行体。",
+                "当前请求不满足受控委派边界；如需继续，请发起新一轮请求。"
+            );
+        }
+        if (budgetTracker.remainingSteps() < 1) {
+            return HandoffPermissionDecision.rejectedDecision(
+                "当前剩余步数不足，委派后没有额外步数用于主链路整合结果。",
+                "当前请求不满足受控委派边界；如需继续，请提高 maxSteps 或直接在当前上下文下回答。"
+            );
+        }
+        if (safeLength(decision.delegateTask()) > MAX_HANDOFF_TASK_LENGTH) {
+            return HandoffPermissionDecision.rejectedDecision(
+                "委派任务过长，无法保证边界清晰与结果可解释。",
+                "请把委派目标缩小到一个清晰的拆解或归纳任务后再重试。"
+            );
+        }
+        if (safeLength(decision.delegateExpectedOutput()) > MAX_HANDOFF_EXPECTED_OUTPUT_LENGTH) {
+            return HandoffPermissionDecision.rejectedDecision(
+                "委派期望输出过长，无法保证只读委派范围稳定。",
+                "请把期望输出缩小到 summary、facts 或 nextFocus 这类最小结果。"
+            );
+        }
+        return HandoffPermissionDecision.allowedDecision();
+    }
+
+    private Map<String, Object> buildHandoffInput(AgentDecisionDTO decision) {
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("delegateTask", blankToDefault(decision.delegateTask(), ""));
+        input.put("delegateReason", blankToDefault(decision.delegateReason(), ""));
+        input.put("delegateExpectedOutput", blankToDefault(decision.delegateExpectedOutput(), ""));
+        return input;
+    }
+
+    private Map<String, Object> buildHandoffInput(ResolvedDecision decision) {
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("delegateTask", blankToDefault(decision.delegateTask(), ""));
+        input.put("delegateReason", blankToDefault(decision.delegateReason(), ""));
+        input.put("delegateExpectedOutput", blankToDefault(decision.delegateExpectedOutput(), ""));
+        return input;
+    }
+
+    /**
+     * 为拒绝/失败路径构造统一的委派元结果，方便 trace 与 workbench 复用现有结构化展示。
+     */
+    private AgentToolResult buildHandoffMetaResult(
+        ResolvedDecision decision,
+        String summary,
+        String suggestedReply
+    ) {
+        Map<String, Object> answerPayload = new LinkedHashMap<>();
+        answerPayload.put("delegateTask", blankToDefault(decision.delegateTask(), ""));
+        answerPayload.put("delegateExpectedOutput", blankToDefault(decision.delegateExpectedOutput(), ""));
+        answerPayload.put("suggestedReply", blankToDefault(suggestedReply, ""));
+
+        Map<String, Object> debugPayload = new LinkedHashMap<>();
+        debugPayload.put("delegateReason", blankToDefault(decision.delegateReason(), ""));
+        debugPayload.put("readOnly", true);
+        debugPayload.put("toolCallsAllowed", false);
+        debugPayload.put("writesAllowed", false);
+
+        return new AgentToolResult(summary, answerPayload, debugPayload, List.of());
+    }
+
+    private String buildHandoffNotAllowedReply(String failureReason) {
+        return "这次请求不适合继续走子委派，我先不扩散执行。原因是：" + blankToDefault(failureReason, "当前委派边界不满足") + "。你可以直接缩小问题范围，或在开启多步模式后重试。";
+    }
+
+    private String buildHandoffFailureReply() {
+        return "这次只读委派没有成功完成，我先按当前上下文保守收口。你可以直接缩小问题范围后重试，或继续在当前上下文下提问。";
+    }
+
+    private int estimateHandoffOutputTokens(AgentHandoffResultDTO result) {
+        if (result == null) {
+            return 0;
+        }
+        return estimateModelTokens(
+            result.summary(),
+            result.nextFocus(),
+            result.suggestedReply(),
+            String.valueOf(result.confirmedFacts())
+        );
+    }
+
+    /**
      * 保持现有单步链路不变，只是补一层统一的预算与执行摘要表达。
      */
     private TurnExecution executeSingleStep(
@@ -437,7 +566,15 @@ public class AgentOrchestrator {
         AgentAssembledContext assembledContext = contextAssemblyService.assemble(session, memory, latestUserMessage);
         DecisionEvaluation decision = decide(session, assembledContext, stepIndexHint);
         budgetTracker.recordEstimatedModelTokens(decision.estimatedModelTokensUsed());
-        TurnExecution execution = executeDecision(turnId, session, memory, assembledContext, decision.decision(), budgetTracker);
+        TurnExecution execution = executeDecision(
+            turnId,
+            session,
+            memory,
+            assembledContext,
+            decision.decision(),
+            budgetTracker,
+            runConfig
+        );
         return execution.withExecutionSummary(budgetTracker.finish(execution.completionMode(), execution.stopReason()));
     }
 
@@ -455,6 +592,7 @@ public class AgentOrchestrator {
         LoopBudgetTracker budgetTracker = LoopBudgetTracker.start(runConfig);
         AgentMemorySnapshot currentMemory = initialMemory;
         CompletedToolStep lastToolStep = null;
+        boolean handoffUsed = false;
 
         while (true) {
             AgentLoopStopReason budgetStopReason = budgetTracker.resolveBudgetStopBeforeNextStep();
@@ -524,6 +662,29 @@ public class AgentOrchestrator {
                     }
                     currentMemory = toolExecution.updatedMemory();
                     lastToolStep = toolExecution.completedToolStep();
+                }
+                case HANDOFF_CALL -> {
+                    ToolStepExecution handoffExecution = executeHandoffStep(
+                        turnId,
+                        session,
+                        currentMemory,
+                        assembledContext,
+                        decision.decision(),
+                        budgetTracker,
+                        handoffUsed
+                    );
+                    if (handoffExecution.terminalExecution() != null) {
+                        return handoffExecution.terminalExecution()
+                            .withExecutionSummary(
+                                budgetTracker.finish(
+                                    handoffExecution.terminalExecution().completionMode(),
+                                    handoffExecution.stopReason()
+                                )
+                            );
+                    }
+                    currentMemory = handoffExecution.updatedMemory();
+                    lastToolStep = handoffExecution.completedToolStep();
+                    handoffUsed = true;
                 }
             }
         }
@@ -595,10 +756,42 @@ public class AgentOrchestrator {
     ) {
         String decisionSummary = blankToDefault(
             decision.decisionSummary(),
-            Boolean.TRUE.equals(decision.shouldUseTool())
-                ? "Use tool to gather more context"
-                : "Answer the user directly"
+            Boolean.TRUE.equals(decision.shouldDelegate())
+                ? "Use bounded handoff to reduce uncertainty"
+                : Boolean.TRUE.equals(decision.shouldUseTool())
+                    ? "Use tool to gather more context"
+                    : "Answer the user directly"
         );
+
+        if (Boolean.TRUE.equals(decision.shouldUseTool()) && Boolean.TRUE.equals(decision.shouldDelegate())) {
+            return ResolvedDecision.degraded(
+                decisionSummary,
+                SUBAGENT_HANDOFF_TOOL,
+                buildHandoffInput(decision),
+                buildDecisionFallbackReply(session),
+                "模型同时请求 tool 调用与委派，决策语义冲突",
+                List.of()
+            );
+        }
+
+        if (Boolean.TRUE.equals(decision.shouldDelegate())) {
+            if (isBlank(decision.delegateTask())) {
+                return ResolvedDecision.degraded(
+                    decisionSummary,
+                    SUBAGENT_HANDOFF_TOOL,
+                    buildHandoffInput(decision),
+                    buildDecisionFallbackReply(session),
+                    "模型请求委派，但 delegateTask 为空",
+                    List.of()
+                );
+            }
+            return ResolvedDecision.handoff(
+                decisionSummary,
+                decision.delegateTask(),
+                blankToDefault(decision.delegateReason(), "需要先做只读拆解再继续主链路决策"),
+                decision.delegateExpectedOutput()
+            );
+        }
 
         if (!Boolean.TRUE.equals(decision.shouldUseTool())) {
             return ResolvedDecision.direct(
@@ -686,13 +879,21 @@ public class AgentOrchestrator {
         AgentMemorySnapshot memory,
         AgentAssembledContext assembledContext,
         ResolvedDecision decision,
-        LoopBudgetTracker budgetTracker
+        LoopBudgetTracker budgetTracker,
+        ResolvedRunConfig runConfig
     ) {
         return switch (decision.route()) {
             case DIRECT_REPLY -> executeDirectReply(turnId, session, memory, decision);
             case DEGRADED_REPLY -> executeDegradedReply(turnId, memory, decision);
             case PENDING_APPROVAL -> executePendingApproval(turnId, session, memory, assembledContext, decision);
             case TOOL_CALL -> executeToolReply(turnId, session, memory, assembledContext, decision, budgetTracker);
+            case HANDOFF_CALL -> executeRejectedHandoff(
+                turnId,
+                memory,
+                decision,
+                "当前未开启受控多步模式，系统不会在单步路径里继续派生子执行体。",
+                "当前请求不满足受控委派边界；如需继续，请开启多步模式并保留后续整合步数。"
+            );
         };
     }
 
@@ -789,6 +990,128 @@ public class AgentOrchestrator {
             transition.persistedTurn(),
             AgentLoopStopReason.PENDING_APPROVAL
         );
+    }
+
+    /**
+     * 单步模式下不允许继续派生子执行体，因此这里会显式记录拒绝原因并降级收口。
+     */
+    private TurnExecution executeRejectedHandoff(
+        String turnId,
+        AgentMemorySnapshot memory,
+        ResolvedDecision decision,
+        String failureReason,
+        String recoveryHint
+    ) {
+        String reply = buildHandoffNotAllowedReply(failureReason);
+        traceService.recordRejectedHandoffDecision(
+            turnId,
+            decision.decisionSummary(),
+            decision.selectedTool(),
+            buildHandoffInput(decision),
+            buildHandoffMetaResult(decision, failureReason, reply),
+            failureReason,
+            reply,
+            memory,
+            memory
+        );
+        return new TurnExecution(
+            reply,
+            memory,
+            AgentCompletionMode.DEGRADED,
+            null,
+            null,
+            AgentLoopStopReason.HANDOFF_NOT_ALLOWED,
+            new AgentExecutionSummaryDTO(
+                false,
+                0,
+                0,
+                0,
+                0L,
+                0L,
+                0L,
+                0,
+                0,
+                0,
+                AgentLoopStopReason.HANDOFF_NOT_ALLOWED,
+                null,
+                AgentTerminalState.DEGRADED,
+                false,
+                recoveryHint
+            )
+        );
+    }
+
+    /**
+     * 多步模式下的只读委派步骤。
+     * 成功时只把结构化上下文增量写回 memory，不直接结束 turn，由主链路继续整合。
+     */
+    private ToolStepExecution executeHandoffStep(
+        String turnId,
+        AgentSessionEntity session,
+        AgentMemorySnapshot memory,
+        AgentAssembledContext assembledContext,
+        ResolvedDecision decision,
+        LoopBudgetTracker budgetTracker,
+        boolean handoffUsed
+    ) {
+        HandoffPermissionDecision permission = evaluateHandoffPermission(decision, budgetTracker, handoffUsed);
+        if (!permission.allowed()) {
+            return ToolStepExecution.terminal(executeRejectedHandoff(
+                turnId,
+                memory,
+                decision,
+                permission.failureReason(),
+                permission.recoveryHint()
+            ));
+        }
+
+        AgentStepTraceEntity trace = traceService.startToolStep(
+            turnId,
+            decision.decisionSummary(),
+            decision.selectedTool(),
+            buildHandoffInput(decision),
+            memory
+        );
+        try {
+            HandoffEvaluation handoff = runHandoff(session, assembledContext, decision);
+            budgetTracker.recordEstimatedModelTokens(handoff.estimatedModelTokensUsed());
+            AgentToolResult handoffResult = handoff.result().toToolResult(
+                decision.delegateTask(),
+                decision.delegateReason(),
+                decision.delegateExpectedOutput()
+            );
+            AgentMemorySnapshot updatedMemory = memoryService.updateAfterTool(
+                memory,
+                decision.selectedTool(),
+                handoffResult
+            );
+            traceService.completeHandoffStep(trace, handoffResult, updatedMemory);
+            return ToolStepExecution.continueLoop(
+                updatedMemory,
+                new CompletedToolStep(decision.selectedTool(), handoffResult)
+            );
+        } catch (Exception e) {
+            String reply = buildHandoffFailureReply();
+            traceService.failHandoffStep(
+                trace,
+                buildHandoffMetaResult(decision, "只读委派执行失败", reply),
+                e,
+                reply,
+                memory,
+                "只读委派执行失败，已回退为主链路降级收口"
+            );
+            log.warn("Agent 只读委派执行失败: sessionId={}, task={}, error={}",
+                session.getSessionId(), decision.delegateTask(), e.getMessage());
+            return ToolStepExecution.terminal(new TurnExecution(
+                reply,
+                memory,
+                AgentCompletionMode.DEGRADED,
+                null,
+                null,
+                AgentLoopStopReason.HANDOFF_EXECUTION_FAILED,
+                null
+            ));
+        }
     }
 
     /**
@@ -1514,6 +1837,9 @@ public class AgentOrchestrator {
         chars += safeLength(decision.toolName());
         chars += safeLength(decision.decisionSummary());
         chars += safeLength(decision.directAnswer());
+        chars += safeLength(decision.delegateTask());
+        chars += safeLength(decision.delegateReason());
+        chars += safeLength(decision.delegateExpectedOutput());
         chars += safeLength(String.valueOf(decision.toolInput()));
         return estimateTextTokens(chars);
     }
@@ -2281,6 +2607,7 @@ public class AgentOrchestrator {
         DIRECT_REPLY,
         PENDING_APPROVAL,
         TOOL_CALL,
+        HANDOFF_CALL,
         DEGRADED_REPLY
     }
 
@@ -2294,6 +2621,9 @@ public class AgentOrchestrator {
         AgentTool tool,
         String selectedTool,
         Map<String, Object> toolInput,
+        String delegateTask,
+        String delegateReason,
+        String delegateExpectedOutput,
         String failureReason,
         List<AgentGuardrailResult> guardrailResults
     ) {
@@ -2305,6 +2635,9 @@ public class AgentOrchestrator {
                 null,
                 DIRECT_ANSWER_TOOL,
                 Map.of(),
+                null,
+                null,
+                null,
                 null,
                 List.of()
             );
@@ -2318,6 +2651,30 @@ public class AgentOrchestrator {
                 tool,
                 tool.name(),
                 immutableCopy(toolInput),
+                null,
+                null,
+                null,
+                null,
+                List.of()
+            );
+        }
+
+        private static ResolvedDecision handoff(
+            String decisionSummary,
+            String delegateTask,
+            String delegateReason,
+            String delegateExpectedOutput
+        ) {
+            return new ResolvedDecision(
+                DecisionRoute.HANDOFF_CALL,
+                decisionSummary,
+                null,
+                null,
+                SUBAGENT_HANDOFF_TOOL,
+                buildImmutableHandoffInput(delegateTask, delegateReason, delegateExpectedOutput),
+                delegateTask,
+                delegateReason,
+                delegateExpectedOutput,
                 null,
                 List.of()
             );
@@ -2336,6 +2693,9 @@ public class AgentOrchestrator {
                 tool,
                 tool.name(),
                 immutableCopy(toolInput),
+                null,
+                null,
+                null,
                 null,
                 guardrailResult == null ? List.of() : List.of(guardrailResult)
             );
@@ -2356,9 +2716,24 @@ public class AgentOrchestrator {
                 null,
                 selectedTool,
                 immutableCopy(toolInput),
+                null,
+                null,
+                null,
                 failureReason,
                 guardrailResults == null ? List.of() : List.copyOf(guardrailResults)
             );
+        }
+
+        private static Map<String, Object> buildImmutableHandoffInput(
+            String delegateTask,
+            String delegateReason,
+            String delegateExpectedOutput
+        ) {
+            Map<String, Object> handoffInput = new LinkedHashMap<>();
+            handoffInput.put("delegateTask", immutableValue(delegateTask));
+            handoffInput.put("delegateReason", immutableValue(delegateReason));
+            handoffInput.put("delegateExpectedOutput", immutableValue(delegateExpectedOutput));
+            return java.util.Collections.unmodifiableMap(handoffInput);
         }
 
         private static Map<String, Object> immutableCopy(Map<String, Object> toolInput) {
@@ -2367,6 +2742,10 @@ public class AgentOrchestrator {
             }
             return java.util.Collections.unmodifiableMap(new LinkedHashMap<>(toolInput));
         }
+
+        private static String immutableValue(String value) {
+            return value == null ? "" : value.trim();
+        }
     }
 
     /**
@@ -2374,6 +2753,29 @@ public class AgentOrchestrator {
      * 除了解析后的决策外，还会带回本次调用的大致模型预算消耗。
      */
     private record DecisionEvaluation(ResolvedDecision decision, int estimatedModelTokensUsed) {
+    }
+
+    /**
+     * 一次只读委派调用的结果。
+     */
+    private record HandoffEvaluation(AgentHandoffResultDTO result, int estimatedModelTokensUsed) {
+    }
+
+    /**
+     * 当前委派请求的本地边界判断结果。
+     */
+    private record HandoffPermissionDecision(
+        boolean allowed,
+        String failureReason,
+        String recoveryHint
+    ) {
+        private static HandoffPermissionDecision allowedDecision() {
+            return new HandoffPermissionDecision(true, null, null);
+        }
+
+        private static HandoffPermissionDecision rejectedDecision(String failureReason, String recoveryHint) {
+            return new HandoffPermissionDecision(false, failureReason, recoveryHint);
+        }
     }
 
     /**

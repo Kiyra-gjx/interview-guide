@@ -96,6 +96,28 @@ class AgentMemoryServiceTest {
     }
 
     @Test
+    @DisplayName("should prefer explicit nextFocus from structured tool output when writing memory")
+    void shouldPreferExplicitNextFocusFromStructuredToolOutputWhenWritingMemory() {
+        AgentMemorySnapshot current = new AgentMemorySnapshot(
+            "准备面试",
+            "goal_received",
+            List.of("fact-1"),
+            List.of("get_resume_profile"),
+            "旧的 focus"
+        );
+        AgentToolResult result = new AgentToolResult(
+            "这是委派总结",
+            Map.of("nextFocus", "围绕一个项目亮点继续整合最终回答"),
+            Map.of(),
+            List.of("fact-2")
+        );
+
+        AgentMemorySnapshot updated = memoryService.updateAfterTool(current, "subagent_handoff", result);
+
+        assertThat(updated.nextFocus()).isEqualTo("围绕一个项目亮点继续整合最终回答");
+    }
+
+    @Test
     @DisplayName("should normalize legacy memory facts when merging new tool results")
     void shouldNormalizeLegacyMemoryFactsWhenMergingNewToolResults() {
         AgentMemorySnapshot current = new AgentMemorySnapshot(

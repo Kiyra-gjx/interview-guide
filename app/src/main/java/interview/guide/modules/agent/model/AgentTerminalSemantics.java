@@ -1,8 +1,8 @@
 package interview.guide.modules.agent.model;
 
 /**
- * Agent 统一终态语义描述。
- * 用来把 completionMode、stopReason 映射成稳定的终态、是否可恢复以及恢复提示。
+ * Agent 统一终态语义。
+ * 把 completionMode 与 stopReason 映射成稳定的 terminalState、recoverable 与 recoveryHint。
  */
 public record AgentTerminalSemantics(
     AgentTerminalState terminalState,
@@ -25,7 +25,7 @@ public record AgentTerminalSemantics(
     }
 
     /**
-     * 在默认语义之上允许调用方覆盖恢复提示。
+     * 允许调用方在默认语义之上覆盖 recovery hint。
      */
     public static AgentTerminalSemantics from(
         AgentCompletionMode completionMode,
@@ -83,6 +83,12 @@ public record AgentTerminalSemantics(
         }
         if (stopReason == AgentLoopStopReason.APPROVAL_EXPIRED) {
             return "当前审批已过期；如需继续，请重新发起新一轮请求。";
+        }
+        if (stopReason == AgentLoopStopReason.HANDOFF_NOT_ALLOWED) {
+            return "当前请求不满足受控委派边界；如需继续，请开启多步模式并保留后续整合步数。";
+        }
+        if (stopReason == AgentLoopStopReason.HANDOFF_EXECUTION_FAILED) {
+            return "只读委派未能完成；建议直接基于当前上下文继续，或把问题拆得更小。";
         }
         if (terminalState == AgentTerminalState.DEGRADED) {
             return "当前 turn 已降级收口；建议先查看 trace 原因，再决定是否重新发起。";

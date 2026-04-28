@@ -92,13 +92,14 @@ public class AgentMemoryService {
 
         LinkedHashSet<String> usedTools = new LinkedHashSet<>(safeList(current.usedTools()));
         usedTools.add(toolName);
+        String nextFocus = resolveNextFocus(toolProjection.summary(), result.answerPayload());
 
         return new AgentMemorySnapshot(
             current.userGoal(),
             resolvePhase(toolName),
             limitedFacts,
             new ArrayList<>(usedTools),
-            toolProjection.summary()
+            nextFocus
         );
     }
 
@@ -112,6 +113,7 @@ public class AgentMemoryService {
             case "get_interview_history_summary" -> "interview_history_ready";
             case "analyze_interview_gaps" -> "interview_gap_ready";
             case "suggest_follow_up_questions" -> "follow_up_ready";
+            case "subagent_handoff" -> "delegated_context_ready";
             default -> "context_ready";
         };
     }
@@ -119,6 +121,17 @@ public class AgentMemoryService {
     /**
      * 兜底空列表，避免重复判空。
      */
+    private String resolveNextFocus(String defaultNextFocus, java.util.Map<String, Object> answerPayload) {
+        if (answerPayload == null || answerPayload.isEmpty()) {
+            return defaultNextFocus;
+        }
+        Object explicitNextFocus = answerPayload.get("nextFocus");
+        if (explicitNextFocus instanceof String nextFocusText && !nextFocusText.isBlank()) {
+            return nextFocusText.trim();
+        }
+        return defaultNextFocus;
+    }
+
     private List<String> safeList(List<String> value) {
         return value == null ? List.of() : value;
     }

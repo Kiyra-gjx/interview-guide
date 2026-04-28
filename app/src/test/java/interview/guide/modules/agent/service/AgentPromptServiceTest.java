@@ -9,6 +9,7 @@ import interview.guide.modules.agent.support.AgentToolResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.ClassPathResource;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
@@ -66,6 +67,17 @@ class AgentPromptServiceTest {
         assertThat(prompt).contains("fact-1");
         assertThat(prompt).doesNotContain("debug query");
         assertThat(prompt).contains("用于回答阶段的上下文");
+    }
+
+    @Test
+    @DisplayName("should declare bounded handoff fields in the decision system prompt template")
+    void shouldDeclareBoundedHandoffFieldsInTheDecisionSystemPromptTemplate() throws Exception {
+        String template = new ClassPathResource("prompts/agent-system.st")
+            .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(template).contains("shouldDelegate");
+        assertThat(template).contains("delegateTask");
+        assertThat(template).contains("delegateReason");
     }
 
     private ByteArrayResource utf8Resource(String content) {

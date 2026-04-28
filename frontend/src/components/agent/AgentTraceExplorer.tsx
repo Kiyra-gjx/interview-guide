@@ -349,6 +349,8 @@ function resolveTraceToolIcon(kind: AgentTraceToolPresentationKind) {
   switch (kind) {
     case 'direct_reply':
       return MessageSquare;
+    case 'handoff':
+      return MessageSquare;
     case 'guardrail':
       return ShieldAlert;
     default:
