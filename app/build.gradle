@@ -90,3 +90,15 @@ tasks.register('agentStage2Eval', Test) {
         includeTestsMatching 'interview.guide.modules.agent.eval.AgentStage2RegressionEvalTest'
     }
 }
+
+tasks.register('agentStage5Benchmark', Test) {
+    description = 'Runs the fixed Stage 5 agent benchmark suite.'
+    group = 'verification'
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    outputs.upToDateWhen { false }
+    filter {
+        includeTestsMatching 'interview.guide.modules.agent.eval.AgentStage5BenchmarkEvalTest'
+    }
+}

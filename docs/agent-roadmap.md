@@ -2,10 +2,10 @@
 
 ## 当前进度快照
 
-- 当前整体状态：Stage 4 已完成，Stage 5 进行中
+- 当前整体状态：Stage 5 主体实现已完成，Stage 6 进行中
 - 已完成阶段：Stage 1、Stage 2、Stage 3、Stage 4
 - 当前已完成任务：S3-01、S3-02、S3-03、S4-01、S4-02、S5-01、S5-02、S5-03
-- 当前建议推进任务：补齐 Stage 5 固定样例、handoff 正反例与 benchmark 证据
+- 当前建议推进任务：推进 Stage 6 的固定样本、统一报告、Stage 5 benchmark 与简历量化证据收口
 - 当前最低完成线定义：完成 Stage 4 即达到完整单 Agent（Level A）
 - 更高一级目标：Stage 5 是受控多步 Agent（Level B），不是最低完成线
 
@@ -87,22 +87,38 @@
   - 多步 loop 有明确预算、停止条件和失败回收语义
   - handoff / subagent 仍处于受控边界内
   - 达到 Level B
-- 当前状态：进行中
+- 当前状态：主体实现已完成
 - 当前完成情况：S5-01 已完成，已落地显式 `runtimeConfig`、`maxSteps / maxDurationMillis / maxEstimatedModelTokens` 预算、`execution` 执行摘要，以及预算耗尽时的 `bounded_loop` trace / metrics 收口
 - 当前完成情况：S5-02 已完成，已引入 `terminalState / stopReason / recoverable / recoveryHint` 统一终态契约，并对齐审批恢复、trace、metrics、workbench 与 demo narrative
 - 当前完成情况：S5-03 已完成首版 handoff / subagent 边界治理，已落地受控只读委派、单 turn 单次委派限制、委派结果回主链路的 memory/trace 收口，以及前端对 internal handoff marker 的独立展示语义
-- 说明：Stage 5 是增强目标，不是最低完成线；当前不再缺正式任务实现，后续重点转为固定样例、benchmark 与收益证据补强
+- 说明：Stage 5 是增强目标，不是最低完成线；当前不再缺正式任务实现，后续收益证据与 benchmark 收口转入 Stage 6
 - 参考文档：[Stage 5：Bounded Multi-Step Agent](./agent-stages/stage-5-bounded-multi-step-agent.md)
+
+### Stage 6：Evidence, Benchmark, and Resume Quantification
+
+- 定位：把前面阶段已经落地的 runtime 能力收口成固定样本、标准报告、benchmark 和简历安全量化结果
+- 进入条件：
+  - Stage 2 已具备最小回归入口
+  - Stage 3 已具备稳定的 context assembly 与 memory contract
+  - Stage 5 主体实现已完成
+- 退出条件：
+  - 至少三块能力形成固定样本集、原始记录、汇总结果和可复核证据
+  - Stage 5 有稳定 benchmark 或 handoff 正反例证据
+  - 能明确区分哪些数据可以安全写进简历，哪些还只能作为内部基线
+- 当前状态：进行中
+- 当前完成情况：已新增量化手册与记录模板；Stage 2 已有可运行回归基线；Stage 6 文档体系已建立，`S6-01` 已完成 Stage 5 benchmark 入口、统一报告脚本和证据目录基础设施，接下来需要把 Context / Memory / Recovery / Safety / Stage 5 Benchmark 正式收口成固定评测路径
+- 说明：Stage 6 不负责新增新的 Agent 主逻辑，而是负责把已有能力变成可信证据
+- 参考文档：[Stage 6：Evidence, Benchmark, and Resume Quantification](./agent-stages/stage-6-evidence-benchmark-and-resume-quantification.md)
 
 ## 当前推荐推进任务
 
-当前建议推进 Stage 5 固定样例、handoff 正反例与 benchmark 证据补强。
+当前建议推进 Stage 6 的固定样本、统一报告、Stage 5 benchmark 与简历量化证据收口。
 
 推荐原因：
 
-- S5-03 已经把 handoff / subagent 的首版受控边界落地，当前更需要证明它是否真正带来收益，而不是继续扩展自治形态
-- Stage 5 是否值得继续增强，取决于多步固定样例、handoff 正反例与 benchmark 能否给出清晰证据
-- 当前最容易失真的不是代码实现，而是“看起来更高级”但缺少证据支撑的能力叙事
+- Stage 2 / Stage 3 / Stage 5 已经有不少可消费的 runtime 信号，当前主要短板是缺少固定样本与统一报告
+- 当前更需要回答“这些能力是否真的可验证、可复核、可写简历”，而不是继续新增自治形态
+- 当前最容易失真的不是代码实现，而是“已经做了很多能力，但缺少证据工程收口”的项目叙事
 
 ## 评测与证据原则
 

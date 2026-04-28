@@ -57,7 +57,8 @@ Level B 不是最低完成线，而是在 Level A 之上的增强层。
 - Stage 2 已完成
 - Stage 3 已完成
 - Stage 4 已完成
-- Stage 5 进行中
+- Stage 5 主体实现已完成
+- Stage 6 进行中
 - S2-01 已完成
 - S2-02 已完成
 - S2-03 已完成
@@ -69,9 +70,10 @@ Level B 不是最低完成线，而是在 Level A 之上的增强层。
 - S4-02 已完成
 - S5-01 已完成
 - S5-02 已完成
-- 当前 Stage 5 的正式任务已全部落地；下一步建议工作是补齐固定样例、handoff 正反例与 benchmark 证据
+- S5-03 已完成
+- 当前 Stage 6 的首要任务是补齐固定样例、报告与可复核证据，把已有 runtime 能力沉淀成 benchmark 与简历量化结果
 
-这意味着项目已经建立了单 Agent 的执行基础、安全可观测运行时基线、首批 interview domain 工具能力、统一 context assembly 基线、统一的 tool output 消费视图、turn 级 Agent Workbench，以及可复现的 demo flow 收口，已经达到完整单 Agent（Level A）。当前已进入 Stage 5，并完成了多步预算骨架、终态语义收口，以及首版 handoff / subagent 边界治理：系统已支持受控只读委派，但仍保持显式开启、默认单步、不扩散子执行体的保守策略。
+这意味着项目已经建立了单 Agent 的执行基础、安全可观测运行时基线、首批 interview domain 工具能力、统一 context assembly 基线、统一的 tool output 消费视图、turn 级 Agent Workbench，以及可复现的 demo flow 收口，已经达到完整单 Agent（Level A）。Stage 5 的多步预算骨架、终态语义收口，以及首版 handoff / subagent 边界治理也已经落地：系统已支持受控只读委派，但仍保持显式开启、默认单步、不扩散子执行体的保守策略。当前进入 Stage 6，重点不再是新增运行时主逻辑，而是把 Stage 2 / Stage 3 / Stage 5 的已有信号收口成固定样本、benchmark、baseline / diff 和简历可用的量化证据。
 
 ## 它还差什么
 
@@ -79,6 +81,11 @@ Level B 不是最低完成线，而是在 Level A 之上的增强层。
 
 - 多步固定样例与 benchmark 证据，用来验证 Stage 5 机制收益
 - handoff / subagent 的正反例沉淀，用来证明受控委派的适用场景与边界收益
+
+除此之外，还需要一层明确的证据工程收口：
+
+- 把上下文、记忆、恢复、安全、多步 benchmark 统一成固定样本集和标准报告
+- 把“可以内部观察”的信号转成“可以对外复核”的量化结果
 
 ## 文档分工
 

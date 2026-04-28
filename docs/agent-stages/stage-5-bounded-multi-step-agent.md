@@ -1,9 +1,9 @@
 # Stage 5: Bounded Multi-Step Agent
 
 ## 0. 阶段状态
-- 阶段状态：进行中
+- 阶段状态：主体实现已完成
 - 已完成任务：S5-01、S5-02、S5-03
-- 当前任务：无新的正式实现任务；建议继续补齐固定样例、handoff 正反例与 benchmark 证据
+- 当前任务：无新的正式实现任务；固定样例、handoff 正反例与 benchmark 证据收口转入 Stage 6
 - 前置条件：Stage 4 完成
 
 ## 1. 阶段目标
