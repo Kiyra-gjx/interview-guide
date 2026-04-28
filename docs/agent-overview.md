@@ -69,16 +69,16 @@ Level B 不是最低完成线，而是在 Level A 之上的增强层。
 - S4-02 已完成
 - S5-01 已完成
 - S5-02 已完成
-- 下一步任务是 [S5-03：Handoff and Subagent Boundary](./agent-tasks/s5-task-03-handoff-and-subagent-boundary.md)
+- 当前 Stage 5 的正式任务已全部落地；下一步建议工作是补齐固定样例、handoff 正反例与 benchmark 证据
 
-这意味着项目已经建立了单 Agent 的执行基础、安全可观测运行时基线、首批 interview domain 工具能力、统一 context assembly 基线、统一的 tool output 消费视图、turn 级 Agent Workbench，以及可复现的 demo flow 收口，已经达到完整单 Agent（Level A）。当前已进入 Stage 5，并完成了多步预算骨架与终态语义收口两项前置任务，开始转向 handoff / subagent 边界治理。
+这意味着项目已经建立了单 Agent 的执行基础、安全可观测运行时基线、首批 interview domain 工具能力、统一 context assembly 基线、统一的 tool output 消费视图、turn 级 Agent Workbench，以及可复现的 demo flow 收口，已经达到完整单 Agent（Level A）。当前已进入 Stage 5，并完成了多步预算骨架、终态语义收口，以及首版 handoff / subagent 边界治理：系统已支持受控只读委派，但仍保持显式开启、默认单步、不扩散子执行体的保守策略。
 
 ## 它还差什么
 
-从顶层看，当前最低完成线已经达到；Stage 5 中已完成 S5-01 与 S5-02，剩余正式任务集中在：
+从顶层看，当前最低完成线已经达到；Stage 5 的正式任务也已经实现完毕，但仍有两类后续工作需要继续补强：
 
-- S5-03：补 handoff / subagent 的引入边界、适用场景与治理规则
-- 多步固定样例与 benchmark 证据继续补强，用来验证 Stage 5 机制收益
+- 多步固定样例与 benchmark 证据，用来验证 Stage 5 机制收益
+- handoff / subagent 的正反例沉淀，用来证明受控委派的适用场景与边界收益
 
 ## 文档分工
 

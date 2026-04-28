@@ -4,8 +4,8 @@
 
 - 当前整体状态：Stage 4 已完成，Stage 5 进行中
 - 已完成阶段：Stage 1、Stage 2、Stage 3、Stage 4
-- 当前已完成任务：S3-01、S3-02、S3-03、S4-01、S4-02、S5-01、S5-02
-- 当前建议推进任务：[S5-03：Handoff and Subagent Boundary](./agent-tasks/s5-task-03-handoff-and-subagent-boundary.md)
+- 当前已完成任务：S3-01、S3-02、S3-03、S4-01、S4-02、S5-01、S5-02、S5-03
+- 当前建议推进任务：补齐 Stage 5 固定样例、handoff 正反例与 benchmark 证据
 - 当前最低完成线定义：完成 Stage 4 即达到完整单 Agent（Level A）
 - 更高一级目标：Stage 5 是受控多步 Agent（Level B），不是最低完成线
 
@@ -90,18 +90,19 @@
 - 当前状态：进行中
 - 当前完成情况：S5-01 已完成，已落地显式 `runtimeConfig`、`maxSteps / maxDurationMillis / maxEstimatedModelTokens` 预算、`execution` 执行摘要，以及预算耗尽时的 `bounded_loop` trace / metrics 收口
 - 当前完成情况：S5-02 已完成，已引入 `terminalState / stopReason / recoverable / recoveryHint` 统一终态契约，并对齐审批恢复、trace、metrics、workbench 与 demo narrative
-- 说明：Stage 5 是增强目标，不是最低完成线；当前剩余正式任务是 S5-03 的 handoff / subagent 边界治理
+- 当前完成情况：S5-03 已完成首版 handoff / subagent 边界治理，已落地受控只读委派、单 turn 单次委派限制、委派结果回主链路的 memory/trace 收口，以及前端对 internal handoff marker 的独立展示语义
+- 说明：Stage 5 是增强目标，不是最低完成线；当前不再缺正式任务实现，后续重点转为固定样例、benchmark 与收益证据补强
 - 参考文档：[Stage 5：Bounded Multi-Step Agent](./agent-stages/stage-5-bounded-multi-step-agent.md)
 
 ## 当前推荐推进任务
 
-当前建议推进 [S5-03：Handoff and Subagent Boundary](./agent-tasks/s5-task-03-handoff-and-subagent-boundary.md)。
+当前建议推进 Stage 5 固定样例、handoff 正反例与 benchmark 证据补强。
 
 推荐原因：
 
-- Stage 4 已完成，项目已经达到完整单 Agent（Level A），具备继续做受控多步增强的前提
-- S5-01 与 S5-02 已经把多步预算骨架和统一终态契约收口完毕，handoff / subagent 可以开始建立明确边界
-- 在没有把委派收益、恢复规则与治理约束讲清楚之前，不应继续引入更强自治能力
+- S5-03 已经把 handoff / subagent 的首版受控边界落地，当前更需要证明它是否真正带来收益，而不是继续扩展自治形态
+- Stage 5 是否值得继续增强，取决于多步固定样例、handoff 正反例与 benchmark 能否给出清晰证据
+- 当前最容易失真的不是代码实现，而是“看起来更高级”但缺少证据支撑的能力叙事
 
 ## 评测与证据原则
 

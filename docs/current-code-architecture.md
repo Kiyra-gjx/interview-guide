@@ -1,6 +1,6 @@
 # 当前代码架构图与设计细节
 
-> 更新时间：2026-04-27
+> 更新时间：2026-04-28
 >
 > 图形工具：Mermaid
 >
@@ -233,6 +233,14 @@ sequenceDiagram
             AR->>TR: markToolStepWaitingApproval()
             AR->>SS: waitForApproval()
             AR-->>AO: PendingApprovalTransition
+        else HANDOFF_CALL
+            AO->>TR: startToolStep()
+            AO->>LLM: 受控只读委派<br/>冻结当前上下文做拆解/归纳
+            LLM-->>AO: AgentHandoffResultDTO
+            AO->>AO: toToolResult()<br/>把委派结果投影成统一 tool output 视图
+            AO->>MS: updateAfterTool()
+            AO->>TR: completeHandoffStep()
+            AO->>AO: 继续下一步 bounded loop 决策
         else TOOL_CALL
             AO->>TR: startToolStep()
             AO->>TO: execute(context)
@@ -250,15 +258,17 @@ sequenceDiagram
 ### 这条链路的关键点
 
 - `resolveDecision()` 不是直接信任模型提案，它会继续做工具名校验、参数补齐、缺参检查、Tool guardrail 与审批需求解析。
+- handoff 不是普通 Tool，也不是独立 session/turn；它是 `AgentOrchestrator` 内部的一条受控只读分支，只能基于冻结上下文返回结构化拆解结果。
 - 审批发生在真正的 `tool.execute()` 之前；待审批分支只冻结 trace、toolInput 和 latestUserMessage，不会先执行工具。
 - `agent` 模块不是普通聊天接口，而是有持久化执行状态的编排器。
 - 核心对象不是只有 message，还有 `session`、`turn`、`step trace`、`memory`、`approval`。
 - `turn` 有租约与终态控制，避免同一个会话被并发执行污染。
 - Tool 原始结果先产出 `summary / answerPayload / debugPayload / confirmedFacts`，再由 `AgentToolResult` 统一投影成 Prompt 的回答视图、Memory 的写回视图，以及 Trace / API 的 `toolOutput` 视图。
+- handoff 结果也会被投影成 `AgentToolResult`，因此 memory、trace、workbench 与前端调试界面不需要为委派单独发明第二套结果协议。
 - Tool 调用前后都落 trace，Agent 前端可以读取 trace/memory/approval，并直接消费统一的 `toolOutput` 做可观测界面。
 - 当前已注册的 Tool 主要是只读型能力：读取简历画像、检索知识库。
 - 当前默认仍是单步 Agent；只有显式传入 `runtimeConfig.multiStepEnabled=true` 时，`AgentOrchestrator` 才会进入受控多步 loop。
-- 当前已落地受控多步执行的前两层语义：`maxSteps`、`maxDurationMillis`、`maxEstimatedModelTokens` 三类预算，以及 `terminalState / stopReason / recoverable / recoveryHint` 统一终态契约；其中 `execution.stopReason` 表达真实收口分支，`execution.budgetStopReason` 单独表达预算是否已命中，`execution.terminalState` 再负责给 UI / metrics 提供稳定聚合语义。
+- 当前已落地受控多步执行的三层语义：`maxSteps`、`maxDurationMillis`、`maxEstimatedModelTokens` 三类预算，`terminalState / stopReason / recoverable / recoveryHint` 统一终态契约，以及首版 handoff / subagent 边界治理；其中 `execution.stopReason` 表达真实收口分支，`execution.budgetStopReason` 单独表达预算是否已命中，`execution.terminalState` 再负责给 UI / metrics 提供稳定聚合语义。
 
 ### 工作台读模型链路
 
@@ -354,6 +364,7 @@ flowchart TD
 | 流式请求 | SSE 直接用 `fetch` 读取流，不经过 axios | `frontend/src/api/knowledgebase.ts`、`frontend/src/api/ragChat.ts` |
 | Agent UI 数据面 | 工作台以 `session` 元数据、`turn summaries/detail`、`memory` 与 `approvals` 组织界面；`turn detail` 再承载 `messages / traceSteps / approvals / guardrailResults`，不再从 `session` 返回全量消息 | `frontend/src/pages/AgentCoachPage.tsx`、`frontend/src/components/agent/*`、`frontend/src/api/agent.ts`、`frontend/src/types/agent.ts` |
 | Agent 前端并发保护 | 用请求序号与会话代际屏蔽 stale response，避免切 turn、刷新工作台、切会话时旧请求回写界面 | `frontend/src/pages/AgentCoachPage.tsx`、`frontend/tests/AgentCoachPage.test.tsx` |
+| Agent trace 展示语义 | `direct_answer`、`input_guardrail`、`subagent_handoff` 会被前端识别为 internal trace marker；其中 `subagent_handoff` 作为“受控只读委派”路径展示，不参与业务工具命中和计数 | `frontend/src/components/agent/agentTraceToolPresentation.ts`、`frontend/src/components/agent/AgentTraceExplorer.tsx`、`frontend/tests/agentTraceToolPresentation.test.ts` |
 
 ### 6.3 后端业务切片
 
@@ -402,7 +413,7 @@ flowchart TD
 3. 面试模块是“Redis 过程态 + PostgreSQL 恢复态”的混合模型。
 4. 知识库模块把“上传向量化”和“检索问答”拆成两条链路，分别优化。
 5. Agent 模块是当前最复杂的子系统，已经具备 guardrail、approval、trace、memory、turn lease、统一的 tool output normalization，以及 Stage 4 workbench 只读聚合层；S5-02 又把终态语义统一收口到 `terminalState / stopReason / recoverable / recoveryHint`。
-6. Stage 5 的前两步已经落地，但仍保持“显式开启、默认单步”的保守策略：多步 loop 不会默认接管所有请求，预算耗尽、审批拒绝、恢复阻断与未处理异常都会通过 trace、execution 与前端 narrative 显式收口，而不是继续无限执行或混成单一失败态。
+6. Stage 5 的前三步主体能力已经落地，但仍保持“显式开启、默认单步”的保守策略：多步 loop 不会默认接管所有请求；handoff 也只允许走单 turn 单次、只读、不可扩散的边界形态。预算耗尽、审批拒绝、委派拒绝、恢复阻断与未处理异常都会通过 trace、execution 与前端 narrative 显式收口，而不是继续无限执行或混成单一失败态。
 
 ## 7. 阅读源码时的推荐入口
 

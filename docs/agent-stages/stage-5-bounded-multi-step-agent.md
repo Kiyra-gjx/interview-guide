@@ -2,8 +2,8 @@
 
 ## 0. 阶段状态
 - 阶段状态：进行中
-- 已完成任务：S5-01、S5-02
-- 当前任务：[S5-03：Handoff and Subagent Boundary](../agent-tasks/s5-task-03-handoff-and-subagent-boundary.md)
+- 已完成任务：S5-01、S5-02、S5-03
+- 当前任务：无新的正式实现任务；建议继续补齐固定样例、handoff 正反例与 benchmark 证据
 - 前置条件：Stage 4 完成
 
 ## 1. 阶段目标
@@ -42,7 +42,8 @@
 - 已支持 `maxSteps`、`maxDurationMillis`、`maxEstimatedModelTokens` 三类预算
 - 已支持预算耗尽后的降级收口、`execution` 执行摘要，以及 `bounded_loop` trace
 - 已支持统一的 `terminalState / stopReason / recoverable / recoveryHint` 终态契约，并对齐审批恢复、trace、metrics 与工作台叙事
-- 这些能力当前已覆盖 S5-01 与 S5-02，不代表 Stage 5 已完成
+- 已支持首版 handoff / subagent 边界治理：只读委派决策字段、单 turn 单次委派限制、委派结果写回 memory/trace、委派拒绝与失败的独立 stop reason，以及前端对 internal handoff marker 的独立展示
+- 这些能力当前已覆盖 S5-01、S5-02、S5-03 的主体实现；Stage 5 是否真正收口还取决于固定样例与 benchmark 证据是否充分
 
 ## 6. 不在本阶段范围内
 

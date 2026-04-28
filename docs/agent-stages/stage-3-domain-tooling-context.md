@@ -3,7 +3,7 @@
 ## 0. 阶段状态
 - 阶段状态：已完成
 - 已完成任务：S3-01、S3-02、S3-03
-- 后续承接任务：Stage 4 已完成，S5-01、S5-02 也已完成，下一步建议推进 [S5-03：Handoff and Subagent Boundary](../agent-tasks/s5-task-03-handoff-and-subagent-boundary.md)
+- 后续承接任务：Stage 4 与 S5-01/S5-02/S5-03 已完成主体实现；下一步建议补齐 Stage 5 固定样例、handoff 正反例与 benchmark 证据
 - 前置条件：Stage 2 完成
 
 ## 0.1 当前进展

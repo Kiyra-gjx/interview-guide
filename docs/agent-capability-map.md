@@ -77,7 +77,7 @@
 
 ## Controlled Loop
 
-- 当前状态：S5-01 与 S5-02 已完成。系统已支持显式开启的 bounded multi-step loop、`maxSteps / maxDurationMillis / maxEstimatedModelTokens` 预算、预算耗尽降级收口、`execution` 执行摘要，以及统一的 `terminalState / stopReason / recoverable / recoveryHint` 终态语义；当前主要剩余 handoff / subagent 边界治理
+- 当前状态：S5-01、S5-02、S5-03 已完成首版。系统已支持显式开启的 bounded multi-step loop、`maxSteps / maxDurationMillis / maxEstimatedModelTokens` 预算、预算耗尽降级收口、`execution` 执行摘要、统一的 `terminalState / stopReason / recoverable / recoveryHint` 终态语义，以及受控只读委派的引入边界、结果回传和 trace 收口
 - 完成标准：多步执行具备预算、停止条件、失败语义与 handoff 边界，并仍处于可观测、可约束范围内
 - 对应 stage/task：
   - [Stage 5：Bounded Multi-Step Agent](./agent-stages/stage-5-bounded-multi-step-agent.md)
@@ -88,5 +88,5 @@
 ## 总结
 
 - “它是什么”：见 [Agent Overview](./agent-overview.md)
-- “它还差什么”：当前主要缺口集中在 handoff / subagent 边界治理，以及多步固定样例证据继续补强
-- “它接下来做什么”：当前建议推进 [S5-03：Handoff and Subagent Boundary](./agent-tasks/s5-task-03-handoff-and-subagent-boundary.md)
+- “它还差什么”：当前主要缺口集中在多步固定样例、handoff 正反例与 benchmark 证据补强
+- “它接下来做什么”：当前建议推进 Stage 5 证据补强，而不是继续扩展新的自治分支
