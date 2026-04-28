@@ -2,14 +2,19 @@
 
 ## 0. 任务状态
 
-- 状态：规划中
+- 状态：已完成
 - 当前定位：Stage 6 的能力块量化任务
 - 前置依赖：S6-01 已定义统一记录和报告方式
 
 ## 0.1 当前进展
 
 - Context、Memory、Recovery、Safety 四类能力已经在代码和单测里有可消费信号
-- 当前缺的是固定 case 集、统一字段和 case 级原始记录，而不是缺一套新机制
+- 已完成 4 套固定样本目录初始化：
+  - `docs/evidence/agent-quantification/stage-3-context-set/`
+  - `docs/evidence/agent-quantification/stage-3-memory-set/`
+  - `docs/evidence/agent-quantification/stage-5-recovery-set/`
+  - `docs/evidence/agent-quantification/stage-2-safety-set/`
+- 已为 4 套样本补齐具体 case 清单、逐 case 原始记录字段和 summary 模板
 
 ## 1. 任务目标
 
@@ -47,9 +52,11 @@
 - 四类能力至少各有一份固定样本定义
 - 每类能力至少能输出 case 级原始记录字段
 - 每类能力都能明确说出哪些数据已经足够进简历，哪些还只是内部基线
+- 当前状态：以上三项已满足，`S6-02` 可以视为完成
 
 ## 7. 验证要求
 
 - Context 至少能输出 budget、assembled chars、section status、requestBroken
 - Recovery 至少能覆盖 approval reject、approval replay blocked、resume failure、budget exhausted 等关键终态
 - Safety 至少能覆盖输入拦截、待审批、拒绝收口、绕过执行阻断
+- 当前状态：4 套样本均已按上述字段和语义建模

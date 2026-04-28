@@ -106,7 +106,7 @@
   - Stage 5 有稳定 benchmark 或 handoff 正反例证据
   - 能明确区分哪些数据可以安全写进简历，哪些还只能作为内部基线
 - 当前状态：进行中
-- 当前完成情况：已新增量化手册与记录模板；Stage 2 已有可运行回归基线；Stage 6 文档体系已建立，`S6-01` 已完成 Stage 5 benchmark 入口、统一报告脚本和证据目录基础设施，接下来需要把 Context / Memory / Recovery / Safety / Stage 5 Benchmark 正式收口成固定评测路径
+- 当前完成情况：已新增量化手册与记录模板；Stage 2 已有可运行回归基线；Stage 6 文档体系已建立，`S6-01` 已完成 Stage 5 benchmark 入口、统一报告脚本和证据目录基础设施，`S6-02` 已完成 Context / Memory / Recovery / Safety 四套固定样本与记录模板，接下来重点转为 `S6-03` 的 Stage 5 benchmark 收益沉淀与简历结果收口
 - 说明：Stage 6 不负责新增新的 Agent 主逻辑，而是负责把已有能力变成可信证据
 - 参考文档：[Stage 6：Evidence, Benchmark, and Resume Quantification](./agent-stages/stage-6-evidence-benchmark-and-resume-quantification.md)
 

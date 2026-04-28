@@ -2,8 +2,8 @@
 
 ## 0. 阶段状态
 - 阶段状态：进行中
-- 已完成任务：S6-01
-- 当前任务：S6-02、S6-03 待落地
+- 已完成任务：S6-01、S6-02
+- 当前任务：S6-03 待落地
 - 前置条件：Stage 5 主体实现已完成
 
 ## 0.1 当前进展
@@ -14,6 +14,7 @@
 - 当前主要缺口不是新的运行时主逻辑，而是把这些离散信号收口成固定样本集、统一报告和可写进简历的量化证据
 - `docs/agent-resume-quantification.md` 与 `docs/agent-quantification-record-template.md` 已给出量化口径，但还没有正式纳入 Stage 体系
 - `S6-01` 已完成第一批基础设施落地：新增 Stage 5 benchmark 任务与脚本、统一证据目录 `docs/evidence/agent-quantification/`，并把 Stage 2 / Stage 5 的报告命名和 suite 结构固定下来
+- `S6-02` 已完成四套固定样本定义：Context / Memory / Recovery / Safety 均已建立 suite 目录、样本清单、原始记录模板和 summary 模板
 
 ## 1. 阶段目标
 
