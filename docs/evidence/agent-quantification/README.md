@@ -71,7 +71,12 @@ powershell -ExecutionPolicy Bypass -File scripts/init-agent-evidence-suite.ps1 `
 - Stage 2 固定回归：`scripts/run-agent-stage2-eval.ps1`
 - Stage 5 benchmark：`scripts/run-agent-stage5-benchmark.ps1`
 
-## 7. 使用原则
+## 7. 当前已填实的证据包
+
+- `stage-2-fixed-regression`：已有报告、diff、baseline 归档
+- `stage-5-benchmark`：已有固定样本、原始结果、summary、resume pack、报告与 diff 归档
+
+## 8. 使用原则
 
 - `build/reports/` 是运行产物，不是长期证据归档目录
 - `docs/evidence/agent-quantification/` 才是长期可复核证据目录

@@ -1,13 +1,13 @@
 # Stage 5 Agent Benchmark Report
 
 - suite: stage-5-benchmark
-- generatedAt: 2026-04-28T19:48:21.247502700
+- generatedAt: 2026-04-28T19:56:41.322558
 - totalCases: 4
 - passedCases: 4
 - multiStep 场景数: 2
 - 平均执行步数: 1.0
-- 平均延迟: 862 ms
-- 最大延迟: 3340 ms
+- 平均延迟: 675 ms
+- 最大延迟: 2622 ms
 - 预算耗尽样例数: 1
 - 委派成功样例数: 1
 - 委派拒绝样例数: 1
