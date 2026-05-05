@@ -83,3 +83,4 @@
 - 一份 baseline / diff 报告，支持改动前后对比
 - 一组代表性 trace / approval / terminal payload 截图或接口输出
 - 具体记录方式可参考 [Agent Evidence Playbook](../agent-evidence-playbook.md) 与 [Agent 项目量化操作手册](../agent-resume-quantification.md)
+- 当前简历初稿可参考 [Agent Runtime 项目简历初稿](../agent-resume-project-draft.md)
