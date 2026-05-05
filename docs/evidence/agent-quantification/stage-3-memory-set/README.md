@@ -15,6 +15,9 @@
 
 - 代码入口：`app/src/main/java/interview/guide/modules/agent/service/AgentMemoryService.java`
 - 关联入口：`app/src/main/java/interview/guide/modules/agent/service/AgentContextAssemblyService.java`
+- 固定评测入口：
+  - `app/src/test/java/interview/guide/modules/agent/service/AgentStage3MemoryEvalTest.java`
+  - `scripts/run-agent-stage3-memory-eval.ps1`
 - 当前测试基线：
   - `app/src/test/java/interview/guide/modules/agent/service/AgentMemoryServiceTest.java`
   - `app/src/test/java/interview/guide/modules/agent/service/AgentOrchestratorTest.java`
@@ -22,5 +25,6 @@
 ## 证据要求
 
 - 必须保留 before / after 或 memory hit / no hit 对照
+- 必须明确区分“固定 no-reuse 对照”与“当前实际命中路径”
 - 必须能解释 `repeatedToolCalls` 与 `repeatedFactChecks` 的判定规则
 - 必须区分“memory 归一化正确”与“follow-up 真正减少重复调用”

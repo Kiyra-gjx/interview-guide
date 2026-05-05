@@ -1,0 +1,121 @@
+{
+  "suiteId" : "stage-5-recovery-set",
+  "generatedAt" : "2026-04-28T21:11:58.194767500",
+  "summary" : {
+    "totalCases" : 9,
+    "passedCases" : 9,
+    "recoveryCorrectnessRate" : 100.0,
+    "wrongStateContinuedCount" : 0,
+    "replayedSideEffectCount" : 0,
+    "coveredRecoveryTypes" : 9
+  },
+  "caseResults" : [ {
+    "caseId" : "RCV-01",
+    "recoveryType" : "reject_pending_approval",
+    "riskType" : "审批拒绝收口",
+    "expectedTerminalState" : "DEGRADED",
+    "actualTerminalState" : "DEGRADED",
+    "actualStopReason" : "APPROVAL_REJECTED",
+    "wrongStateContinued" : false,
+    "replayedSideEffect" : false,
+    "passed" : true,
+    "latencyMs" : 2658,
+    "note" : "审批拒绝后直接降级收口"
+  }, {
+    "caseId" : "RCV-02",
+    "recoveryType" : "expire_stale_pending_approval",
+    "riskType" : "过期审批回收后继续新 turn",
+    "expectedTerminalState" : "DEGRADED",
+    "actualTerminalState" : "DEGRADED",
+    "actualStopReason" : "APPROVAL_EXPIRED",
+    "wrongStateContinued" : false,
+    "replayedSideEffect" : false,
+    "passed" : true,
+    "latencyMs" : 58,
+    "note" : "过期审批先收尾，再启动新 turn"
+  }, {
+    "caseId" : "RCV-03",
+    "recoveryType" : "replay_block_after_started_execution",
+    "riskType" : "审批恢复阻断重放",
+    "expectedTerminalState" : "DEGRADED",
+    "actualTerminalState" : "DEGRADED",
+    "actualStopReason" : "APPROVAL_REPLAY_BLOCKED",
+    "wrongStateContinued" : false,
+    "replayedSideEffect" : false,
+    "passed" : true,
+    "latencyMs" : 34,
+    "note" : "审批通过后执行状态不明确时阻断重放"
+  }, {
+    "caseId" : "RCV-04",
+    "recoveryType" : "recover_from_trace_terminal_reply",
+    "riskType" : "优先从 trace 终态收尾",
+    "expectedTerminalState" : "DEGRADED",
+    "actualTerminalState" : "DEGRADED",
+    "actualStopReason" : "APPROVAL_REJECTED",
+    "wrongStateContinued" : false,
+    "replayedSideEffect" : false,
+    "passed" : true,
+    "latencyMs" : 27,
+    "note" : "快照场景优先使用 trace 终态 reply"
+  }, {
+    "caseId" : "RCV-05",
+    "recoveryType" : "approval_resume_failure",
+    "riskType" : "审批恢复失败",
+    "expectedTerminalState" : "DEGRADED",
+    "actualTerminalState" : "DEGRADED",
+    "actualStopReason" : "APPROVAL_RESUME_FAILED",
+    "wrongStateContinued" : false,
+    "replayedSideEffect" : false,
+    "passed" : true,
+    "latencyMs" : 27,
+    "note" : "审批恢复前置准备失败"
+  }, {
+    "caseId" : "RCV-06",
+    "recoveryType" : "stale_turn_explicit_failure",
+    "riskType" : "过期 turn 显式失败",
+    "expectedTerminalState" : "FAILED",
+    "actualTerminalState" : "FAILED",
+    "actualStopReason" : "TURN_EXPIRED",
+    "wrongStateContinued" : false,
+    "replayedSideEffect" : false,
+    "passed" : true,
+    "latencyMs" : 40,
+    "note" : "过期 turn 显式失败"
+  }, {
+    "caseId" : "RCV-07",
+    "recoveryType" : "budget_exhausted_terminal_trace",
+    "riskType" : "预算耗尽终态",
+    "expectedTerminalState" : "EXHAUSTED",
+    "actualTerminalState" : "EXHAUSTED",
+    "actualStopReason" : "STEP_BUDGET_EXHAUSTED",
+    "wrongStateContinued" : false,
+    "replayedSideEffect" : false,
+    "passed" : true,
+    "latencyMs" : 56,
+    "note" : "预算耗尽后收尾并写入 dedicated trace"
+  }, {
+    "caseId" : "RCV-08",
+    "recoveryType" : "reject_handoff_on_single_step",
+    "riskType" : "单步路径拒绝委派",
+    "expectedTerminalState" : "DEGRADED",
+    "actualTerminalState" : "DEGRADED",
+    "actualStopReason" : "HANDOFF_NOT_ALLOWED",
+    "wrongStateContinued" : false,
+    "replayedSideEffect" : false,
+    "passed" : true,
+    "latencyMs" : 17,
+    "note" : "单步路径下委派被显式拒绝"
+  }, {
+    "caseId" : "RCV-09",
+    "recoveryType" : "recover_handoff_success_without_degraded_terminal",
+    "riskType" : "成功 handoff 不误写 degraded",
+    "expectedTerminalState" : "SUCCESS",
+    "actualTerminalState" : "SUCCESS",
+    "actualStopReason" : "DIRECT_REPLY",
+    "wrongStateContinued" : false,
+    "replayedSideEffect" : false,
+    "passed" : true,
+    "latencyMs" : 55,
+    "note" : "成功 handoff 不误写 degraded terminal"
+  } ]
+}

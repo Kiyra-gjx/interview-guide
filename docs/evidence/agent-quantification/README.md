@@ -69,6 +69,10 @@ powershell -ExecutionPolicy Bypass -File scripts/init-agent-evidence-suite.ps1 `
 ## 6. 当前已接入入口
 
 - Stage 2 固定回归：`scripts/run-agent-stage2-eval.ps1`
+- Stage 2 Safety Set：`scripts/run-agent-stage2-safety-eval.ps1`
+- Stage 3 Context Set：`scripts/run-agent-stage3-context-eval.ps1`
+- Stage 3 Memory Set：`scripts/run-agent-stage3-memory-eval.ps1`
+- Stage 5 Recovery Set：`scripts/run-agent-stage5-recovery-eval.ps1`
 - Stage 5 benchmark：`scripts/run-agent-stage5-benchmark.ps1`
 
 ## 7. 当前已填实的证据包
@@ -76,6 +80,8 @@ powershell -ExecutionPolicy Bypass -File scripts/init-agent-evidence-suite.ps1 `
 - `stage-2-fixed-regression`：已有报告、diff、baseline 归档
 - `stage-2-safety-set`：已有固定样本、真实 report、diff、baseline 与可写简历句子
 - `stage-3-context-set`：已有固定样本、真实 report、diff、baseline 与可写简历句子
+- `stage-3-memory-set`：已有固定样本、真实 report、diff、baseline 与可写简历句子
+- `stage-5-recovery-set`：已有固定样本、真实 report、diff、baseline 与可写简历句子
 - `stage-5-benchmark`：已有固定样本、原始结果、summary、resume pack、报告与 diff 归档
 
 ## 8. 使用原则

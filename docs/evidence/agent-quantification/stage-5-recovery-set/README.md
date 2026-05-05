@@ -27,3 +27,12 @@
 - 必须保留 `expectedTerminalState / actualTerminalState`
 - 必须显式记录 `wrongStateContinued / replayedSideEffect`
 - 没有 trace 终态证据时，不允许宣称恢复正确率
+
+## 当前基线
+
+- 固定样本数：`9`
+- 已归档报告：
+  - `reports/stage-5-recovery-set-report.json`
+  - `reports/stage-5-recovery-set-report.md`
+  - `reports/stage-5-recovery-set-diff.md`
+- 当前 baseline：`baselines/stage-5-recovery-set-baseline-2026-04-28.json`
