@@ -1,9 +1,9 @@
 # Stage 6: Evidence, Benchmark, and Resume Quantification
 
 ## 0. 阶段状态
-- 阶段状态：进行中
+- 阶段状态：已完成
 - 已完成任务：S6-01、S6-02、S6-03
-- 当前任务：继续把 Context / Memory / Recovery / Safety 从样本定义推进到正式采数
+- 当前任务：维护证据基线，并按简历用途继续补更强的任务级 benchmark
 - 前置条件：Stage 5 主体实现已完成
 
 ## 0.1 当前进展
@@ -11,11 +11,16 @@
 - Stage 2 已具备固定回归入口、JSON / Markdown 报告和 baseline / diff 机制，能够直接产出第一批可复核证据
 - Stage 3 已暴露 context budget、section status、memory snapshot 等结构化信号，具备做上下文与记忆量化的基础
 - Stage 5 已暴露 `multiStepEnabled`、`executedSteps`、`stopReason`、`budgetStopReason`、`terminalState`、`recoverable`、`recoveryHint`，并覆盖预算耗尽、approval 恢复、handoff 正反例等关键测试语义
-- 当前主要缺口不是新的运行时主逻辑，而是把这些离散信号收口成固定样本集、统一报告和可写进简历的量化证据
-- `docs/agent-resume-quantification.md` 与 `docs/agent-quantification-record-template.md` 已给出量化口径，但还没有正式纳入 Stage 体系
+- 当前主要成果不是新的运行时主逻辑，而是把这些离散信号收口成固定样本集、统一报告和可写进简历的量化证据
+- `docs/agent-resume-quantification.md` 与 `docs/agent-quantification-record-template.md` 已吸收当前真实跑数结果，纳入 Stage 6 证据体系
 - `S6-01` 已完成第一批基础设施落地：新增 Stage 5 benchmark 任务与脚本、统一证据目录 `docs/evidence/agent-quantification/`，并把 Stage 2 / Stage 5 的报告命名和 suite 结构固定下来
 - `S6-02` 已完成四套固定样本定义：Context / Memory / Recovery / Safety 均已建立 suite 目录、样本清单、原始记录模板和 summary 模板
 - `S6-03` 已完成 Stage 5 benchmark 当前基线版证据包：固定样本、原始结果、summary、baseline / diff 和 resume-safe 表述均已收口
+- `stage-3-context-set` 已完成真实跑数：`10/10` case 通过，平均压缩率 `16.09%`，关键 section 保留率 `100%`
+- `stage-3-memory-set` 已完成真实跑数：`9/9` case 通过，`repeatedToolCalls 3 -> 0`，`repeatedFactChecks 2 -> 0`
+- `stage-5-recovery-set` 已完成真实跑数：`9/9` case 通过，恢复正确率 `100%`，`wrongStateContinued=0`，`replayedSideEffect=0`
+- `stage-2-safety-set` 已完成真实跑数：`10/10` case 通过，高风险动作审批命中率 `100%`，审批拒绝后降级收口率 `100%`
+- `stage-5-benchmark` 已完成当前基线证据包：`4/4` case 通过，覆盖 handoff 正反例、预算耗尽与 replay blocked 四类关键终态
 
 ## 1. 阶段目标
 
@@ -34,7 +39,7 @@
 - 统一的 Stage 6 评测与证据分工说明
 - Context / Memory / Recovery / Safety / Stage 5 Benchmark 五类固定样本集定义
 - 原始记录表、汇总结果表、baseline / diff 和代表性 trace 的归档规范
-- 至少一组可重复执行的 Stage 3 / Stage 5 量化入口
+- 五组可重复执行的 Stage 2 / Stage 3 / Stage 5 量化入口
 - “能写进简历”与“还不能写进简历”的准入标准
 
 ## 4. 任务拆分
@@ -63,6 +68,12 @@
 - Stage 5 至少形成一套固定 benchmark 或 handoff 正反例证据，而不是只停留在单测语义
 - 能明确区分“当前可写进简历的数据”和“当前只能作为内部基线的数据”
 - 至少沉淀出 2 到 3 条可安全写入简历的量化句子，并能解释其样本来源、判定口径和边界条件
+
+## 7.1 当前结论
+
+- 以上四项已满足，Stage 6 可以视为完成
+- 当前已经具备可安全写进简历的 Context / Memory / Recovery / Safety 四类量化结果
+- Stage 5 benchmark 当前可作为工程边界证据写入简历，但还不适合包装成“多步任务完成率”类结果
 
 ## 8. 建议留存的证据
 

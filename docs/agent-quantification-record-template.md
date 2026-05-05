@@ -37,9 +37,14 @@
 
 ### 4.2 结构化记忆
 
-| caseId | turnCount | toolCallCount | repeatedToolCalls | repeatedFactChecks | extraCallsAfterMemoryReady | notes |
-| --- | --- | --- | --- | --- | --- | --- |
-|  |  |  |  |  |  |  |
+| caseId | turnCount | toolCallCount | repeatedToolCallsBefore | repeatedToolCallsAfter | repeatedFactChecksBefore | repeatedFactChecksAfter | extraCallsAfterMemoryReady | notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+|  |  |  |  |  |  |  |  |  |
+
+说明：
+
+- `Before / After` 优先使用固定 no-reuse 对照和当前实际命中路径的对照口径
+- 如果某轮没有对照，只记录 `After` 也可以，但不能拿去写“下降了多少”
 
 ### 4.3 任务恢复
 
