@@ -1,430 +1,248 @@
 <div align="center">
 
-<h1>Interview Guide Agent</h1>
+<h1>Interview Agent</h1>
 
-基于 Spring AI 的面试 Agent / RAG / Workflow 实验项目（持续迭代中）
+面向求职与技术面试场景的 Java Agent 工作台：把简历、知识库、面试记录、工具调用、记忆与可观测执行链路组织成一个可运行、可调试、可评估的 Agent 项目。
 
 [![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0-green?logo=springboot)](https://spring.io/projects/spring-boot)
+[![Spring AI](https://img.shields.io/badge/Spring%20AI-2.0-6db33f)](https://spring.io/projects/spring-ai)
 [![React](https://img.shields.io/badge/React-18.3-blue?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-336791?logo=postgresql)](https://www.postgresql.org/)
-[![Stage](https://img.shields.io/badge/Stage-Agentizing-2563eb)](https://github.com/Kiyra-gjx/interview-guide)
-[![Focus](https://img.shields.io/badge/Focus-Java%20Backend%20%2B%20Agent-0f766e)](https://github.com/Kiyra-gjx/interview-guide)
+[![Focus](https://img.shields.io/badge/Focus-Agent%20Runtime%20%2B%20RAG-0f766e)](#核心能力)
 [![License](https://img.shields.io/github/license/Kiyra-gjx/interview-guide)](./LICENSE)
 
 <p>
-  <a href="https://github.com/Kiyra-gjx/interview-guide"><img src="https://img.shields.io/badge/Repo-Kiyra--gjx%2Finterview--guide-111827" alt="repo"></a>
-  <a href="https://github.com/Snailclimb/interview-guide"><img src="https://img.shields.io/badge/Upstream-Snailclimb%2Finterview--guide-334155" alt="upstream"></a>
-  <a href="#快速开始"><img src="https://img.shields.io/badge/Get%20Started-README-7c3aed" alt="get-started"></a>
-</p>
-
-<p>
-  <a href="#项目快照">项目快照</a> •
-  <a href="#界面预览">界面预览</a> •
-  <a href="#系统架构">系统架构</a> •
-  <a href="#上游来源与致谢">上游来源</a> •
-  <a href="#技术栈">技术栈</a> •
-  <a href="#快速开始">快速开始</a>
+  <a href="#项目定位">项目定位</a> ·
+  <a href="#核心能力">核心能力</a> ·
+  <a href="#agent-架构">Agent 架构</a> ·
+  <a href="#技术栈">技术栈</a> ·
+  <a href="#快速开始">快速开始</a> ·
+  <a href="#路线图">路线图</a>
 </p>
 
 </div>
 
-
 ---
 
-## 项目介绍
+## 项目定位
 
-Interview Guide Agent 是我基于 [Snailclimb/interview-guide](https://github.com/Snailclimb/interview-guide) fork 并持续二次开发的项目。
+Interview Agent 是一个围绕面试准备场景构建的 Agent 工程项目，重点放在运行时、领域工具、记忆、Trace、Guardrails 和评测闭环。
 
-当前它仍然以 `LLM + RAG + Structured Output + Redis Stream 工作流` 为核心，但目标不是停留在一个“会调用大模型的面试平台”，而是把它逐步演进为一个面向求职与面试场景的 `Agent` 项目。
+它把原本分散的能力沉淀为可被 Agent 调度的领域工具：
 
-> 这个仓库一边保留原有面试平台的完整业务链路，一边按 `Tool Calling -> Memory -> Agent Loop -> Eval/Trace` 的顺序逐步 Agent 化，目标是沉淀一个更适合 Java 后端转向 Agent 应用开发的长期项目。
+- 简历画像：解析候选人经历、提取技能证据、识别风险点与改进空间。
+- 知识检索：基于 PostgreSQL + pgvector 的 RAG 检索，为回答、讲解和追问提供依据。
+- 面试上下文：读取历史面试表现、回答质量、薄弱项和追问链路。
+- 执行运行时：维护 Agent 会话、turn、memory、trace、guardrail、approval 和 terminal state。
+- 调试与评估：提供 Workbench、Trace Explorer 和固定评测集，支撑回放、排障和能力量化。
 
-## 项目快照
+项目当前仍保留简历管理、模拟面试、知识库问答等完整业务入口，但这些入口已经不是最终目的，而是 Agent 工具层和验证场景的一部分。
 
-<table>
-  <tr>
-    <td valign="top" width="33%">
-      <strong>Current Shape</strong>
-      <br/>
-      <br/>
-      <strong>已具备</strong>
-      <br/>
-      - 简历解析与分析
-      <br/>
-      - 模拟面试与追问
-      <br/>
-      - RAG 问答与 SSE 对话
-      <br/>
-      - Redis Stream 异步任务
-      <br/>
-      - Structured Output 兜底
-    </td>
-    <td valign="top" width="33%">
-      <strong>Agent Direction</strong>
-      <br/>
-      <br/>
-      <strong>正在补齐</strong>
-      <br/>
-      - Tool Calling
-      <br/>
-      - Chat / Session Memory
-      <br/>
-      - 单 Agent 面试教练
-      <br/>
-      - Trace / Replay / Eval
-      <br/>
-      - Guardrails
-    </td>
-    <td valign="top" width="33%">
-      <strong>Engineering Focus</strong>
-      <br/>
-      <br/>
-      <strong>工程侧重点</strong>
-      <br/>
-      - Spring Boot 4 + Java 21
-      <br/>
-      - Spring AI 2.0
-      <br/>
-      - PostgreSQL + pgvector
-      <br/>
-      - Redis / Redis Stream
-      <br/>
-      - React + TypeScript
-    </td>
-  </tr>
-</table>
+## 核心能力
 
-## 项目状态
-
-| 维度 | 当前状态 | 下一步 |
+| 能力域 | 当前状态 | Agent 化目标 |
 | --- | --- | --- |
-| 产品定位 | AI 面试平台 | 面试场景 Agent |
-| 推理模式 | Prompt + RAG + Workflow | Tool Calling + 多步决策 |
-| 上下文 | 会话记录与业务状态 | 真正参与推理的 Memory |
-| 工程能力 | 异步任务、状态流转、结构化输出 | Trace、Eval、Guardrails |
-| 项目阶段 | `WIP` | 持续迭代 |
+| Agent Runtime | 已具备 session、turn、message、step trace、terminal state | 支撑稳定的多步规划、工具调用、失败恢复和结果交付 |
+| Tool Calling | 已封装简历画像、知识库检索、面试历史、差距分析、追问建议等领域工具 | 让 Agent 基于业务证据自主选择工具与下一步动作 |
+| Memory / Context | 已有会话消息、上下文组装、预算控制和 memory snapshot | 让历史表现、用户目标和检索证据真正参与推理 |
+| Guardrails / Approval | 已有风险等级、拦截动作、运行时审批和安全降级 | 控制敏感输出、危险操作和不完整上下文下的行为 |
+| Trace / Eval | 已有阶段评测集、回归样本、trace 记录和 benchmark 文档 | 让 Agent 能被解释、复现、量化和持续改进 |
+| Workbench UI | 已有 Agent 工作台、执行叙事、trace explorer、审批队列 | 作为开发、调试、演示和回放的统一入口 |
 
-## 界面预览
+## 功能入口
 
-<table>
-  <tr>
-    <td align="center" width="50%">
-      <img src="https://oss.javaguide.cn/xingqiu/pratical-project/interview-guide/page-mock-interview.png" alt="mock interview" width="100%" />
-      <br/>
-      <strong>模拟面试</strong>
-    </td>
-    <td align="center" width="50%">
-      <img src="https://oss.javaguide.cn/xingqiu/pratical-project/interview-guide/page-qa-assistant.png" alt="qa assistant" width="100%" />
-      <br/>
-      <strong>知识库问答</strong>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="50%">
-      <img src="https://oss.javaguide.cn/xingqiu/pratical-project/interview-guide/page-resume-upload-analysis.png" alt="resume analysis" width="100%" />
-      <br/>
-      <strong>简历分析</strong>
-    </td>
-    <td align="center" width="50%">
-      <img src="https://oss.javaguide.cn/xingqiu/pratical-project/interview-guide/page-knowledge-base-management.png" alt="knowledge base" width="100%" />
-      <br/>
-      <strong>知识库管理</strong>
-    </td>
-  </tr>
-</table>
+### Agent 工作台
 
-## 系统架构
+- 创建 Agent 会话并提交求职/面试目标。
+- 观察每个 turn 的输入、决策、工具输出、状态变化和终止原因。
+- 查看工具调用结果、风险处理、审批队列和执行叙事。
+- 通过固定场景验证成功路径、降级路径和失败恢复路径。
 
-**说明**：下面这张图更多反映当前基础平台形态，不完全等同于后续目标中的 Agent 架构。架构图采用 draw.io 绘制，导出为 svg 格式，在 Github Dark 模式下的显示效果会有问题。
+### 简历画像
 
-![](https://oss.javaguide.cn/xingqiu/pratical-project/interview-guide/interview-guide-architecture-diagram.svg)
+- 支持 PDF、DOCX、DOC、TXT 等格式的简历上传与解析。
+- 基于 LLM 生成结构化简历分析结果。
+- 使用 Redis Stream 异步处理分析任务，避免长耗时请求阻塞前端。
+- 支持分析报告导出，为 Agent 提供候选人画像依据。
 
-**当前异步处理流程**：
+### 知识库与 RAG
 
-简历分析、知识库向量化和面试报告生成采用 Redis Stream 异步处理，这里以简历分析和知识库向量化为例介绍一下整体流程：
+- 支持上传 PDF、DOCX、Markdown 等知识文档。
+- 自动分块、向量化并写入 PostgreSQL + pgvector。
+- 提供 SSE 流式问答能力。
+- 作为 Agent 的知识检索工具，为追问、讲解和复盘提供证据。
 
+### 面试与复盘
+
+- 根据简历生成个性化面试题。
+- 支持多轮追问、回答记录、分批评估和报告生成。
+- 面试历史可被 Agent 读取，用于识别薄弱项、规划训练路线和生成后续建议。
+
+## Agent 架构
+
+```mermaid
+flowchart LR
+    User["用户目标 / 面试任务"] --> Controller["Agent API"]
+    Controller --> Runtime["Agent Runtime"]
+    Runtime --> Memory["Memory / Context Budget"]
+    Runtime --> Policy["Guardrails / Approval"]
+    Runtime --> Planner["Decision / Agent Loop"]
+    Planner --> Tools["Domain Tools"]
+    Tools --> Resume["Resume Profile"]
+    Tools --> KB["Knowledge Base Search"]
+    Tools --> History["Interview History"]
+    Tools --> Gap["Gap Analysis"]
+    Tools --> FollowUp["Follow-up Planner"]
+    Runtime --> Trace["Trace / Metrics / Replay"]
+    Trace --> Workbench["Agent Workbench"]
+    Runtime --> Result["Answer / Plan / Handoff"]
 ```
-上传请求 → 保存文件 → 发送消息到 Stream → 立即返回
-                              ↓
+
+核心链路：
+
+1. 用户提交面试准备、简历分析或复盘目标。
+2. Agent Runtime 创建会话与 turn，组装 memory、历史消息和领域上下文。
+3. Guardrails 判断当前输入、工具调用和输出风险。
+4. Agent 根据目标选择领域工具，例如简历画像、知识库检索、面试历史总结、差距分析或追问建议。
+5. Runtime 记录每一步 trace、tool output、terminal state 和指标。
+6. 前端 Workbench 展示完整执行过程，评测脚本使用固定样本做回归与能力量化。
+
+## 当前异步任务流程
+
+简历分析、知识库向量化和面试报告生成仍使用 Redis Stream 处理：
+
+```text
+上传请求 -> 保存文件 -> 发送消息到 Stream -> 立即返回
+                              |
+                              v
                       Consumer 消费消息
-                              ↓
-                    执行分析/向量化任务
-                              ↓
+                              |
+                              v
+                    执行分析 / 向量化 / 生成任务
+                              |
+                              v
                       更新数据库状态
-                              ↓
-                   前端轮询获取最新状态
+                              |
+                              v
+                   前端轮询或刷新获取最新状态
 ```
 
-状态流转： `PENDING` → `PROCESSING` → `COMPLETED` / `FAILED`。
-
-**Agent 化演进方向**：
-
-- 在问答链路中引入 `Tool Calling + Memory`，让会话不仅是“记录消息”，还能参与下一步推理
-- 在模拟面试链路中引入单 Agent 模式，让系统能基于简历、知识库和历史表现自主决定追问、讲解和复盘策略
-- 为 Agent 行为补齐 `trace / replay / eval`，把“能跑”升级为“可解释、可调试、可迭代”
-
-## 上游来源与致谢
-
-- 上游项目：[`Snailclimb/interview-guide`](https://github.com/Snailclimb/interview-guide)
-- 当前仓库：[`Kiyra-gjx/interview-guide`](https://github.com/Kiyra-gjx/interview-guide)
-- 这个仓库保留了上游项目中大量成熟的业务模块和工程结构，并在此基础上按我的 Agent 学习与实践路线继续演进
-- 如果你想了解更原始、更完整的基础版实现，请优先参考上游仓库与其原始文档
+状态流转：`PENDING` -> `PROCESSING` -> `COMPLETED` / `FAILED`。
 
 ## 技术栈
 
-### 后端技术
+### 后端
 
-| 技术                  | 版本  | 说明                      |
-| --------------------- | ----- | ------------------------- |
-| Spring Boot           | 4.0   | 应用框架                  |
-| Java                  | 21    | 开发语言                  |
-| Spring AI             | 2.0   | AI 集成框架               |
-| PostgreSQL + pgvector | 14+   | 关系数据库 + 向量存储     |
-| Redis                 | 6+    | 缓存 + 消息队列（Stream） |
-| Apache Tika           | 2.9.2 | 文档解析                  |
-| iText 8               | 8.0.5 | PDF 导出                  |
-| MapStruct             | 1.6.3 | 对象映射                  |
-| Gradle                | 8.14  | 构建工具                  |
+| 技术 | 版本 | 用途 |
+| --- | --- | --- |
+| Java | 21 | 后端开发语言 |
+| Spring Boot | 4.0 | Web、配置、JPA、Actuator |
+| Spring AI | 2.0 | LLM、Embedding、Vector Store 集成 |
+| PostgreSQL + pgvector | 14+ | 业务数据、会话数据、向量检索 |
+| Redis / Redis Stream | 6+ | 缓存、异步任务、状态流转 |
+| Apache Tika | 2.9.2 | PDF、Word、文本解析 |
+| iText 8 | 8.0.5 | PDF 报告导出 |
+| MapStruct | 1.6.3 | DTO / Entity 映射 |
+| Gradle | 8.14 | 构建与测试 |
 
-技术选型常见问题解答：
+### 前端
 
-1. 数据存储为什么选择 PostgreSQL + pgvector？我希望先把检索、会话、业务数据放在尽量少的基础设施里，降低工程复杂度，同时又能保留 RAG 所需的向量检索能力。
-2. 为什么引入 Redis？
-   - Redis 替代 `ConcurrentHashMap` 实现面试会话缓存和状态恢复。
-   - Redis Stream 用于简历分析、知识库向量化、面试报告生成等异步任务，便于后续继续扩展 Agent 任务编排。
-3. 构建工具为什么选择 Gradle？当前项目依赖较多，Gradle 在 Spring Boot 4 / Java 21 这套组合下维护依赖和模块化演进都比较顺手。
-
-### 前端技术
-
-| 技术          | 版本  | 说明     |
-| ------------- | ----- | -------- |
-| React         | 18.3  | UI 框架  |
-| TypeScript    | 5.6   | 开发语言 |
-| Vite          | 5.4   | 构建工具 |
-| Tailwind CSS  | 4.1   | 样式框架 |
-| React Router  | 7.11  | 路由管理 |
-| Framer Motion | 12.23 | 动画库   |
-| Recharts      | 3.6   | 图表库   |
-| Lucide React  | 0.468 | 图标库   |
-
-## 功能特性
-
-### 简历管理模块
-
-- **多格式解析**：支持 PDF、DOCX、DOC、TXT 等多种简历格式。
-- **异步处理流**：基于 Redis Stream 实现异步简历分析，支持实时查看处理进度（待分析/分析中/已完成/失败）。
-- **稳定性保障**：内置分析失败自动重试机制（最多 3 次）与基于内容哈希的重复检测。
-- **分析报告导出**：支持将 AI 分析结果一键导出为结构化的 PDF 简历分析报告。
-
-### 模拟面试模块
-
-- **个性化出题**：基于简历内容智能生成针对性的面试题目，支持实时问答交互。
-- **智能追问流**：支持配置多轮智能追问（默认 1 条），构建模拟真实场景的线性问答流。
-- **分批评估机制**：创新性采用分批评估策略，有效规避大模型 Token 溢出风险，确保长文本评估稳定性。
-- **智能汇总建议**：对分批评估结果进行二次汇总，提供多维度的改进建议、表现趋势与统计信息。
-- **报告一键导出**：支持异步生成并导出详细的 PDF 模拟面试评估报告。
-
-### 知识库管理模块
-
-- **文档智能处理**：支持 PDF、DOCX、Markdown 等多种格式文档的自动上传、分块与异步向量化。
-- **RAG 检索增强**：集成向量数据库，通过检索增强生成（RAG）提升 AI 问答的准确性与专业度。
-- **流式响应交互**：基于 SSE（Server-Sent Events）技术实现打字机式流式响应。
-- **智能问答对话**：支持基于知识库内容的智能问答，并提供直观的知识库统计信息。
-
-### TODO
-
-- [x] 问答助手的 Markdown 展示优化
-- [x] 知识库管理页面的知识库下载
-- [x] 异步生成模拟面试评估报告
-- [x] Docker 快速部署
-- [x] 添加 API 限流保护
-- [x] 前端性能优化（RAG 聊天 - 虚拟列表）
-- [x] 模拟面试增加追问功能
-- [ ] 打通模拟面试和知识库
-- [ ] 把知识库、简历、面试记录封装成 Agent Tools
-- [ ] 引入真正参与推理的 Chat Memory / Session Memory
-- [ ] 增加单 Agent 面试教练模式（规划、检索、追问、复盘）
-- [ ] 增加 Agent Trace / Eval / Guardrails
-
-## 效果展示
-
-### 简历与面试
-
-简历库：
-
-![](https://oss.javaguide.cn/xingqiu/pratical-project/interview-guide/page-resume-history.png)
-
-简历上传分析：
-
-![](https://oss.javaguide.cn/xingqiu/pratical-project/interview-guide/page-resume-upload-analysis.png)
-
-简历分析详情：
-
-![](https://oss.javaguide.cn/xingqiu/pratical-project/interview-guide/page-resume-analysis-detail.png)
-
-面试记录：
-
-![](https://oss.javaguide.cn/xingqiu/pratical-project/interview-guide/page-interview-history.png)
-
-面试详情：
-
-![](https://oss.javaguide.cn/xingqiu/pratical-project/interview-guide/page-interview-detail.png)
-
-模拟面试：
-
-![](https://oss.javaguide.cn/xingqiu/pratical-project/interview-guide/page-mock-interview.png)
-
-### 知识库
-
-知识库管理：
-
-![](https://oss.javaguide.cn/xingqiu/pratical-project/interview-guide/page-knowledge-base-management.png)
-
-问答助手：
-
-![page-qa-assistant](https://oss.javaguide.cn/xingqiu/pratical-project/interview-guide/page-qa-assistant.png)
+| 技术 | 版本 | 用途 |
+| --- | --- | --- |
+| React | 18.3 | UI 框架 |
+| TypeScript | 5.6 | 类型系统 |
+| Vite | 5.4 | 开发与构建 |
+| Tailwind CSS | 4.1 | 样式 |
+| React Router | 7.11 | 路由 |
+| Framer Motion | 12.23 | 动效 |
+| Recharts | 3.6 | 图表 |
+| Lucide React | 0.468 | 图标 |
 
 ## 项目结构
 
-```
-interview-guide/
-├── app/                              # 后端应用
+```text
+interview-agent/
+├── app/                         # Spring Boot 后端
 │   ├── src/main/java/interview/guide/
-│   │   ├── App.java                  # 主启动类
-│   │   ├── common/                   # 通用模块
-│   │   │   ├── config/               # 配置类
-│   │   │   ├── exception/            # 异常处理
-│   │   │   └── result/               # 统一响应
-│   │   ├── infrastructure/           # 基础设施
-│   │   │   ├── export/               # PDF 导出
-│   │   │   ├── file/                 # 文件处理
-│   │   │   ├── redis/                # Redis 服务
-│   │   │   └── storage/              # 对象存储
-│   │   └── modules/                  # 业务模块
-│   │       ├── interview/            # 面试模块
-│   │       ├── knowledgebase/        # 知识库模块
-│   │       └── resume/               # 简历模块
+│   │   ├── App.java             # 启动类
+│   │   ├── common/              # 通用配置、异常、异步、响应封装
+│   │   ├── infrastructure/      # 文件、存储、Redis、PDF、Mapper
+│   │   └── modules/
+│   │       ├── agent/           # Agent runtime、tool、memory、trace、guardrail
+│   │       ├── interview/       # 面试会话、题目、回答、评估、报告
+│   │       ├── knowledgebase/   # 知识库上传、解析、向量化、RAG
+│   │       └── resume/          # 简历上传、解析、分析、历史
 │   └── src/main/resources/
-│       ├── application.yml           # 应用配置
-│       └── prompts/                  # AI 提示词模板
-│
-├── frontend/                         # 前端应用
-│   ├── src/
-│   │   ├── api/                      # API 接口
-│   │   ├── components/               # 公共组件
-│   │   ├── pages/                    # 页面组件
-│   │   ├── types/                    # 类型定义
-│   │   └── utils/                    # 工具函数
-│   ├── package.json
-│   └── vite.config.ts
-│
+│       ├── application.yml      # 应用配置
+│       └── prompts/             # LLM 提示词模板
+├── frontend/                    # React 前端
+│   ├── src/api/                 # API 调用
+│   ├── src/components/          # 公共组件与 Agent 工作台组件
+│   ├── src/pages/               # 页面
+│   ├── src/types/               # 类型定义
+│   └── tests/                   # 前端测试
+├── docs/                        # Agent 设计、阶段任务、评测与证据文档
+├── scripts/                     # 本地基础设施与评测脚本
+├── docker/                      # Docker 初始化脚本
+├── docker-compose.yml
 └── README.md
 ```
 
 ## 快速开始
 
-环境要求：
+### 环境要求
 
-| 依赖          | 版本 | 必需 |
-| ------------- | ---- | ---- |
-| JDK           | 21+  | 是   |
-| Node.js       | 18+  | 是   |
-| PostgreSQL    | 14+  | 是   |
-| pgvector 扩展 | -    | 是   |
-| Redis         | 6+   | 是   |
-| S3 兼容存储   | -    | 是   |
+| 依赖 | 版本 | 必需 |
+| --- | --- | --- |
+| JDK | 21+ | 是 |
+| Node.js | 18+ | 是 |
+| pnpm | 10+ | 推荐 |
+| PostgreSQL | 14+ | 是 |
+| pgvector | - | 是 |
+| Redis | 6+ | 是 |
+| S3 兼容存储 | MinIO / RustFS | 是 |
 
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/Kiyra-gjx/interview-guide.git
-cd interview-guide
+git clone https://github.com/Kiyra-gjx/interview-guide.git interview-agent
+cd interview-agent
 ```
-
-如果你希望查看原始基础版本，请参考上游仓库：<https://github.com/Snailclimb/interview-guide>
 
 ### 2. 配置数据库
 
 ```sql
--- 创建数据库
-CREATE DATABASE interview_guide;
-
--- 连接数据库并启用 pgvector 扩展（可选，启动后端SpringAI框架底层会自动创建）
-CREATE EXTENSION vector;
+CREATE DATABASE interview_agent;
+CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
 ### 3. 配置环境变量
 
 ```bash
-# AI API 密钥（阿里云 DashScope）
 export AI_BAILIAN_API_KEY=your_api_key
 ```
 
-### 4. 修改应用配置
+常用可选配置：
 
-编辑 `app/src/main/resources/application.yml`：
-
-```yaml
-spring:
-  # PostgreSQL数据库配置
-  datasource:
-    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:interview_guide}
-    username: ${POSTGRES_USER:postgres}
-    password: ${POSTGRES_PASSWORD:123456}
-    driver-class-name: org.postgresql.Driver
-
-  jpa:
-    hibernate:
-      ddl-auto: create #首次启动用 create，表创建成功后，改回 update
-
-  # Redisson配置 (使用 spring.redis.redisson，参考官方文档)
-  redis:
-    redisson:
-      config: |
-        singleServerConfig:
-          address: "redis://${REDIS_HOST:localhost}:${REDIS_PORT:6379}"
-          database: 0
-          connectionMinimumIdleSize: 10
-          connectionPoolSize: 64
-          subscriptionConnectionMinimumIdleSize: 1
-          subscriptionConnectionPoolSize: 50
-
-# RustFS (S3兼容) 存储配置
-app:
-  # 面试配置
-  interview:
-    follow-up-count: ${APP_INTERVIEW_FOLLOW_UP_COUNT:1}    # 每个主问题生成追问数量
-    evaluation:
-      batch-size: ${APP_INTERVIEW_EVALUATION_BATCH_SIZE:8} # 回答评估分批大小
-  storage:
-    endpoint: ${APP_STORAGE_ENDPOINT:http://localhost:9000}
-    access-key: ${APP_STORAGE_ACCESS_KEY:wr45VXJZhCxc6FAWz0YR}
-    secret-key: ${APP_STORAGE_SECRET_KEY:GtKxV57WJkpw4CvASPBzTy2DYElLnRqh8dIXQa0m}
-    bucket: ${APP_STORAGE_BUCKET:interview-guide}
-    region: ${APP_STORAGE_REGION:us-east-1}
-
-
-
+```bash
+export AI_MODEL=qwen-plus
+export POSTGRES_DB=interview_agent
+export APP_STORAGE_BUCKET=interview-agent
 ```
 
-⚠️**注意**：
+### 4. 启动后端
 
-1. JPA 的 `ddl-auto` 首次启动用 `create`，表创建成功后，改回 `update`。
-2. 如果本地有 Minio 的话，可以用其替换 RusfFS。
-
-### 5. 启动服务
-
-**后端：**
+按需修改 `app/src/main/resources/application.yml` 中的数据库、Redis、对象存储和 CORS 配置，然后执行：
 
 ```bash
 ./gradlew bootRun
 ```
 
-后端服务启动于 `http://localhost:8080`
+默认后端端口：`http://localhost:18080`。
 
-**前端：**
+### 5. 启动前端
 
 ```bash
 cd frontend
@@ -432,138 +250,106 @@ pnpm install
 pnpm dev
 ```
 
-前端服务启动于 `http://localhost:5173`
-
+默认前端端口：`http://localhost:5173`。
 
 ## Docker 快速部署
 
-本项目提供了完整的 Docker 支持，可以一键启动所有服务（前后端、数据库、中间件）。
-
-### 1. 前置准备
-- 安装 [Docker](https://www.docker.com/products/docker-desktop/) 和 Docker Compose
-- 申请阿里云百炼 API Key（用于 AI 对话功能）
-
-### 2. 快速启动
-在项目根目录下执行：
+项目提供了 `docker-compose.yml`，可启动前端、后端、PostgreSQL、Redis 和 MinIO。
 
 ```bash
-# 1. 复制环境变量配置文件
 cp .env.example .env
-
-# 2. 编辑 .env 文件，填入 AI 配置
-# vim .env
-# 必填：AI_BAILIAN_API_KEY=your_key_here
-# 可选：AI_MODEL=qwen-plus        # 默认值为 qwen-plus
-#        # 也可以改为 qwen-max、qwen-long 等其他可用模型
-#
-# 面试参数配置（可选）：
-# APP_INTERVIEW_FOLLOW_UP_COUNT=1         # 每个主问题生成追问数量（默认 1）
-# APP_INTERVIEW_EVALUATION_BATCH_SIZE=8   # 回答评估分批大小（默认 8）
-
-# 3. 构建并启动所有服务
+# 编辑 .env，填入 AI_BAILIAN_API_KEY
 docker-compose up -d --build
 ```
 
-### 3. 服务访问
-启动完成后，您可以通过以下地址访问各个服务：
+服务地址：
 
-| 服务             | 地址                                           | 默认账号     | 默认密码     | 说明                   |
-| ---------------- | ---------------------------------------------- | ------------ | ------------ | ---------------------- |
-| **前端应用**     | [http://localhost](http://localhost)           | -            | -            | 用户访问入口           |
-| **后端 API**     | [http://localhost:8080](http://localhost:8080) | -            | -            | Swagger/接口文档       |
-| **MinIO 控制台** | [http://localhost:9001](http://localhost:9001) | `minioadmin` | `minioadmin` | 对象存储管理           |
-| **MinIO API**    | `localhost:9000`                               | -            | -            | S3 兼容接口            |
-| **PostgreSQL**   | `localhost:5432`                               | `postgres`   | `password`   | 数据库 (包含 pgvector) |
-| **Redis**        | `localhost:6379`                               | -            | -            | 缓存与消息队列         |
+| 服务 | 地址 | 默认账号 | 默认密码 |
+| --- | --- | --- | --- |
+| 前端 | http://localhost | - | - |
+| 后端 API | http://localhost:18080 | - | - |
+| MinIO 控制台 | http://localhost:9001 | `minioadmin` | `minioadmin` |
+| MinIO API | `localhost:9000` | - | - |
+| PostgreSQL | `localhost:5432` | `postgres` | `password` |
+| Redis | `localhost:6379` | - | - |
 
-### 4. 常用运维命令
+常用命令：
 
 ```bash
-# 查看服务状态
 docker-compose ps
-
-# 查看后端日志
 docker-compose logs -f app
-
-# 停止并移除所有服务
 docker-compose down
-
-# 清理无用镜像（构建产生的中间层）
 docker image prune -f
 ```
 
-## 使用场景
+## 本地基础设施脚本
 
-| 用户角色        | 使用场景                               |
-| --------------- | -------------------------------------- |
-| **求职者**      | 上传简历获取分析建议，进行模拟面试练习 |
-| **HR/招聘人员** | 批量分析简历，评估候选人能力           |
-| **培训机构**    | 提供面试培训服务，管理知识库资源       |
-| **AI/Agent 学习者** | 作为 Java 后端转向 Agent 应用开发的实践项目 |
+WSL2 + Docker Desktop 环境可以使用脚本启动基础设施：
 
-## 常见问题
-
-### Q: 数据库表创建失败/数据丢失
-
-这大概率是 JPA 的 `ddl-auto` 配置不对的原因。`ddl-auto` 模式对比：
-
-| 模式     | 行为                            | 适用场景      |
-| -------- | ------------------------------- | ------------- |
-| create   | 无条件删除并重建所有表          | 开发/测试环境 |
-| update   | 对比现有 schema，只执行增量更新 | 开发环境      |
-| validate | 只验证，不修改                  | 生产环境      |
-| none     | 什么都不做                      | 生产环境      |
-
-对于新数据库，推荐：
-
-```yaml
-# 首次启动用 create
-jpa:
-  hibernate:
-    ddl-auto: create
-
-# 表创建成功后，改回 update
-jpa:
-  hibernate:
-    ddl-auto: update
+```bash
+./scripts/infra-wsl.sh up
+./scripts/infra-wsl.sh env
+./scripts/infra-wsl.sh check
+./scripts/infra-wsl.sh down
 ```
 
-记得改回 **update**，否则每次重启都会删除所有数据！
+默认 stack 名称为 `agent-dev`，默认数据库为 `interview_agent`，默认对象存储桶为 `interview-agent`。
 
-### Q: 知识库向量化失败
+## 测试与评测
 
-当 `initialize-schema: false` 时，Spring AI **不会自动创建** `vector_store` 表。
+后端测试：
 
-```java
-spring:
-  ai:
-    vectorstore:
-      pgvector:
-        initialize-schema: true 
-
+```bash
+./gradlew test
 ```
 
-建议开发环境设置为 true，方便快速启动。生产环境设置为 false，手动管理数据库 schema，避免意外变更。
+Agent 阶段评测：
 
-### Q: 简历分析失败
+```bash
+./gradlew agentStage2Eval
+./gradlew agentStage2SafetyEval
+./gradlew agentStage3ContextEval
+./gradlew agentStage3MemoryEval
+./gradlew agentStage5Benchmark
+./gradlew agentStage5RecoveryEval
+```
 
-检查一下阿里云 DashScope API KEY 是否配置正确（申请地址：<https://bailian.console.aliyun.com/>）。
+前端测试：
 
-### Q: 简历分析一直显示"分析中"？
+```bash
+cd frontend
+pnpm test:run
+```
 
-检查 Redis 连接和 Stream Consumer 是否正常运行。查看后端日志确认是否有错误。
+## 文档索引
 
-### Q: PDF 导出失败或中文显示异常？
+| 文档 | 内容 |
+| --- | --- |
+| `docs/agent-overview.md` | Agent 项目总览 |
+| `docs/agent-capability-map.md` | 能力地图 |
+| `docs/agent-roadmap.md` | 阶段路线图 |
+| `docs/current-code-architecture.md` | 当前代码架构 |
+| `docs/agent-demo-flow.md` | 工作台场景流说明 |
+| `docs/evidence/agent-quantification/README.md` | Agent 能力量化证据 |
 
-项目已内置中文字体（珠圆玉润仿宋），支持跨平台导出。如遇到问题，请检查：
-- 字体文件是否存在：`app/src/main/resources/fonts/ZhuqueFangsong-Regular.ttf`
-- 检查日志中的字体加载信息
-- 确认 iText 依赖是否正确
+## 路线图
 
-## 贡献
+- [x] Agent session / turn / trace 基础模型
+- [x] Guardrails、风险等级、运行时审批
+- [x] 简历、知识库、面试历史等领域工具
+- [x] Context assembly、memory snapshot、预算控制
+- [x] Agent Workbench、Trace Explorer、执行叙事
+- [x] 固定评测集、benchmark 和回归报告
+- [ ] 更完整的多步 Agent loop 策略
+- [ ] 更细粒度的 tool result normalization 与错误恢复
+- [ ] 面试训练计划、知识补全和复盘建议的闭环
+- [ ] 生产化观测指标、权限模型和部署边界
 
-欢迎提交 Issue 和 Pull Request！
+## 上游来源与许可证
 
-## 许可证
+本仓库基于 AGPL-3.0 项目二次开发，保留并重构了部分面试平台业务能力，同时新增 Agent runtime、tooling、guardrail、trace、eval 和 workbench 等模块。
 
-本仓库基于上游 AGPL-3.0 项目 fork 并持续修改，继续遵循 AGPL-3.0 License（只要通过网络提供服务，就必须向用户公开修改后的源码）。
+- 当前仓库：<https://github.com/Kiyra-gjx/interview-guide>
+- 上游项目：<https://github.com/Snailclimb/interview-guide>
+
+许可证继续遵循 AGPL-3.0。通过网络提供服务时，需要向用户公开修改后的源码。

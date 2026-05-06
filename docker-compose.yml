@@ -13,11 +13,11 @@ services:
   postgres:
     # 使用带有 pgvector 插件的 PostgreSQL 16 镜像
     image: pgvector/pgvector:pg16
-    container_name: interview-postgres
+    container_name: interview-agent-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: interview_guide
+      POSTGRES_DB: interview_agent
     volumes:
       # 数据持久化：确保容器重启或删除后，数据库数据不丢失
       - postgres_data:/var/lib/postgresql/data
@@ -46,7 +46,7 @@ services:
   # =========================================
   redis:
     image: redis:7
-    container_name: interview-redis
+    container_name: interview-agent-redis
     ports:
       - "6379:6379"
     volumes:
@@ -71,7 +71,7 @@ services:
   # =========================================
   minio:
     image: minio/minio
-    container_name: interview-minio
+    container_name: interview-agent-minio
     # 启动命令：指定数据目录和控制台地址
     command: server /data --console-address ":9001"
     environment:
@@ -108,10 +108,10 @@ services:
       /bin/sh -c "
       # 1. 配置 MinIO 客户端别名 (myminio) 连接到 minio 服务
       /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin;
-      # 2. 创建名为 interview-guide 的存储桶
-      /usr/bin/mc mb myminio/interview-guide;
+      # 2. 创建名为 interview-agent 的存储桶
+      /usr/bin/mc mb myminio/interview-agent;
       # 3. 设置该存储桶为公共读权限（方便前端直接访问图片等资源）
-      /usr/bin/mc anonymous set public myminio/interview-guide;
+      /usr/bin/mc anonymous set public myminio/interview-agent;
       exit 0;
       "
 
@@ -126,7 +126,7 @@ services:
     build:
       context: .
       dockerfile: app/Dockerfile
-    container_name: interview-app
+    container_name: interview-agent-app
     # 依赖管理：确保基础设施准备好后再启动后端
     depends_on:
       postgres:
@@ -142,7 +142,7 @@ services:
       # 使用服务名 'postgres' 作为主机名，Docker 内部 DNS 会自动解析
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_DB: interview_guide
+      POSTGRES_DB: interview_agent
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
       
@@ -155,7 +155,7 @@ services:
       APP_STORAGE_ENDPOINT: http://minio:9000
       APP_STORAGE_ACCESS_KEY: minioadmin
       APP_STORAGE_SECRET_KEY: minioadmin
-      APP_STORAGE_BUCKET: interview-guide
+      APP_STORAGE_BUCKET: interview-agent
       APP_STORAGE_REGION: us-east-1
       
       # === AI 模型配置 (必须配置) ===
@@ -167,7 +167,7 @@ services:
       APP_INTERVIEW_FOLLOW_UP_COUNT: ${APP_INTERVIEW_FOLLOW_UP_COUNT:-1}
       APP_INTERVIEW_EVALUATION_BATCH_SIZE: ${APP_INTERVIEW_EVALUATION_BATCH_SIZE:-8}
     ports:
-      - "8080:8080"
+      - "18080:18080"
 
   # =========================================
   # 6. 前端应用服务 (Vue/React + Nginx)
@@ -178,7 +178,7 @@ services:
   # =========================================
   frontend:
     build: ./frontend
-    container_name: interview-frontend
+    container_name: interview-agent-frontend
     depends_on:
       - app
     ports:

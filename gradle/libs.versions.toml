@@ -1,4 +1,4 @@
-# AI Interview Platform - Dependency Management
+# Interview Agent - Dependency Management
 
 [versions]
 spring-boot = "4.0.1"

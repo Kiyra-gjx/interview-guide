@@ -1,5 +1,5 @@
 /*
- * AI Interview Platform - Backend Application
+ * Interview Agent - Backend Application
  * Spring Boot 4.0 + Java 21 + Spring AI 2.0 + PostgreSQL + pgvector + RustFS + Redis
  */
 
@@ -9,7 +9,7 @@ plugins {
     alias(libs.plugins.spring.dependency.management)
 }
 
-group = 'com.interview'
+group = 'com.interviewagent'
 version = '0.0.1-SNAPSHOT'
 
 repositories {

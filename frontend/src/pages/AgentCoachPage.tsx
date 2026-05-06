@@ -436,7 +436,7 @@ export default function AgentCoachPage() {
             <Sparkles className="h-3.5 w-3.5" />
             Stage 4 · Agent Workbench
           </div>
-          <h1 className="mt-3 text-3xl font-bold text-slate-900 dark:text-white">Interview Guide Agent 工作台</h1>
+          <h1 className="mt-3 text-3xl font-bold text-slate-900 dark:text-white">Interview Agent 工作台</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500 dark:text-slate-400">
             这里同时展示 turn 时间线、当前 turn 的用户视角、会话级 memory、审批队列和 trace 调试面，用来验证单 Agent 的执行闭环。
           </p>

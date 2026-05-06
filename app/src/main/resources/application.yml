@@ -1,5 +1,5 @@
-# AI Interview Platform Configuration
-# 智能AI面试官平台配置
+# Interview Agent Configuration
+# 面试 Agent 项目配置
 
 server:
   port: ${SERVER_PORT:18080}
@@ -12,7 +12,7 @@ management:
 
 spring:
   application:
-    name: ai-interview-platform
+    name: interview-agent
 
   # 启用虚拟线程 (Java 21+)
   # 显著提升 I/O 密集型场景的并发能力，特别适合 AI 调用和 SSE 长连接
@@ -22,7 +22,7 @@ spring:
 
   # PostgreSQL数据库配置
   datasource:
-    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:interview_guide}
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:interview_agent}
     username: ${POSTGRES_USER:postgres}
     password: ${POSTGRES_PASSWORD:123456}
     driver-class-name: org.postgresql.Driver
@@ -110,7 +110,7 @@ app:
   actuator:
     allow-public-access: ${APP_ACTUATOR_ALLOW_PUBLIC_ACCESS:false}
   resume:
-    upload-dir: ${java.io.tmpdir}/ai-interview/resumes
+    upload-dir: ${java.io.tmpdir}/interview-agent/resumes
     allowed-types:
       - application/pdf
       - application/msword
@@ -122,7 +122,7 @@ app:
     endpoint: ${APP_STORAGE_ENDPOINT:http://localhost:9000}
     access-key: ${APP_STORAGE_ACCESS_KEY}
     secret-key: ${APP_STORAGE_SECRET_KEY}
-    bucket: ${APP_STORAGE_BUCKET:interview-guide}
+    bucket: ${APP_STORAGE_BUCKET:interview-agent}
     region: ${APP_STORAGE_REGION:us-east-1}
   
   # CORS配置 - React前端

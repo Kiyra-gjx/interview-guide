@@ -136,7 +136,7 @@ docs/
 - [ ] **Step 1: 写出顶层文档的最小骨架**
 
 ```md
-# Interview Guide Agent 概览
+# Interview Agent 概览
 
 ## 1. 项目定位
 - 它是什么
@@ -154,7 +154,7 @@ docs/
 - [ ] **Step 2: 写出能力地图的固定能力轴骨架**
 
 ```md
-# Interview Guide Agent 能力地图
+# Interview Agent 能力地图
 
 ## Execution Model
 ## Tooling
@@ -169,7 +169,7 @@ docs/
 - [ ] **Step 3: 收口路线图为“顺序型文档”**
 
 ```md
-# Interview Guide Agent 路线图
+# Interview Agent 路线图
 
 ## 当前进度
 - Stage 1：已完成

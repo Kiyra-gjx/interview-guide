@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
- * AI Interview Platform - Application Tests
+ * Interview Agent - Application Tests
  */
 class AppTest {
     

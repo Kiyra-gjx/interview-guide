@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Interview Guide local infrastructure bootstrap for WSL2 + Docker Desktop.
+# Interview Agent local infrastructure bootstrap for WSL2 + Docker Desktop.
 # This script manages PostgreSQL(pgvector) + Redis(auth) + S3-compatible storage.
 
-STACK_NAME="${STACK_NAME:-ig-dev}"
+STACK_NAME="${STACK_NAME:-agent-dev}"
 NETWORK_NAME="${NETWORK_NAME:-${STACK_NAME}-net}"
 
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-${STACK_NAME}-postgres}"
@@ -26,7 +26,7 @@ POSTGRES_HOST="${POSTGRES_HOST:-localhost}"
 POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 POSTGRES_USER="${POSTGRES_USER:-postgres}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-password}"
-POSTGRES_DB="${POSTGRES_DB:-interview_guide}"
+POSTGRES_DB="${POSTGRES_DB:-interview_agent}"
 
 REDIS_HOST="${REDIS_HOST:-localhost}"
 REDIS_PORT="${REDIS_PORT:-6379}"
@@ -35,7 +35,7 @@ REDIS_PASSWORD="${REDIS_PASSWORD:-123456}"
 APP_STORAGE_ENDPOINT="${APP_STORAGE_ENDPOINT:-http://localhost:9000}"
 APP_STORAGE_ACCESS_KEY="${APP_STORAGE_ACCESS_KEY:-minioadmin}"
 APP_STORAGE_SECRET_KEY="${APP_STORAGE_SECRET_KEY:-minioadmin}"
-APP_STORAGE_BUCKET="${APP_STORAGE_BUCKET:-interview-guide}"
+APP_STORAGE_BUCKET="${APP_STORAGE_BUCKET:-interview-agent}"
 APP_STORAGE_REGION="${APP_STORAGE_REGION:-us-east-1}"
 STORAGE_API_PORT="${STORAGE_API_PORT:-9000}"
 STORAGE_CONSOLE_PORT="${STORAGE_CONSOLE_PORT:-9001}"
