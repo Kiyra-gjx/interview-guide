@@ -13,6 +13,7 @@ import interview.guide.modules.agent.repository.AgentMessageRepository;
 import interview.guide.modules.agent.repository.AgentSessionRepository;
 import interview.guide.modules.agent.repository.AgentTurnRepository;
 import interview.guide.modules.knowledgebase.model.KnowledgeBaseEntity;
+import interview.guide.modules.knowledgebase.model.KnowledgeBaseLifecycleStatus;
 import interview.guide.modules.knowledgebase.repository.KnowledgeBaseRepository;
 import interview.guide.modules.resume.repository.ResumeRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -192,6 +193,23 @@ class AgentSessionServiceTest {
     void shouldRejectSessionCreationWhenKnowledgeBaseResourceDoesNotExist() {
         CreateAgentSessionRequest request = new CreateAgentSessionRequest("title", "goal", null, List.of(1L, 3L));
         when(knowledgeBaseRepository.findAllById(List.of(1L, 3L))).thenReturn(List.of(kb(1L)));
+
+        assertThatThrownBy(() -> sessionService.createSession(request))
+            .isInstanceOf(BusinessException.class)
+            .satisfies(error -> assertThat(((BusinessException) error).getCode())
+                .isEqualTo(ErrorCode.AGENT_INVALID_INPUT.getCode()))
+            .hasMessageContaining("knowledgeBaseIds");
+
+        verify(sessionRepository, never()).save(any(AgentSessionEntity.class));
+    }
+
+    @Test
+    @DisplayName("should reject session creation when a knowledge base is not active")
+    void shouldRejectSessionCreationWhenKnowledgeBaseIsNotActive() {
+        CreateAgentSessionRequest request = new CreateAgentSessionRequest("title", "goal", null, List.of(1L, 2L));
+        KnowledgeBaseEntity deleting = kb(2L);
+        deleting.setLifecycleStatus(KnowledgeBaseLifecycleStatus.DELETING);
+        when(knowledgeBaseRepository.findAllById(List.of(1L, 2L))).thenReturn(List.of(kb(1L), deleting));
 
         assertThatThrownBy(() -> sessionService.createSession(request))
             .isInstanceOf(BusinessException.class)

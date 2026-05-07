@@ -1,6 +1,9 @@
 package interview.guide.modules.knowledgebase.service;
 
 import interview.guide.modules.knowledgebase.repository.VectorRepository;
+import interview.guide.modules.knowledgebase.repository.KnowledgeBaseRepository;
+import interview.guide.modules.knowledgebase.model.KnowledgeBaseEntity;
+import interview.guide.modules.knowledgebase.model.KnowledgeBaseLifecycleStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -16,6 +19,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -47,10 +51,15 @@ class KnowledgeBaseVectorServiceTest {
     @Mock
     private VectorRepository vectorRepository;
 
+    @Mock
+    private KnowledgeBaseRepository knowledgeBaseRepository;
+
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        vectorService = new KnowledgeBaseVectorService(vectorStore, vectorRepository);
+        when(knowledgeBaseRepository.findLifecycleStatusById(anyLong()))
+            .thenReturn(Optional.of(KnowledgeBaseLifecycleStatus.ACTIVE));
+        vectorService = new KnowledgeBaseVectorService(vectorStore, vectorRepository, knowledgeBaseRepository);
     }
 
     // ==================== 共享辅助方法 ====================
@@ -492,15 +501,19 @@ class KnowledgeBaseVectorServiceTest {
         }
 
         @Test
-        @DisplayName("删除失败不抛出异常（静默处理）")
-        void testDeleteFailureSilentlyHandled() {
+        @DisplayName("删除失败时抛出异常，交给清理任务重试")
+        void testDeleteFailureThrowsException() {
             // Given
             Long knowledgeBaseId = 1L;
             doThrow(new RuntimeException("数据库错误"))
                 .when(vectorRepository).deleteByKnowledgeBaseId(knowledgeBaseId);
 
-            // When & Then: 不应该抛出异常
-            assertDoesNotThrow(() -> vectorService.deleteByKnowledgeBaseId(knowledgeBaseId));
+            // When & Then
+            RuntimeException exception = assertThrows(
+                RuntimeException.class,
+                () -> vectorService.deleteByKnowledgeBaseId(knowledgeBaseId)
+            );
+            assertTrue(exception.getMessage().contains("删除向量数据失败"));
         }
 
         @Test

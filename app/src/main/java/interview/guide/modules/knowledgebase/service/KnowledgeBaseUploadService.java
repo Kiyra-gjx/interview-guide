@@ -7,6 +7,7 @@ import interview.guide.infrastructure.file.FileStorageService;
 import interview.guide.infrastructure.file.FileValidationService;
 import interview.guide.modules.knowledgebase.listener.VectorizeStreamProducer;
 import interview.guide.modules.knowledgebase.model.KnowledgeBaseEntity;
+import interview.guide.modules.knowledgebase.model.KnowledgeBaseLifecycleStatus;
 import interview.guide.modules.knowledgebase.model.VectorStatus;
 import interview.guide.modules.knowledgebase.repository.KnowledgeBaseRepository;
 import lombok.RequiredArgsConstructor;
@@ -60,8 +61,15 @@ public class KnowledgeBaseUploadService {
         String fileHash = fileHashService.calculateHash(file);
         Optional<KnowledgeBaseEntity> existingKb = knowledgeBaseRepository.findByFileHash(fileHash);
         if (existingKb.isPresent()) {
+            KnowledgeBaseEntity existing = existingKb.get();
+            if (existing.getLifecycleStatus() != KnowledgeBaseLifecycleStatus.ACTIVE) {
+                throw new BusinessException(
+                    ErrorCode.KNOWLEDGE_BASE_DELETE_FAILED,
+                    "相同文件的知识库正在删除或删除失败，请等待清理完成后再上传"
+                );
+            }
             log.info("检测到重复知识库: hash={}", fileHash);
-            return persistenceService.handleDuplicateKnowledgeBase(existingKb.get(), fileHash);
+            return persistenceService.handleDuplicateKnowledgeBase(existing, fileHash);
         }
 
         // 4. 解析知识库文本（用于向量化）
@@ -121,7 +129,7 @@ public class KnowledgeBaseUploadService {
      * @param kbId 知识库ID
      */
     public void revectorize(Long kbId) {
-        KnowledgeBaseEntity kb = knowledgeBaseRepository.findById(kbId)
+        KnowledgeBaseEntity kb = knowledgeBaseRepository.findByIdAndLifecycleStatus(kbId, KnowledgeBaseLifecycleStatus.ACTIVE)
             .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "知识库不存在"));
 
         log.info("开始重新向量化知识库: kbId={}, name={}", kbId, kb.getName());

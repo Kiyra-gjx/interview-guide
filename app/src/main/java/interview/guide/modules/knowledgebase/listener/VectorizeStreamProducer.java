@@ -3,6 +3,7 @@ package interview.guide.modules.knowledgebase.listener;
 import interview.guide.common.async.AbstractStreamProducer;
 import interview.guide.common.constant.AsyncTaskStreamConstants;
 import interview.guide.infrastructure.redis.RedisService;
+import interview.guide.modules.knowledgebase.model.KnowledgeBaseLifecycleStatus;
 import interview.guide.modules.knowledgebase.model.VectorStatus;
 import interview.guide.modules.knowledgebase.repository.KnowledgeBaseRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -71,6 +72,9 @@ public class VectorizeStreamProducer extends AbstractStreamProducer<VectorizeStr
      */
     private void updateVectorStatus(Long kbId, VectorStatus status, String error) {
         knowledgeBaseRepository.findById(kbId).ifPresent(kb -> {
+            if (kb.getLifecycleStatus() != KnowledgeBaseLifecycleStatus.ACTIVE) {
+                return;
+            }
             kb.setVectorStatus(status);
             if (error != null) {
                 kb.setVectorError(error.length() > 500 ? error.substring(0, 500) : error);

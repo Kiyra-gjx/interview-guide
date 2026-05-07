@@ -10,7 +10,8 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "knowledge_bases", indexes = {
     @Index(name = "idx_kb_hash", columnList = "fileHash", unique = true),
-    @Index(name = "idx_kb_category", columnList = "category")
+    @Index(name = "idx_kb_category", columnList = "category"),
+    @Index(name = "idx_kb_lifecycle_status", columnList = "lifecycle_status")
 })
 public class KnowledgeBaseEntity {
 
@@ -72,6 +73,13 @@ public class KnowledgeBaseEntity {
 
     // 向量分块数量
     private Integer chunkCount = 0;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "lifecycle_status", length = 20, nullable = false)
+    private KnowledgeBaseLifecycleStatus lifecycleStatus = KnowledgeBaseLifecycleStatus.ACTIVE;
+
+    @Column(name = "delete_requested_at")
+    private LocalDateTime deleteRequestedAt;
     
     @PrePersist
     protected void onCreate() {
@@ -217,6 +225,26 @@ public class KnowledgeBaseEntity {
 
     public void setChunkCount(Integer chunkCount) {
         this.chunkCount = chunkCount;
+    }
+
+    public KnowledgeBaseLifecycleStatus getLifecycleStatus() {
+        return lifecycleStatus;
+    }
+
+    public void setLifecycleStatus(KnowledgeBaseLifecycleStatus lifecycleStatus) {
+        this.lifecycleStatus = lifecycleStatus;
+    }
+
+    public LocalDateTime getDeleteRequestedAt() {
+        return deleteRequestedAt;
+    }
+
+    public void setDeleteRequestedAt(LocalDateTime deleteRequestedAt) {
+        this.deleteRequestedAt = deleteRequestedAt;
+    }
+
+    public boolean isActive() {
+        return lifecycleStatus == null || lifecycleStatus == KnowledgeBaseLifecycleStatus.ACTIVE;
     }
 }
 

@@ -1,5 +1,7 @@
 package interview.guide.modules.knowledgebase.service;
 
+import interview.guide.modules.knowledgebase.model.KnowledgeBaseLifecycleStatus;
+import interview.guide.modules.knowledgebase.repository.KnowledgeBaseRepository;
 import interview.guide.modules.knowledgebase.repository.VectorRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -29,9 +31,12 @@ public class KnowledgeBaseVectorService {
     private final VectorStore vectorStore;
     private final TextSplitter textSplitter;
     private final VectorRepository vectorRepository;
-    public KnowledgeBaseVectorService(VectorStore vectorStore, VectorRepository vectorRepository) {
+    private final KnowledgeBaseRepository knowledgeBaseRepository;
+
+    public KnowledgeBaseVectorService(VectorStore vectorStore, VectorRepository vectorRepository, KnowledgeBaseRepository knowledgeBaseRepository) {
         this.vectorStore = vectorStore;
         this.vectorRepository = vectorRepository;
+        this.knowledgeBaseRepository = knowledgeBaseRepository;
         // 使用TokenTextSplitter，每个chunk约500 tokens，重叠50 tokens
         this.textSplitter = new TokenTextSplitter();
     }
@@ -44,8 +49,10 @@ public class KnowledgeBaseVectorService {
     public void vectorizeAndStore(Long knowledgeBaseId, String content) {
         log.info("开始向量化知识库: kbId={}, contentLength={}", knowledgeBaseId, content.length());
         try {
+            ensureActive(knowledgeBaseId);
             // 1. 先删除该知识库的旧向量数据
             deleteByKnowledgeBaseId(knowledgeBaseId);
+            ensureActive(knowledgeBaseId);
             
             // 2. 将文本分块
             List<Document> chunks = textSplitter.apply(
@@ -67,6 +74,7 @@ public class KnowledgeBaseVectorService {
                 int end = Math.min(start + MAX_BATCH_SIZE, totalChunks);
                 List<Document> batch = chunks.subList(start, end);
                 log.debug("处理第 {}/{} 批: chunks {}-{}", i + 1, batchCount, start + 1, end);
+                ensureActive(knowledgeBaseId);
                 vectorStore.add(batch);
             }
             log.info("知识库向量化完成: kbId={}, chunks={}, batches={}",
@@ -185,9 +193,16 @@ public class KnowledgeBaseVectorService {
             vectorRepository.deleteByKnowledgeBaseId(knowledgeBaseId);
         } catch (Exception e) {
             log.error("删除向量数据失败: kbId={}, error={}", knowledgeBaseId, e.getMessage(), e);
-            // 不抛出异常，允许继续执行其他删除操作
-            // 如果确实需要严格保证，可以取消下面的注释
-            // throw new RuntimeException("删除向量数据失败: " + e.getMessage(), e);
+            throw new RuntimeException("删除向量数据失败: " + e.getMessage(), e);
+        }
+    }
+
+    private void ensureActive(Long knowledgeBaseId) {
+        boolean active = knowledgeBaseRepository.findLifecycleStatusById(knowledgeBaseId)
+            .map(status -> status == KnowledgeBaseLifecycleStatus.ACTIVE)
+            .orElse(false);
+        if (!active) {
+            throw new IllegalStateException("知识库已不可向量化: kbId=" + knowledgeBaseId);
         }
     }
 }

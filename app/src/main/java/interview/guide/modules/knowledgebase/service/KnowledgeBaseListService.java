@@ -5,6 +5,7 @@ import interview.guide.common.exception.ErrorCode;
 import interview.guide.infrastructure.file.FileStorageService;
 import interview.guide.infrastructure.mapper.KnowledgeBaseMapper;
 import interview.guide.modules.knowledgebase.model.KnowledgeBaseEntity;
+import interview.guide.modules.knowledgebase.model.KnowledgeBaseLifecycleStatus;
 import interview.guide.modules.knowledgebase.model.KnowledgeBaseListItemDTO;
 import interview.guide.modules.knowledgebase.model.KnowledgeBaseStatsDTO;
 import interview.guide.modules.knowledgebase.model.RagChatMessageEntity.MessageType;
@@ -45,10 +46,12 @@ public class KnowledgeBaseListService {
         
         // 如果指定了状态，按状态过滤
         if (vectorStatus != null) {
-            entities = knowledgeBaseRepository.findByVectorStatusOrderByUploadedAtDesc(vectorStatus);
+            entities = knowledgeBaseRepository.findByVectorStatusAndLifecycleStatusOrderByUploadedAtDesc(
+                vectorStatus,
+                KnowledgeBaseLifecycleStatus.ACTIVE
+            );
         } else {
-            // 否则获取所有知识库
-            entities = knowledgeBaseRepository.findAllByOrderByUploadedAtDesc();
+            entities = knowledgeBaseRepository.findByLifecycleStatusOrderByUploadedAtDesc(KnowledgeBaseLifecycleStatus.ACTIVE);
         }
         
         // 如果指定了排序字段，在内存中排序
@@ -77,7 +80,7 @@ public class KnowledgeBaseListService {
      * 根据ID获取知识库详情
      */
     public Optional<KnowledgeBaseListItemDTO> getKnowledgeBase(Long id) {
-        return knowledgeBaseRepository.findById(id)
+        return knowledgeBaseRepository.findByIdAndLifecycleStatus(id, KnowledgeBaseLifecycleStatus.ACTIVE)
             .map(knowledgeBaseMapper::toListItemDTO);
     }
 
@@ -85,7 +88,7 @@ public class KnowledgeBaseListService {
      * 根据ID获取知识库实体（用于删除等操作）
      */
     public Optional<KnowledgeBaseEntity> getKnowledgeBaseEntity(Long id) {
-        return knowledgeBaseRepository.findById(id);
+        return knowledgeBaseRepository.findByIdAndLifecycleStatus(id, KnowledgeBaseLifecycleStatus.ACTIVE);
     }
 
     /**
@@ -93,7 +96,7 @@ public class KnowledgeBaseListService {
      */
     public List<String> getKnowledgeBaseNames(List<Long> ids) {
         return ids.stream()
-            .map(id -> knowledgeBaseRepository.findById(id)
+            .map(id -> knowledgeBaseRepository.findByIdAndLifecycleStatus(id, KnowledgeBaseLifecycleStatus.ACTIVE)
                 .map(KnowledgeBaseEntity::getName)
                 .orElse("未知知识库"))
             .toList();
@@ -114,9 +117,14 @@ public class KnowledgeBaseListService {
     public List<KnowledgeBaseListItemDTO> listByCategory(String category) {
         List<KnowledgeBaseEntity> entities;
         if (category == null || category.isBlank()) {
-            entities = knowledgeBaseRepository.findByCategoryIsNullOrderByUploadedAtDesc();
+            entities = knowledgeBaseRepository.findByCategoryIsNullAndLifecycleStatusOrderByUploadedAtDesc(
+                KnowledgeBaseLifecycleStatus.ACTIVE
+            );
         } else {
-            entities = knowledgeBaseRepository.findByCategoryOrderByUploadedAtDesc(category);
+            entities = knowledgeBaseRepository.findByCategoryAndLifecycleStatusOrderByUploadedAtDesc(
+                category,
+                KnowledgeBaseLifecycleStatus.ACTIVE
+            );
         }
         return knowledgeBaseMapper.toListItemDTOList(entities);
     }
@@ -126,7 +134,7 @@ public class KnowledgeBaseListService {
      */
     @Transactional
     public void updateCategory(Long id, String category) {
-        KnowledgeBaseEntity entity = knowledgeBaseRepository.findById(id)
+        KnowledgeBaseEntity entity = knowledgeBaseRepository.findByIdAndLifecycleStatus(id, KnowledgeBaseLifecycleStatus.ACTIVE)
             .orElseThrow(() -> new RuntimeException("知识库不存在"));
         entity.setCategory(category != null && !category.isBlank() ? category : null);
         knowledgeBaseRepository.save(entity);
@@ -182,11 +190,11 @@ public class KnowledgeBaseListService {
      */
     public KnowledgeBaseStatsDTO getStatistics() {
         return new KnowledgeBaseStatsDTO(
-            knowledgeBaseRepository.count(),
+            knowledgeBaseRepository.countByLifecycleStatus(KnowledgeBaseLifecycleStatus.ACTIVE),
             ragChatMessageRepository.countByType(MessageType.USER),  // 真正的提问次数
             knowledgeBaseRepository.sumAccessCount(),
-            knowledgeBaseRepository.countByVectorStatus(VectorStatus.COMPLETED),
-            knowledgeBaseRepository.countByVectorStatus(VectorStatus.PROCESSING)
+            knowledgeBaseRepository.countByVectorStatusAndLifecycleStatus(VectorStatus.COMPLETED, KnowledgeBaseLifecycleStatus.ACTIVE),
+            knowledgeBaseRepository.countByVectorStatusAndLifecycleStatus(VectorStatus.PROCESSING, KnowledgeBaseLifecycleStatus.ACTIVE)
         );
     }
 
@@ -196,7 +204,7 @@ public class KnowledgeBaseListService {
      * 下载知识库文件
      */
     public byte[] downloadFile(Long id) {
-        KnowledgeBaseEntity entity = knowledgeBaseRepository.findById(id)
+        KnowledgeBaseEntity entity = knowledgeBaseRepository.findByIdAndLifecycleStatus(id, KnowledgeBaseLifecycleStatus.ACTIVE)
             .orElseThrow(() -> new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND, "知识库不存在"));
 
         String storageKey = entity.getStorageKey();
@@ -212,7 +220,7 @@ public class KnowledgeBaseListService {
      * 获取知识库文件信息（用于下载）
      */
     public KnowledgeBaseEntity getEntityForDownload(Long id) {
-        return knowledgeBaseRepository.findById(id)
+        return knowledgeBaseRepository.findByIdAndLifecycleStatus(id, KnowledgeBaseLifecycleStatus.ACTIVE)
             .orElseThrow(() -> new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND, "知识库不存在"));
     }
 }

@@ -1,6 +1,7 @@
 package interview.guide.modules.knowledgebase.repository;
 
 import interview.guide.modules.knowledgebase.model.KnowledgeBaseEntity;
+import interview.guide.modules.knowledgebase.model.KnowledgeBaseLifecycleStatus;
 import interview.guide.modules.knowledgebase.model.VectorStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -22,6 +23,15 @@ public interface KnowledgeBaseRepository extends JpaRepository<KnowledgeBaseEnti
      */
     Optional<KnowledgeBaseEntity> findByFileHash(String fileHash);
 
+    Optional<KnowledgeBaseEntity> findByIdAndLifecycleStatus(Long id, KnowledgeBaseLifecycleStatus lifecycleStatus);
+
+    @Query("""
+        SELECT k.lifecycleStatus
+        FROM KnowledgeBaseEntity k
+        WHERE k.id = :id
+        """)
+    Optional<KnowledgeBaseLifecycleStatus> findLifecycleStatusById(@Param("id") Long id);
+
     /**
      * 检查文件哈希是否存在
      */
@@ -32,10 +42,17 @@ public interface KnowledgeBaseRepository extends JpaRepository<KnowledgeBaseEnti
      */
     List<KnowledgeBaseEntity> findAllByOrderByUploadedAtDesc();
 
+    List<KnowledgeBaseEntity> findByLifecycleStatusOrderByUploadedAtDesc(KnowledgeBaseLifecycleStatus lifecycleStatus);
+
     /**
      * 获取所有不同的分类
      */
-    @Query("SELECT DISTINCT k.category FROM KnowledgeBaseEntity k WHERE k.category IS NOT NULL ORDER BY k.category")
+    @Query("""
+        SELECT DISTINCT k.category FROM KnowledgeBaseEntity k
+        WHERE k.category IS NOT NULL
+          AND k.lifecycleStatus = interview.guide.modules.knowledgebase.model.KnowledgeBaseLifecycleStatus.ACTIVE
+        ORDER BY k.category
+        """)
     List<String> findAllCategories();
 
     /**
@@ -43,15 +60,28 @@ public interface KnowledgeBaseRepository extends JpaRepository<KnowledgeBaseEnti
      */
     List<KnowledgeBaseEntity> findByCategoryOrderByUploadedAtDesc(String category);
 
+    List<KnowledgeBaseEntity> findByCategoryAndLifecycleStatusOrderByUploadedAtDesc(
+        String category,
+        KnowledgeBaseLifecycleStatus lifecycleStatus
+    );
+
     /**
      * 查找未分类的知识库
      */
     List<KnowledgeBaseEntity> findByCategoryIsNullOrderByUploadedAtDesc();
 
+    List<KnowledgeBaseEntity> findByCategoryIsNullAndLifecycleStatusOrderByUploadedAtDesc(KnowledgeBaseLifecycleStatus lifecycleStatus);
+
     /**
      * 按名称或文件名模糊搜索（不区分大小写）
      */
-    @Query("SELECT k FROM KnowledgeBaseEntity k WHERE LOWER(k.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(k.originalFilename) LIKE LOWER(CONCAT('%', :keyword, '%')) ORDER BY k.uploadedAt DESC")
+    @Query("""
+        SELECT k FROM KnowledgeBaseEntity k
+        WHERE k.lifecycleStatus = interview.guide.modules.knowledgebase.model.KnowledgeBaseLifecycleStatus.ACTIVE
+          AND (LOWER(k.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+               OR LOWER(k.originalFilename) LIKE LOWER(CONCAT('%', :keyword, '%')))
+        ORDER BY k.uploadedAt DESC
+        """)
     List<KnowledgeBaseEntity> searchByKeyword(@Param("keyword") String keyword);
 
     /**
@@ -77,7 +107,12 @@ public interface KnowledgeBaseRepository extends JpaRepository<KnowledgeBaseEnti
      * @return 更新的行数
      */
     @Modifying
-    @Query("UPDATE KnowledgeBaseEntity k SET k.questionCount = k.questionCount + 1 WHERE k.id IN :ids")
+    @Query("""
+        UPDATE KnowledgeBaseEntity k
+        SET k.questionCount = k.questionCount + 1
+        WHERE k.id IN :ids
+          AND k.lifecycleStatus = interview.guide.modules.knowledgebase.model.KnowledgeBaseLifecycleStatus.ACTIVE
+        """)
     int incrementQuestionCountBatch(@Param("ids") List<Long> ids);
 
     // ==================== 统计查询 ====================
@@ -85,13 +120,21 @@ public interface KnowledgeBaseRepository extends JpaRepository<KnowledgeBaseEnti
     /**
      * 统计总提问次数
      */
-    @Query("SELECT COALESCE(SUM(k.questionCount), 0) FROM KnowledgeBaseEntity k")
+    @Query("""
+        SELECT COALESCE(SUM(k.questionCount), 0)
+        FROM KnowledgeBaseEntity k
+        WHERE k.lifecycleStatus = interview.guide.modules.knowledgebase.model.KnowledgeBaseLifecycleStatus.ACTIVE
+        """)
     long sumQuestionCount();
 
     /**
      * 统计总访问次数
      */
-    @Query("SELECT COALESCE(SUM(k.accessCount), 0) FROM KnowledgeBaseEntity k")
+    @Query("""
+        SELECT COALESCE(SUM(k.accessCount), 0)
+        FROM KnowledgeBaseEntity k
+        WHERE k.lifecycleStatus = interview.guide.modules.knowledgebase.model.KnowledgeBaseLifecycleStatus.ACTIVE
+        """)
     long sumAccessCount();
 
     /**
@@ -99,9 +142,18 @@ public interface KnowledgeBaseRepository extends JpaRepository<KnowledgeBaseEnti
      */
     long countByVectorStatus(VectorStatus vectorStatus);
 
+    long countByVectorStatusAndLifecycleStatus(VectorStatus vectorStatus, KnowledgeBaseLifecycleStatus lifecycleStatus);
+
     /**
      * 按向量化状态查找知识库（按上传时间倒序）
      */
     List<KnowledgeBaseEntity> findByVectorStatusOrderByUploadedAtDesc(VectorStatus vectorStatus);
+
+    List<KnowledgeBaseEntity> findByVectorStatusAndLifecycleStatusOrderByUploadedAtDesc(
+        VectorStatus vectorStatus,
+        KnowledgeBaseLifecycleStatus lifecycleStatus
+    );
+
+    long countByLifecycleStatus(KnowledgeBaseLifecycleStatus lifecycleStatus);
 }
 

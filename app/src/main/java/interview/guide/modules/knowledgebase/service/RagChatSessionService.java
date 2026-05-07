@@ -5,6 +5,7 @@ import interview.guide.common.exception.ErrorCode;
 import interview.guide.infrastructure.mapper.KnowledgeBaseMapper;
 import interview.guide.infrastructure.mapper.RagChatMapper;
 import interview.guide.modules.knowledgebase.model.KnowledgeBaseEntity;
+import interview.guide.modules.knowledgebase.model.KnowledgeBaseLifecycleStatus;
 import interview.guide.modules.knowledgebase.model.KnowledgeBaseListItemDTO;
 import interview.guide.modules.knowledgebase.model.RagChatDTO.CreateSessionRequest;
 import interview.guide.modules.knowledgebase.model.RagChatDTO.SessionDTO;
@@ -47,7 +48,10 @@ public class RagChatSessionService {
     public SessionDTO createSession(CreateSessionRequest request) {
         // 验证知识库存在
         List<KnowledgeBaseEntity> knowledgeBases = knowledgeBaseRepository
-            .findAllById(request.knowledgeBaseIds());
+            .findAllById(request.knowledgeBaseIds())
+            .stream()
+            .filter(kb -> kb.getLifecycleStatus() == KnowledgeBaseLifecycleStatus.ACTIVE)
+            .toList();
 
         if (knowledgeBases.size() != request.knowledgeBaseIds().size()) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "部分知识库不存在");
@@ -205,7 +209,14 @@ public class RagChatSessionService {
             .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "会话不存在"));
 
         List<KnowledgeBaseEntity> knowledgeBases = knowledgeBaseRepository
-            .findAllById(knowledgeBaseIds);
+            .findAllById(knowledgeBaseIds)
+            .stream()
+            .filter(kb -> kb.getLifecycleStatus() == KnowledgeBaseLifecycleStatus.ACTIVE)
+            .toList();
+
+        if (knowledgeBases.size() != knowledgeBaseIds.size()) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "部分知识库不存在");
+        }
 
         session.setKnowledgeBases(new HashSet<>(knowledgeBases));
         sessionRepository.save(session);

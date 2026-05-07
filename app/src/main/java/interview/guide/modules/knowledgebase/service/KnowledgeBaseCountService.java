@@ -3,6 +3,7 @@ package interview.guide.modules.knowledgebase.service;
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
 import interview.guide.modules.knowledgebase.model.KnowledgeBaseEntity;
+import interview.guide.modules.knowledgebase.model.KnowledgeBaseLifecycleStatus;
 import interview.guide.modules.knowledgebase.repository.KnowledgeBaseRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,7 +41,10 @@ public class KnowledgeBaseCountService {
 
         // 验证所有知识库是否存在
         Set<Long> existingIds = new HashSet<>(knowledgeBaseRepository.findAllById(uniqueIds)
-                .stream().map(KnowledgeBaseEntity::getId).toList());
+                .stream()
+                .filter(kb -> kb.getLifecycleStatus() == KnowledgeBaseLifecycleStatus.ACTIVE)
+                .map(KnowledgeBaseEntity::getId)
+                .toList());
 
         for (Long id : uniqueIds) {
             if (!existingIds.contains(id)) {

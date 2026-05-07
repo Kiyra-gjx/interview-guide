@@ -124,8 +124,11 @@ public class FileStorageService {
         } catch (NoSuchKeyException e) {
             return false;
         } catch (S3Exception e) {
+            if (e.statusCode() == 404) {
+                return false;
+            }
             log.warn("检查文件存在性失败: {} - {}", fileKey, e.getMessage());
-            return false;
+            throw new BusinessException(ErrorCode.STORAGE_DOWNLOAD_FAILED, "检查文件存在性失败: " + e.getMessage());
         }
     }
 
@@ -152,12 +155,6 @@ public class FileStorageService {
         // 空键直接跳过
         if (fileKey == null || fileKey.isEmpty()) {
             log.debug("文件键为空，跳过删除");
-            return;
-        }
-
-        // 检查文件是否存在，避免不必要的删除操作
-        if (!fileExists(fileKey)) {
-            log.warn("文件不存在，跳过删除: {}", fileKey);
             return;
         }
 

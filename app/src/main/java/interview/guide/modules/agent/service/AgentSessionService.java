@@ -16,6 +16,7 @@ import interview.guide.modules.agent.repository.AgentMessageRepository;
 import interview.guide.modules.agent.repository.AgentSessionRepository;
 import interview.guide.modules.agent.repository.AgentTurnRepository;
 import interview.guide.modules.knowledgebase.model.KnowledgeBaseEntity;
+import interview.guide.modules.knowledgebase.model.KnowledgeBaseLifecycleStatus;
 import interview.guide.modules.knowledgebase.repository.KnowledgeBaseRepository;
 import interview.guide.modules.resume.repository.ResumeRepository;
 import lombok.RequiredArgsConstructor;
@@ -580,6 +581,7 @@ public class AgentSessionService {
 
         List<Long> normalizedIds = new ArrayList<>(new LinkedHashSet<>(knowledgeBaseIds));
         Set<Long> existingIds = knowledgeBaseRepository.findAllById(normalizedIds).stream()
+            .filter(kb -> kb.getLifecycleStatus() == KnowledgeBaseLifecycleStatus.ACTIVE)
             .map(KnowledgeBaseEntity::getId)
             .collect(java.util.stream.Collectors.toSet());
         if (existingIds.size() != normalizedIds.size()) {

@@ -3,6 +3,7 @@ package interview.guide.modules.knowledgebase.listener;
 import interview.guide.common.async.AbstractStreamConsumer;
 import interview.guide.common.constant.AsyncTaskStreamConstants;
 import interview.guide.infrastructure.redis.RedisService;
+import interview.guide.modules.knowledgebase.model.KnowledgeBaseLifecycleStatus;
 import interview.guide.modules.knowledgebase.model.VectorStatus;
 import interview.guide.modules.knowledgebase.repository.KnowledgeBaseRepository;
 import interview.guide.modules.knowledgebase.service.KnowledgeBaseVectorService;
@@ -78,22 +79,32 @@ public class VectorizeStreamConsumer extends AbstractStreamConsumer<VectorizeStr
 
     @Override
     protected void markProcessing(VectorizePayload payload) {
-        updateVectorStatus(payload.kbId(), VectorStatus.PROCESSING, null);
+        if (isActiveKnowledgeBase(payload.kbId())) {
+            updateVectorStatus(payload.kbId(), VectorStatus.PROCESSING, null);
+        }
     }
 
     @Override
     protected void processBusiness(VectorizePayload payload) {
+        if (!isActiveKnowledgeBase(payload.kbId())) {
+            log.info("知识库已非 ACTIVE，跳过向量化任务: kbId={}", payload.kbId());
+            return;
+        }
         vectorService.vectorizeAndStore(payload.kbId(), payload.content());
     }
 
     @Override
     protected void markCompleted(VectorizePayload payload) {
-        updateVectorStatus(payload.kbId(), VectorStatus.COMPLETED, null);
+        if (isActiveKnowledgeBase(payload.kbId())) {
+            updateVectorStatus(payload.kbId(), VectorStatus.COMPLETED, null);
+        }
     }
 
     @Override
     protected void markFailed(VectorizePayload payload, String error) {
-        updateVectorStatus(payload.kbId(), VectorStatus.FAILED, error);
+        if (isActiveKnowledgeBase(payload.kbId())) {
+            updateVectorStatus(payload.kbId(), VectorStatus.FAILED, error);
+        }
     }
 
     @Override
@@ -126,6 +137,9 @@ public class VectorizeStreamConsumer extends AbstractStreamConsumer<VectorizeStr
     private void updateVectorStatus(Long kbId, VectorStatus status, String error) {
         try {
             knowledgeBaseRepository.findById(kbId).ifPresent(kb -> {
+                if (kb.getLifecycleStatus() != KnowledgeBaseLifecycleStatus.ACTIVE) {
+                    return;
+                }
                 kb.setVectorStatus(status);
                 kb.setVectorError(error);
                 knowledgeBaseRepository.save(kb);
@@ -134,6 +148,12 @@ public class VectorizeStreamConsumer extends AbstractStreamConsumer<VectorizeStr
         } catch (Exception e) {
             log.error("更新向量化状态失败: kbId={}, status={}, error={}", kbId, status, e.getMessage(), e);
         }
+    }
+
+    private boolean isActiveKnowledgeBase(Long kbId) {
+        return knowledgeBaseRepository.findById(kbId)
+            .map(kb -> kb.getLifecycleStatus() == KnowledgeBaseLifecycleStatus.ACTIVE)
+            .orElse(false);
     }
 
 }
