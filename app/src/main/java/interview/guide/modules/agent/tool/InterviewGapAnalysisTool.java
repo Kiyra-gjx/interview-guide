@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 
 /**
  * 基于已评估面试结果输出短板分析。
+ * 该 Tool 只基于已落库的评估结论做本地分析，不再次调用模型。
  */
 @Component
 @RequiredArgsConstructor
@@ -51,8 +52,10 @@ public class InterviewGapAnalysisTool implements AgentTool {
 
     @Override
     public AgentToolResult execute(Map<String, Object> input, AgentToolContext context) {
+        // 1. 先解析目标面试：显式 sessionId 优先，否则从 resumeId 下寻找最近一次已评估面试。
         InterviewToolContextService.AnalysisSource source = interviewToolContextService.loadGapAnalysisSource(input, context);
         if (source.detail() == null) {
+            // 2. 没有可分析详情时返回稳定的 unavailable payload，而不是抛出业务异常中断整轮。
             return new AgentToolResult(
                 UNAVAILABLE_SUMMARY,
                 buildUnavailablePayload(source),
@@ -61,6 +64,7 @@ public class InterviewGapAnalysisTool implements AgentTool {
             );
         }
 
+        // 3. 有详情时执行本地规则分析，并把低分维度写成 memory 可复用事实。
         InterviewGapAnalyzer.InterviewGapAnalysis analysis = interviewGapAnalyzer.analyze(source.detail());
         return new AgentToolResult(
             analysis.summary(),

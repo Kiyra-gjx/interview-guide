@@ -15,6 +15,7 @@ import java.util.List;
 
 /**
  * Agent Memory 服务。
+ * 负责在每轮工具执行后，把可跨 turn 复用的事实、阶段和下一步关注点收敛成轻量快照。
  */
 @Service
 @RequiredArgsConstructor
@@ -64,6 +65,7 @@ public class AgentMemoryService {
 
     /**
      * 在工具执行完成后更新 memory 快照。
+     * answer/debug 等大载荷只留在 trace 中，memory 只保留后续决策真正需要的摘要信号。
      */
     public AgentMemorySnapshot updateAfterTool(
         AgentMemorySnapshot current,
@@ -77,7 +79,7 @@ public class AgentMemoryService {
         );
         AgentToolResult.MemoryProjection toolProjection = result.memoryProjection();
 
-        // .1 先把已有 memory 和新 tool result 都压到同一套 summary / facts 契约下，再做合并。
+        // 1. 先把已有 memory 和新 tool result 都压到同一套 summary / facts 契约下，再做合并。
         LinkedHashSet<String> facts = new LinkedHashSet<>(safeList(currentProjection.facts()));
         for (String fact : safeList(toolProjection.facts())) {
             if (fact != null && !fact.isBlank()) {
@@ -85,11 +87,12 @@ public class AgentMemoryService {
             }
         }
 
-        // .2 memory 仍保留自己的总量上限，但单条事实和单次 tool 写回都已经过统一归一化。
+        // 2. memory 仍保留自己的总量上限，但单条事实和单次 tool 写回都已经过统一归一化。
         List<String> limitedFacts = new ArrayList<>(facts).stream()
             .limit(MAX_FACTS)
             .toList();
 
+        // 3. usedTools 按首次出现顺序稳定去重，方便后续 prompt 判断哪些上下文已经补过。
         LinkedHashSet<String> usedTools = new LinkedHashSet<>(safeList(current.usedTools()));
         usedTools.add(toolName);
         String nextFocus = resolveNextFocus(toolProjection.summary(), result.answerPayload());
@@ -119,7 +122,8 @@ public class AgentMemoryService {
     }
 
     /**
-     * 兜底空列表，避免重复判空。
+     * 解析下一步关注点。
+     * 工具显式返回 nextFocus 时优先采用，否则退回到归一化后的工具摘要。
      */
     private String resolveNextFocus(String defaultNextFocus, java.util.Map<String, Object> answerPayload) {
         if (answerPayload == null || answerPayload.isEmpty()) {
@@ -132,6 +136,9 @@ public class AgentMemoryService {
         return defaultNextFocus;
     }
 
+    /**
+     * 兜底空列表，避免合并 memory 时重复判空。
+     */
     private List<String> safeList(List<String> value) {
         return value == null ? List.of() : value;
     }

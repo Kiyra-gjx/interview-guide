@@ -18,6 +18,7 @@ import java.util.Map;
 
 /**
  * 结合最近一次可用面试数据生成追问建议。
+ * 这里做的是规则式追问规划，目标是给 Agent 一个可解释、可复盘的练习入口。
  */
 @Component
 @RequiredArgsConstructor
@@ -62,13 +63,17 @@ public class FollowUpQuestionSuggestionTool implements AgentTool {
 
     @Override
     public AgentToolResult execute(Map<String, Object> input, AgentToolContext context) {
+        // 1. 先收敛可选参数，避免后续分析分支反复处理类型和范围校验。
         int maxCount = parseMaxCount(input);
         String focusCategory = parseOptionalString(input, "focusCategory");
+
+        // 2. 再解析可用于追问的面试详情；优先已评估面试，必要时退到有题目数据的最近面试。
         InterviewToolContextService.AnalysisSource source = interviewToolContextService.loadFollowUpSource(input, context);
         if (source.detail() == null) {
             return buildUnavailableResult(source, focusCategory, maxCount);
         }
 
+        // 3. 追问规划复用短板分析结果，让建议能解释“为什么问这个方向”。
         InterviewGapAnalyzer.InterviewGapAnalysis analysis = interviewGapAnalyzer.analyze(source.detail());
         List<FollowUpQuestionPlanner.FollowUpSuggestion> suggestions =
             followUpQuestionPlanner.plan(source.detail(), analysis, focusCategory, maxCount);

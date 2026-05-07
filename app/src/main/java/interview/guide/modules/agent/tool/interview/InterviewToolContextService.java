@@ -18,6 +18,7 @@ import java.util.Map;
 
 /**
  * Interview 工具共享上下文解析服务。
+ * 统一处理 sessionId/resumeId 兜底、权限一致性校验和最近可用面试选择。
  */
 @Service
 @RequiredArgsConstructor
@@ -36,17 +37,20 @@ public class InterviewToolContextService {
      * 解析历史概览所需的数据源。
      */
     public HistorySummarySource loadHistorySummarySource(Map<String, Object> input, AgentToolContext context) {
+        // 1. 历史概览只需要 resumeId；模型没传时允许从 Agent 会话上下文兜底。
         Long explicitResumeId = readOptionalLong(input, "resumeId");
         Long contextResumeId = contextResumeId(context);
         Long resumeId = requireResolvedResumeId(explicitResumeId != null ? explicitResumeId : contextResumeId, "resumeId");
         boolean usedFallback = explicitResumeId == null && contextResumeId != null;
         int limit = readHistoryLimit(input);
 
+        // 2. 面试列表统一按创建时间倒序归一化，再按 limit 裁出最近窗口。
         List<InterviewSessionEntity> allSessions = normalizeSessions(interviewPersistenceService.findByResumeId(resumeId));
         List<InterviewSessionEntity> recentSessions = allSessions.stream()
             .limit(limit)
             .toList();
 
+        // 3. 返回时同时带上 fallback 信息，方便 trace/workbench 解释数据来源。
         return new HistorySummarySource(
             resumeId,
             recentSessions,
@@ -66,6 +70,7 @@ public class InterviewToolContextService {
     public AnalysisSource loadGapAnalysisSource(Map<String, Object> input, AgentToolContext context) {
         String sessionId = readOptionalString(input, "sessionId");
         if (sessionId != null) {
+            // 1. 显式 sessionId 优先，并校验它确实属于传入的 resumeId。
             Long explicitResumeId = readOptionalLong(input, "resumeId");
             InterviewSessionEntity session = requireOwnedSession(sessionId, explicitResumeId);
             Long resumeId = sessionResumeId(session);
@@ -75,6 +80,7 @@ public class InterviewToolContextService {
             return buildDetailSource(resumeId, session, false, null);
         }
 
+        // 2. 未指定 sessionId 时，从 resumeId 下选择最近一次已评估面试作为分析对象。
         Long resumeId = requireResolvedResumeId(resolveResumeId(input, context), "resumeId");
         InterviewSessionEntity session = normalizeSessions(interviewPersistenceService.findByResumeId(resumeId)).stream()
             .filter(this::isEvaluated)
@@ -92,6 +98,7 @@ public class InterviewToolContextService {
     public AnalysisSource loadFollowUpSource(Map<String, Object> input, AgentToolContext context) {
         String sessionId = readOptionalString(input, "sessionId");
         if (sessionId != null) {
+            // 1. 显式 sessionId 场景下，允许未评估但已有题目数据的面试进入追问规划。
             Long explicitResumeId = readOptionalLong(input, "resumeId");
             InterviewSessionEntity session = requireOwnedSession(sessionId, explicitResumeId);
             Long resumeId = sessionResumeId(session);
@@ -101,6 +108,7 @@ public class InterviewToolContextService {
             return buildDetailSource(resumeId, session, false, null);
         }
 
+        // 2. 自动选择时优先用已评估面试，因为它能提供分数和改进建议。
         Long resumeId = requireResolvedResumeId(resolveResumeId(input, context), "resumeId");
         List<InterviewSessionEntity> sessions = normalizeSessions(interviewPersistenceService.findByResumeId(resumeId));
 
@@ -112,6 +120,7 @@ public class InterviewToolContextService {
             return buildDetailSource(resumeId, evaluatedSession, true, "latest_evaluated_session");
         }
 
+        // 3. 没有已评估面试时，再退到最近一次有题目数据的面试，至少能生成围绕题目的追问。
         InterviewSessionEntity questionSession = sessions.stream()
             .filter(this::hasQuestionData)
             .findFirst()

@@ -13,6 +13,7 @@ import java.util.Map;
 
 /**
  * 汇总最近几次面试的历史概况。
+ * 输出的是趋势与状态概览，具体短板和追问仍交给专门 Tool 处理。
  */
 @Component
 @RequiredArgsConstructor
@@ -53,9 +54,11 @@ public class InterviewHistorySummaryTool implements AgentTool {
 
     @Override
     public AgentToolResult execute(Map<String, Object> input, AgentToolContext context) {
+        // 1. 统一解析 resumeId、limit 和最近面试列表，避免每个面试工具重复处理上下文兜底。
         InterviewToolContextService.HistorySummarySource source =
             interviewToolContextService.loadHistorySummarySource(input, context);
 
+        // 2. 没有面试记录时仍返回结构化空结果，让模型和前端都能稳定识别 NO_DATA。
         if (source.sessions().isEmpty()) {
             return new AgentToolResult(
                 "当前没有面试记录，暂时无法判断分数趋势。",
@@ -68,6 +71,7 @@ public class InterviewHistorySummaryTool implements AgentTool {
         String latestStatus = latestStatusName(source.sessions().getFirst());
         String scoreTrend = resolveScoreTrend(source.sessions());
 
+        // 3. 有数据时同时返回人类摘要和结构化 payload，最终回答与工作台展示各取所需。
         return new AgentToolResult(
             buildSummary(source, scoreTrend),
             buildAnswerPayload(source, latestStatus, scoreTrend),

@@ -12,6 +12,7 @@ import java.util.regex.Pattern;
 /**
  * Agent Guardrail 服务。
  * 这里先提供最小可用的输入、工具和输出拦截规则。
+ * 每一层只处理自己的边界问题，业务决策仍交给 orchestrator 统一收口。
  */
 @Service
 public class AgentGuardrailService {
@@ -37,7 +38,7 @@ public class AgentGuardrailService {
      */
     public InputGuardrailDecision evaluateInput(String message) {
         String normalizedMessage = normalize(message);
-        // .1 先拦截控制字符和超长输入，避免异常内容继续进入后续链路。
+        // 1. 先拦截控制字符和超长输入，避免异常内容继续进入后续链路。
         if (containsUnsupportedControlCharacter(normalizedMessage)) {
             return InputGuardrailDecision.blocked(
                 normalizedMessage,
@@ -62,7 +63,7 @@ public class AgentGuardrailService {
                 )
             );
         }
-        // .2 再识别内部数据抽取意图，只拦截结构化内部字段，不误伤普通概念讨论。
+        // 2. 再识别内部数据抽取意图，只拦截结构化内部字段，不误伤普通概念讨论。
         if (isInternalDataExtractionRequest(normalizedMessage)) {
             return InputGuardrailDecision.blocked(
                 normalizedMessage,
@@ -83,14 +84,18 @@ public class AgentGuardrailService {
      * 当前只负责工具输入面的安全校验，审批策略仍由 orchestrator 统一处理。
      */
     public ToolGuardrailDecision evaluateTool(AgentTool tool, Map<String, Object> toolInput) {
+        // 1. 先复制输入，避免后续校验过程中被调用方继续修改。
         Map<String, Object> normalizedInput = toolInput == null
             ? Map.of()
             : immutableToolInput(toolInput);
+
+        // 2. 再解析工具声明的输入白名单；没有显式 allowedInputs 时退回 requiredInputs。
         List<String> allowedInputs = tool.allowedInputs();
         if (allowedInputs == null || allowedInputs.isEmpty()) {
             allowedInputs = tool.requiredInputs() == null ? List.of() : List.copyOf(tool.requiredInputs());
         }
-        // .1 只允许工具声明过的输入字段进入执行阶段。
+
+        // 3. 只允许工具声明过的输入字段进入执行阶段。
         List<String> effectiveAllowedInputs = allowedInputs;
         List<String> unexpectedInputs = normalizedInput.keySet().stream()
             .filter(key -> !effectiveAllowedInputs.contains(key))
@@ -118,7 +123,7 @@ public class AgentGuardrailService {
     public OutputGuardrailDecision evaluateOutput(String reply, String fallbackReply) {
         String normalizedReply = normalize(reply);
         String normalizedFallback = normalize(fallbackReply);
-        // .1 先处理空回复和原始 JSON 这类直接不可接受的输出形态。
+        // 1. 先处理空回复和原始 JSON 这类直接不可接受的输出形态。
         if (normalizedReply.isBlank()) {
             return OutputGuardrailDecision.degraded(
                 safeFallbackReply(normalizedFallback),
@@ -143,7 +148,7 @@ public class AgentGuardrailService {
                 )
             );
         }
-        // .2 最后拦截结构化内部字段泄漏，但保留对普通 normalization 概念解释的正常回答。
+        // 2. 最后拦截结构化内部字段泄漏，但保留对普通 normalization 概念解释的正常回答。
         if (INTERNAL_OUTPUT_FIELD_PATTERN.matcher(normalizedReply).find()) {
             return OutputGuardrailDecision.degraded(
                 safeFallbackReply(normalizedFallback),

@@ -17,6 +17,7 @@ import java.util.Map;
 
 /**
  * Tool 执行结果。
+ * 统一承载 answer、debug 与 memory 三类输出，避免工具各自定义不可比较的返回结构。
  */
 public record AgentToolResult(
     String summary,
@@ -50,6 +51,7 @@ public record AgentToolResult(
      * 生成供回答 Prompt 消费的统一回答视图。
      */
     public Map<String, Object> promptPayload() {
+        // 1. Prompt 只读取经过归一化的摘要、回答和事实，不直接消费原始 debug 数据。
         MemoryProjection memoryProjection = memoryProjection();
         AgentToolOutputDTO output = toToolOutput("tool_result", null);
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -70,10 +72,10 @@ public record AgentToolResult(
      * 生成供 memory 写回使用的统一摘要视图，并允许调用方指定事实数量上限。
      */
     public MemoryProjection memoryProjection(int factLimit) {
-        // .1 复用与 prompt / trace 相同的 summary 裁剪和单条 fact 长度规则。
+        // 1. 复用与 prompt / trace 相同的 summary 裁剪和单条 fact 长度规则。
         NormalizedValue normalizedSummary = normalizeText(summary, SUMMARY_LIMIT);
         NormalizedFacts normalizedFacts = normalizeFacts(confirmedFacts, factLimit);
-        // .2 只暴露跨轮 memory 真正需要的字段，避免 answer / debug 回灌污染上下文。
+        // 2. 只暴露跨轮 memory 真正需要的字段，避免 answer / debug 回灌污染上下文。
         return new MemoryProjection(normalizedSummary.stringValue(), normalizedFacts.facts());
     }
 
@@ -96,7 +98,7 @@ public record AgentToolResult(
      */
     public AgentToolOutputDTO toToolOutput(String kind, String reply) {
         MemoryProjection memoryProjection = memoryProjection();
-        // .1 先分别对回答层和调试层做裁剪与结构化归一化。
+        // 1. 先分别对回答层和调试层做裁剪与结构化归一化。
         NormalizedValue normalizedAnswer = normalizeNode(
             answerPayload,
             new OutputLimit(ANSWER_TEXT_LIMIT, ANSWER_COLLECTION_LIMIT),
@@ -107,7 +109,7 @@ public record AgentToolResult(
             new OutputLimit(DEBUG_TEXT_LIMIT, DEBUG_COLLECTION_LIMIT),
             0
         );
-        // .2 再把统一后的 summary / answer / debug / facts 收口到单一 DTO。
+        // 2. 再把统一后的 summary / answer / debug / facts 收口到单一 DTO。
         return new AgentToolOutputDTO(
             blankToEmpty(kind),
             memoryProjection.summary(),
@@ -136,6 +138,7 @@ public record AgentToolResult(
     }
 
     public Map<String, Object> tracePayload(String kind, String reply) {
+        // trace 需要比 prompt 多保留 debug 和 normalization，方便工作台解释裁剪与降级原因。
         AgentToolOutputDTO output = toToolOutput(kind, reply);
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("kind", output.kind());
@@ -280,7 +283,7 @@ public record AgentToolResult(
     private Map<String, Object> extractRecordFields(Object value) {
         Map<String, Object> fields = new LinkedHashMap<>();
         try {
-            // .1 record 组件顺序就是声明顺序，直接作为结构化输出顺序。
+            // 1. record 组件顺序就是声明顺序，直接作为结构化输出顺序。
             for (RecordComponent component : value.getClass().getRecordComponents()) {
                 component.getAccessor().trySetAccessible();
                 fields.put(component.getName(), component.getAccessor().invoke(value));
@@ -299,7 +302,7 @@ public record AgentToolResult(
             return null;
         }
         try {
-            // .1 先按属性名排序，保证不同运行环境下的输出顺序稳定。
+            // 1. 先按属性名排序，保证不同运行环境下的输出顺序稳定。
             PropertyDescriptor[] descriptors = Introspector
                 .getBeanInfo(value.getClass(), Object.class)
                 .getPropertyDescriptors();

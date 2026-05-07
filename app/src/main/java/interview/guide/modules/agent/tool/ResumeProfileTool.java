@@ -17,6 +17,7 @@ import java.util.Map;
 
 /**
  * 读取简历画像 Tool。
+ * 只读取简历和最近一次分析结果，不触发新的简历解析或打分任务。
  */
 @Component
 @RequiredArgsConstructor
@@ -48,6 +49,7 @@ public class ResumeProfileTool implements AgentTool {
 
     @Override
     public AgentToolResult execute(Map<String, Object> input, AgentToolContext context) {
+        // 1. 模型没有显式传 resumeId 时，回退到当前 Agent 会话绑定的简历。
         Long resumeId = readLong(input.get("resumeId"));
         if (resumeId == null) {
             resumeId = context.resumeId();
@@ -56,6 +58,7 @@ public class ResumeProfileTool implements AgentTool {
             throw new BusinessException(ErrorCode.AGENT_INVALID_INPUT, "get_resume_profile 缺少 resumeId");
         }
 
+        // 2. 简历详情中可能没有分析历史，后续字段都按“无最新分析”做空值收敛。
         ResumeDetailDTO detail = resumeHistoryService.getResumeDetail(resumeId);
         ResumeDetailDTO.AnalysisHistoryDTO latest = detail.analyses() == null || detail.analyses().isEmpty()
             ? null
@@ -72,6 +75,7 @@ public class ResumeProfileTool implements AgentTool {
                 .toList();
         String summary = latest == null ? "" : nullToEmpty(latest.summary());
 
+        // 3. answerPayload 给最终回答使用，保留简历预览、摘要、优势和建议。
         Map<String, Object> answerPayload = new LinkedHashMap<>();
         answerPayload.put("resumeId", resumeId);
         answerPayload.put("filename", detail.filename());
@@ -81,6 +85,7 @@ public class ResumeProfileTool implements AgentTool {
         answerPayload.put("suggestions", suggestions);
         answerPayload.put("interviewCount", detail.interviews() == null ? 0 : detail.interviews().size());
 
+        // 4. memory 只写入稳定事实，避免把完整简历文本跨轮回灌进上下文。
         List<String> facts = new ArrayList<>();
         if (!summary.isBlank()) {
             facts.add("简历摘要: " + summary);
