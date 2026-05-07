@@ -2,10 +2,10 @@
 
 ## 当前进度快照
 
-- 当前整体状态：Stage 5 主体实现已完成，Stage 6 进行中
-- 已完成阶段：Stage 1、Stage 2、Stage 3、Stage 4
-- 当前已完成任务：S3-01、S3-02、S3-03、S4-01、S4-02、S5-01、S5-02、S5-03
-- 当前建议推进任务：推进 Stage 6 的固定样本、统一报告、Stage 5 benchmark 与简历量化证据收口
+- 当前整体状态：Stage 6 已完成，Stage 7 规划中
+- 已完成阶段：Stage 1、Stage 2、Stage 3、Stage 4、Stage 5、Stage 6
+- 当前已完成任务：S1-01 到 S6-03
+- 当前建议推进任务：推进 Stage 7 的 RAG 语料与检索评测、外部内容注入安全、工具路由契约评测
 - 当前最低完成线定义：完成 Stage 4 即达到完整单 Agent（Level A）
 - 更高一级目标：Stage 5 是受控多步 Agent（Level B），不是最低完成线
 
@@ -105,20 +105,37 @@
   - 至少三块能力形成固定样本集、原始记录、汇总结果和可复核证据
   - Stage 5 有稳定 benchmark 或 handoff 正反例证据
   - 能明确区分哪些数据可以安全写进简历，哪些还只能作为内部基线
-- 当前状态：进行中
+- 当前状态：已完成
 - 当前完成情况：已新增量化手册与记录模板；Stage 2 已有可运行回归基线；Stage 6 文档体系已建立，`S6-01` 已完成 Stage 5 benchmark 入口、统一报告脚本和证据目录基础设施，`S6-02` 已完成 Context / Memory / Recovery / Safety 四套固定样本与记录模板，`S6-03` 已完成 Stage 5 benchmark 当前基线版证据包与 resume-safe 表述收口
 - 说明：Stage 6 不负责新增新的 Agent 主逻辑，而是负责把已有能力变成可信证据
 - 参考文档：[Stage 6：Evidence, Benchmark, and Resume Quantification](./agent-stages/stage-6-evidence-benchmark-and-resume-quantification.md)
 
+### Stage 7：RAG Trust, Tool Routing, and Injection Safety
+
+- 定位：补齐 RAG 写进简历后最容易被追问的证据缺口，并把 Agent 工具路由和外部内容注入安全做成固定评测
+- 进入条件：
+  - Stage 6 已完成
+  - 现有 eval / evidence 目录、baseline / diff 和报告机制可复用
+  - 知识库上传、向量化、query debug 和 Agent 工具链路已可用
+- 退出条件：
+  - 有一组可控 RAG 面试知识语料和 chunk 来源证据
+  - `stage-7-rag-retrieval-set` 至少完成 MVP 固定 query 和报告
+  - `stage-7-injection-safety-set` 至少覆盖知识库、简历、工具结果三类外部内容注入
+  - `stage-7-tool-routing-set` 至少覆盖核心工具选择、参数校验、拒绝调用和审批路由
+- 当前状态：规划中
+- 当前任务：S7-01、S7-02、S7-03、S7-04
+- 说明：Stage 7 不接完整公开 benchmark 官方 harness，公开 benchmark 只作为评测维度参考
+- 参考文档：[Stage 7：RAG Trust, Tool Routing, and Injection Safety](./agent-stages/stage-7-rag-trust-tool-routing-and-injection-safety.md)
+
 ## 当前推荐推进任务
 
-当前建议推进 Stage 6 的固定样本、统一报告、Stage 5 benchmark 与简历量化证据收口。
+当前建议推进 Stage 7 的 RAG 语料与检索评测、外部内容注入安全、工具路由契约评测。
 
 推荐原因：
 
-- Stage 2 / Stage 3 / Stage 5 已经有不少可消费的 runtime 信号，当前主要短板是缺少固定样本与统一报告
-- 当前更需要回答“这些能力是否真的可验证、可复核、可写简历”，而不是继续新增自治形态
-- 当前最容易失真的不是代码实现，而是“已经做了很多能力，但缺少证据工程收口”的项目叙事
+- RAG 已经集成并进入简历表述，需要补最小 retrieval set 和 chunk 来源证据
+- Agent + RAG 会被追问外部内容注入风险，需要补知识库、简历、工具结果三类攻击样本
+- 工具调用链路已经有注册和本地校验，需要补专门的 tool routing suite 证明决策不是无约束 ReAct
 
 ## 评测与证据原则
 

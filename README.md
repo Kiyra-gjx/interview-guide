@@ -330,6 +330,8 @@ pnpm test:run
 | `docs/agent-roadmap.md` | 阶段路线图 |
 | `docs/current-code-architecture.md` | 当前代码架构 |
 | `docs/agent-demo-flow.md` | 工作台场景流说明 |
+| `docs/agent-stages/stage-7-rag-trust-tool-routing-and-injection-safety.md` | Stage 7：RAG 可信性、注入安全与工具路由评测 |
+| `docs/agent-evals/README.md` | Agent Eval 文档索引 |
 | `docs/evidence/agent-quantification/README.md` | Agent 能力量化证据 |
 
 ## 路线图
@@ -340,6 +342,9 @@ pnpm test:run
 - [x] Context assembly、memory snapshot、预算控制
 - [x] Agent Workbench、Trace Explorer、执行叙事
 - [x] 固定评测集、benchmark 和回归报告
+- [ ] RAG 检索可信性与 chunk 来源证据
+- [ ] 外部内容注入安全评测
+- [ ] 工具路由与参数契约评测
 - [ ] 更完整的多步 Agent loop 策略
 - [ ] 更细粒度的 tool result normalization 与错误恢复
 - [ ] 面试训练计划、知识补全和复盘建议的闭环

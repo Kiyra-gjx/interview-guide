@@ -3,7 +3,7 @@
 ## 0. 阶段状态
 - 阶段状态：已完成
 - 已完成任务：S6-01、S6-02、S6-03
-- 当前任务：维护证据基线，并按简历用途继续补更强的任务级 benchmark
+- 当前任务：无新的 Stage 6 正式任务；RAG 可信性、外部内容注入安全和工具路由评测转入 Stage 7
 - 前置条件：Stage 5 主体实现已完成
 
 ## 0.1 当前进展
@@ -21,6 +21,7 @@
 - `stage-5-recovery-set` 已完成真实跑数：`9/9` case 通过，恢复正确率 `100%`，`wrongStateContinued=0`，`replayedSideEffect=0`
 - `stage-2-safety-set` 已完成真实跑数：`10/10` case 通过，高风险动作审批命中率 `100%`，审批拒绝后降级收口率 `100%`
 - `stage-5-benchmark` 已完成当前基线证据包：`4/4` case 通过，覆盖 handoff 正反例、预算耗尽与 replay blocked 四类关键终态
+- 后续补强不再继续塞进 Stage 6，统一进入 Stage 7：RAG Trust、Tool Routing、Injection Safety
 
 ## 1. 阶段目标
 

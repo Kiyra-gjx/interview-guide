@@ -60,11 +60,13 @@
 
 ## Eval
 
-- 当前状态：已完成第一版最小基线，具备固定离线样例、统一运行入口、报告留档与前后对比能力
-- 完成标准：能用离线样例比较改动前后的关键指标与行为变化，结果可被留档与复查
+- 当前状态：Stage 6 已完成第一批证据收口，具备 Safety、Context、Memory、Recovery、Stage 5 Benchmark 的固定样本、统一运行入口、报告留档与前后对比能力；Stage 7 规划补充 RAG retrieval、Injection Safety 和 Tool Routing 三类套件
+- 完成标准：能用离线样例比较改动前后的关键指标与行为变化，结果可被留档与复查；RAG 与 Agent 工具路由等对外表述也必须能回到固定样本和报告
 - 对应 stage/task：
   - [Stage 2：Safe and Observable Runtime](./agent-stages/stage-2-observability-guardrails.md)
   - [S2-04](./agent-tasks/s2-task-04-eval-and-regression.md)
+  - [Stage 6：Evidence, Benchmark, and Resume Quantification](./agent-stages/stage-6-evidence-benchmark-and-resume-quantification.md)
+  - [Stage 7：RAG Trust, Tool Routing, and Injection Safety](./agent-stages/stage-7-rag-trust-tool-routing-and-injection-safety.md)
 
 ## Workbench
 
@@ -88,5 +90,5 @@
 ## 总结
 
 - “它是什么”：见 [Agent Overview](./agent-overview.md)
-- “它还差什么”：当前主要缺口集中在多步固定样例、handoff 正反例与 benchmark 证据补强
-- “它接下来做什么”：当前建议推进 Stage 5 证据补强，而不是继续扩展新的自治分支
+- “它还差什么”：当前主要缺口集中在 RAG 可信性、外部内容注入安全与工具路由契约评测
+- “它接下来做什么”：当前建议推进 Stage 7 的 RAG 可信性、外部内容注入安全和工具路由契约评测，而不是继续扩展新的自治分支

@@ -58,7 +58,8 @@ Level B 不是最低完成线，而是在 Level A 之上的增强层。
 - Stage 3 已完成
 - Stage 4 已完成
 - Stage 5 主体实现已完成
-- Stage 6 进行中
+- Stage 6 已完成
+- Stage 7 规划中
 - S2-01 已完成
 - S2-02 已完成
 - S2-03 已完成
@@ -71,21 +72,24 @@ Level B 不是最低完成线，而是在 Level A 之上的增强层。
 - S5-01 已完成
 - S5-02 已完成
 - S5-03 已完成
-- 当前 Stage 6 的首要任务是补齐固定样例、报告与可复核证据，把已有 runtime 能力沉淀成 benchmark 与简历量化结果
+- S6-01 已完成
+- S6-02 已完成
+- S6-03 已完成
+- S7-01 规划中
+- S7-02 规划中
+- S7-03 规划中
+- S7-04 规划中
+- 当前 Stage 7 的首要任务是补齐 RAG 可信性、外部内容注入安全与工具路由契约评测，让已经写进简历的 RAG / Agent 能力有更清晰的答辩证据
 
-这意味着项目已经建立了单 Agent 的执行基础、安全可观测运行时基线、首批 interview domain 工具能力、统一 context assembly 基线、统一的 tool output 消费视图、turn 级 Agent Workbench，以及可复现的 demo flow 收口，已经达到完整单 Agent（Level A）。Stage 5 的多步预算骨架、终态语义收口，以及首版 handoff / subagent 边界治理也已经落地：系统已支持受控只读委派，但仍保持显式开启、默认单步、不扩散子执行体的保守策略。当前进入 Stage 6，重点不再是新增运行时主逻辑，而是把 Stage 2 / Stage 3 / Stage 5 的已有信号收口成固定样本、benchmark、baseline / diff 和简历可用的量化证据。
+这意味着项目已经建立了单 Agent 的执行基础、安全可观测运行时基线、首批 interview domain 工具能力、统一 context assembly 基线、统一的 tool output 消费视图、turn 级 Agent Workbench，以及可复现的 demo flow 收口，已经达到完整单 Agent（Level A）。Stage 5 的多步预算骨架、终态语义收口，以及首版 handoff / subagent 边界治理也已经落地：系统已支持受控只读委派，但仍保持显式开启、默认单步、不扩散子执行体的保守策略。Stage 6 已把 Stage 2 / Stage 3 / Stage 5 的已有信号收口成固定样本、benchmark、baseline / diff 和简历可用的量化证据。当前进入 Stage 7，重点转向 RAG 可信性、外部内容注入安全和工具路由契约评测。
 
 ## 它还差什么
 
-从顶层看，当前最低完成线已经达到；Stage 5 的正式任务也已经实现完毕，但仍有两类后续工作需要继续补强：
+从顶层看，当前最低完成线已经达到；Stage 5 和 Stage 6 的正式任务也已经收口。后续需要继续补强的是三类更容易被面试深挖的证据：
 
-- 多步固定样例与 benchmark 证据，用来验证 Stage 5 机制收益
-- handoff / subagent 的正反例沉淀，用来证明受控委派的适用场景与边界收益
-
-除此之外，还需要一层明确的证据工程收口：
-
-- 把上下文、记忆、恢复、安全、多步 benchmark 统一成固定样本集和标准报告
-- 把“可以内部观察”的信号转成“可以对外复核”的量化结果
+- RAG 语料、chunk 来源和 retrieval set，用来证明知识库不是只做了工程接入
+- 外部内容注入安全，用来证明知识库、简历和工具结果不会绕过 Agent policy
+- 工具路由契约评测，用来证明 Agent 决策不是无约束模型自由发挥
 
 ## 文档分工
 
