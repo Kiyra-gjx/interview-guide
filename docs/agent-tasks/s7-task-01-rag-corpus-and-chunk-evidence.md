@@ -2,7 +2,7 @@
 
 ## 0. 任务状态
 
-- 状态：规划中
+- 状态：已完成
 - 当前定位：Stage 7 的 RAG 语料与 chunk 证据前置任务
 - 前置依赖：现有知识库上传、解析、向量化和 query debug 链路已可用
 
@@ -72,3 +72,8 @@ MVP 语料建议 10 份，每份 800 到 1500 字：
 - chunk 级结果能说明来源文档、section 和 chunk 顺序
 - query debug 能展示命中 preview
 - 能清楚解释当前策略：通用 token chunk + section metadata，后续再扩展 parent-child chunk
+
+## 8. 当前结论
+
+- `S7-01` 已完成，相关语料与 chunk 证据已落地
+- 后续 `S7-02`、`S7-03`、`S7-04` 继续沿用本任务定义的 chunk/source 证据口径
