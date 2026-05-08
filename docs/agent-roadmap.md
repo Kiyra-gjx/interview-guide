@@ -2,10 +2,10 @@
 
 ## 当前进度快照
 
-- 当前整体状态：Stage 6 已完成，Stage 7 规划中
-- 已完成阶段：Stage 1、Stage 2、Stage 3、Stage 4、Stage 5、Stage 6
-- 当前已完成任务：S1-01 到 S6-03
-- 当前建议推进任务：推进 Stage 7 的工具路由契约评测
+- 当前整体状态：Stage 7 已完成
+- 已完成阶段：Stage 1、Stage 2、Stage 3、Stage 4、Stage 5、Stage 6、Stage 7
+- 当前已完成任务：S1-01 到 S7-04
+- 当前建议推进任务：维护现有评测基线，按新需求扩展下一阶段目标
 - 当前最低完成线定义：完成 Stage 4 即达到完整单 Agent（Level A）
 - 更高一级目标：Stage 5 是受控多步 Agent（Level B），不是最低完成线
 
@@ -122,20 +122,19 @@
   - `stage-7-rag-retrieval-set` 至少完成 MVP 固定 query 和报告
   - `stage-7-injection-safety-set` 至少覆盖知识库、简历、工具结果三类外部内容注入
   - `stage-7-tool-routing-set` 至少覆盖核心工具选择、参数校验、拒绝调用和审批路由
-- 当前状态：规划中
-- 当前任务：S7-04
+- 当前状态：已完成
+- 当前任务：无
 - 说明：Stage 7 不接完整公开 benchmark 官方 harness，公开 benchmark 只作为评测维度参考
 - 参考文档：[Stage 7：RAG Trust, Tool Routing, and Injection Safety](./agent-stages/stage-7-rag-trust-tool-routing-and-injection-safety.md)
 
 ## 当前推荐推进任务
 
-当前建议推进 Stage 7 的 RAG 语料与检索评测、外部内容注入安全、工具路由契约评测。
+Stage 7 的 RAG 语料、检索评测、外部内容注入安全和工具路由契约评测已完成收口。
 
 推荐原因：
 
-- RAG 已经集成并进入简历表述，需要补最小 retrieval set 和 chunk 来源证据
-- Agent + RAG 会被追问外部内容注入风险，需要补知识库、简历、工具结果三类攻击样本
-- 工具调用链路已经有注册和本地校验，需要补专门的 tool routing suite 证明决策不是无约束 ReAct
+- 现有 Stage 7 三条证据线都已具备固定样本、报告、baseline 与 diff，可持续做回归对比
+- 后续新增能力时，可直接复用当前 runner 和 evidence 目录规范，减少临时脚本与口径漂移
 
 ## 评测与证据原则
 

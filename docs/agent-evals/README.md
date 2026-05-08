@@ -19,16 +19,13 @@
 - `stage-5-benchmark.md`
 - `stage-7-rag-retrieval-set.md`
 - `stage-7-injection-safety-set.md`
+- `stage-7-tool-routing-set.md`
 
-## 后续 Stage 7 eval
+## Stage 7 说明
 
-Stage 7 的计划入口是：
+Stage 7 的阶段入口是：
 
 - `docs/agent-stages/stage-7-rag-trust-tool-routing-and-injection-safety.md`
-
-对应 runner 落地后，再补充以下使用说明：
-
-- `stage-7-tool-routing-set.md`
 
 ## 规则
 

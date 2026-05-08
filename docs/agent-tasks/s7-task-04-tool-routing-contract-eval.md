@@ -2,7 +2,7 @@
 
 ## 0. 任务状态
 
-- 状态：规划中
+- 状态：已完成（2026-05-08）
 - 当前定位：Stage 7 的 Agent 决策层评测任务
 - 前置依赖：ToolRegistry、AgentTool、AgentOrchestrator 和结构化决策链路已可用
 
@@ -69,7 +69,16 @@ Gradle task 建议命名：
 ## 7. 完成标准
 
 - 至少 20 个固定 case
-- 每个 case 都有 expected tool、expected params、expected outcome
+- 每个 case 都有 expected outcome；direct reply case 的 expected tool / expected params 允许标记为 `n/a`
 - 工具不存在、参数缺失、高风险动作、直接回答四类边界都被覆盖
 - 报告能输出 case 级结果和汇总指标
 - 能解释这套 suite 参考 BFCL 的工具调用思想，但不是官方 BFCL 跑分
+
+## 8. 完成记录
+
+- 已新增 `stage-7-tool-routing-set` 固定样本 `20` 条，覆盖工具执行、拒绝降级、直接回答、审批路由四类结果。
+- 已新增评测代码入口 `app/src/test/java/interview/guide/modules/agent/eval/AgentStage7ToolRoutingEvalTest.java`。
+- 已新增 Gradle task：`./gradlew.bat :app:agentStage7ToolRoutingEval`。
+- 已新增 runner：`scripts/run-agent-stage7-tool-routing-eval.ps1`。
+- 已新增使用说明：`docs/agent-evals/stage-7-tool-routing-set.md`。
+- 已按 Stage 6 证据规范归档 `sample-set/raw-results/summary/report/baseline/diff` 到 `docs/evidence/agent-quantification/stage-7-tool-routing-set/`。

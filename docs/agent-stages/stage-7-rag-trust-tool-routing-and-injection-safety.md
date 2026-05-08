@@ -2,9 +2,9 @@
 
 ## 0. 阶段状态
 
-- 阶段状态：进行中
-- 已完成任务：S7-01、S7-02、S7-03
-- 当前任务：S7-04
+- 阶段状态：已完成
+- 已完成任务：S7-01、S7-02、S7-03、S7-04
+- 当前任务：无
 - 前置条件：Stage 6 已完成，现有 eval / evidence 目录、baseline / diff 和报告机制可复用
 
 ## 1. 阶段定位
@@ -17,7 +17,7 @@ Stage 7 不再继续扩展泛化 Agent 形态，而是补齐面试中最容易�
 - 外部文档、简历、工具结果里的恶意指令是否会污染 Agent 决策
 - Agent 决策层是否真的能稳定选择工具、校验参数、拒绝错误调用
 
-当前进展：S7-01 已完成，已补齐 RAG 语料与 chunk 证据基础；S7-02 已完成固定 RAG retrieval regression harness；S7-03 已完成固定 external content injection safety harness；S7-04 仍待继续推进。
+当前进展：S7-01 已完成，已补齐 RAG 语料与 chunk 证据基础；S7-02 已完成固定 RAG retrieval regression harness；S7-03 已完成固定 external content injection safety harness；S7-04 已完成固定 tool routing contract eval harness。
 
 ## 2. 本阶段目标
 
@@ -69,7 +69,7 @@ Stage 7 不再继续扩展泛化 Agent 形态，而是补齐面试中最容易�
 
 `docs/agent-evals/` 只保存已经有明确运行入口或即将实现的 eval 使用说明。
 
-Stage 7 的计划不再单独放 `next-eval-suite-plan.md`，而是收口在本阶段文档和 S7 任务文档里。等对应 runner 落地后，再新增：
+Stage 7 的计划不再单独放 `next-eval-suite-plan.md`，而是收口在本阶段文档和 S7 任务文档里。当前三个使用说明已落地：
 
 - `docs/agent-evals/stage-7-rag-retrieval-set.md`
 - `docs/agent-evals/stage-7-injection-safety-set.md`
@@ -102,3 +102,9 @@ Stage 7 的计划不再单独放 `next-eval-suite-plan.md`，而是收口在本�
 - Added Gradle entry `./gradlew.bat :app:agentStage7InjectionSafetyEval`.
 - Added runner `scripts/run-agent-stage7-injection-safety-eval.ps1`.
 - Archived sample set, raw results, summary, reports, baseline, and diff under `docs/evidence/agent-quantification/stage-7-injection-safety-set/`.
+- `S7-04` completed on `2026-05-08`.
+- Added `stage-7-tool-routing-set` with `20` fixed cases covering core tool selection, parameter shaping, invalid tool rejection, missing-input rejection, direct replies, and approval routing for high-risk actions.
+- Added metrics `toolSelectionAccuracy`, `paramAccuracy`, `rejectionAccuracy`, `directReplyAccuracy`, `approvalRoutingAccuracy`, and `unexpectedToolExecutionCount`.
+- Added Gradle entry `./gradlew.bat :app:agentStage7ToolRoutingEval`.
+- Added runner `scripts/run-agent-stage7-tool-routing-eval.ps1`.
+- Archived sample set, raw results, summary, reports, baseline, and diff under `docs/evidence/agent-quantification/stage-7-tool-routing-set/`.

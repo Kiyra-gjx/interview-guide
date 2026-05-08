@@ -174,3 +174,15 @@ tasks.register('agentStage7InjectionSafetyEval', Test) {
         includeTestsMatching 'interview.guide.modules.agent.eval.AgentStage7InjectionSafetyEvalTest'
     }
 }
+
+tasks.register('agentStage7ToolRoutingEval', Test) {
+    description = 'Runs the fixed Stage 7 tool routing contract quantification suite.'
+    group = 'verification'
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    outputs.upToDateWhen { false }
+    filter {
+        includeTestsMatching 'interview.guide.modules.agent.eval.AgentStage7ToolRoutingEvalTest'
+    }
+}
