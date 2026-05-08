@@ -59,6 +59,9 @@ export interface QueryResponse {
 
 export interface QueryDebugHit {
   knowledgeBaseId: string | null;
+  sourceTitle?: string | null;
+  sectionTitle?: string | null;
+  chunkIndex?: number | null;
   preview: string;
 }
 

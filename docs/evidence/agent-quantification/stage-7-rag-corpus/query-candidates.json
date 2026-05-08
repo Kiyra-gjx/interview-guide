@@ -1,0 +1,72 @@
+{
+  "suiteId": "stage-7-rag-corpus",
+  "purpose": "Candidate retrieval queries for the Stage 7 RAG retrieval eval.",
+  "queries": [
+    {
+      "id": "s7-rag-corpus-q001",
+      "query": "volatile count++ atomicity",
+      "expectedSource": "java-concurrency.md",
+      "expectedSection": "volatile"
+    },
+    {
+      "id": "s7-rag-corpus-q002",
+      "query": "ThreadPoolExecutor queue full rejection policy",
+      "expectedSource": "java-concurrency.md",
+      "expectedSection": "thread pool"
+    },
+    {
+      "id": "s7-rag-corpus-q003",
+      "query": "Java heap space OOM troubleshooting",
+      "expectedSource": "jvm-gc.md",
+      "expectedSection": "OOM troubleshooting"
+    },
+    {
+      "id": "s7-rag-corpus-q004",
+      "query": "Spring transaction self invocation proxy failure",
+      "expectedSource": "spring-tx-aop.md",
+      "expectedSection": "transaction proxy"
+    },
+    {
+      "id": "s7-rag-corpus-q005",
+      "query": "Redis cache penetration breakdown avalanche",
+      "expectedSource": "redis-cache.md",
+      "expectedSection": "cache failure patterns"
+    },
+    {
+      "id": "s7-rag-corpus-q006",
+      "query": "MySQL composite index leftmost prefix range condition",
+      "expectedSource": "mysql-index.md",
+      "expectedSection": "composite index"
+    },
+    {
+      "id": "s7-rag-corpus-q007",
+      "query": "rate limiting fixed window sliding window token bucket",
+      "expectedSource": "system-design.md",
+      "expectedSection": "rate limiting algorithms"
+    },
+    {
+      "id": "s7-rag-corpus-q008",
+      "query": "interview rubric evidence recording",
+      "expectedSource": "interview-rubric.md",
+      "expectedSection": "evidence record"
+    },
+    {
+      "id": "s7-rag-corpus-q009",
+      "query": "STAR template Result metrics",
+      "expectedSource": "star-template.md",
+      "expectedSection": "Result"
+    },
+    {
+      "id": "s7-rag-corpus-q010",
+      "query": "resume RAG project chunk metadata highlights",
+      "expectedSource": "resume-highlights.md",
+      "expectedSection": "project description"
+    },
+    {
+      "id": "s7-rag-corpus-q011",
+      "query": "backend JD Java database cache capabilities",
+      "expectedSource": "backend-jd.md",
+      "expectedSection": "required skills"
+    }
+  ]
+}

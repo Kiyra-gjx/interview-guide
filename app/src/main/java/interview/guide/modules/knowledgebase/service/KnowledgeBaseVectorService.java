@@ -1,5 +1,6 @@
 package interview.guide.modules.knowledgebase.service;
 
+import interview.guide.modules.knowledgebase.model.KnowledgeBaseEntity;
 import interview.guide.modules.knowledgebase.model.KnowledgeBaseLifecycleStatus;
 import interview.guide.modules.knowledgebase.repository.KnowledgeBaseRepository;
 import interview.guide.modules.knowledgebase.repository.VectorRepository;
@@ -23,80 +24,69 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class KnowledgeBaseVectorService {
-    
-    /**
-     * 阿里云 DashScope Embedding API 批量大小限制
-     */
+
     private static final int MAX_BATCH_SIZE = 10;
+
     private final VectorStore vectorStore;
     private final TextSplitter textSplitter;
     private final VectorRepository vectorRepository;
     private final KnowledgeBaseRepository knowledgeBaseRepository;
 
-    public KnowledgeBaseVectorService(VectorStore vectorStore, VectorRepository vectorRepository, KnowledgeBaseRepository knowledgeBaseRepository) {
+    public KnowledgeBaseVectorService(
+        VectorStore vectorStore,
+        VectorRepository vectorRepository,
+        KnowledgeBaseRepository knowledgeBaseRepository
+    ) {
         this.vectorStore = vectorStore;
         this.vectorRepository = vectorRepository;
         this.knowledgeBaseRepository = knowledgeBaseRepository;
-        // 使用TokenTextSplitter，每个chunk约500 tokens，重叠50 tokens
         this.textSplitter = new TokenTextSplitter();
     }
-    /**
-     * 将知识库内容向量化并存储
-     * @param knowledgeBaseId 知识库ID
-     * @param content 知识库文本内容
-     */
+
     @Transactional
     public void vectorizeAndStore(Long knowledgeBaseId, String content) {
-        log.info("开始向量化知识库: kbId={}, contentLength={}", knowledgeBaseId, content.length());
+        int contentLength = content == null ? 0 : content.length();
+        log.info("开始向量化知识库: kbId={}, contentLength={}", knowledgeBaseId, contentLength);
         try {
-            ensureActive(knowledgeBaseId);
-            // 1. 先删除该知识库的旧向量数据
+            KnowledgeBaseEntity knowledgeBase = loadActiveKnowledgeBase(knowledgeBaseId);
             deleteByKnowledgeBaseId(knowledgeBaseId);
             ensureActive(knowledgeBaseId);
-            
-            // 2. 将文本分块
-            List<Document> chunks = textSplitter.apply(
-                List.of(new Document(content))
+
+            List<Document> chunks = KnowledgeBaseChunkEvidenceMapper.buildChunkDocuments(
+                knowledgeBaseId,
+                knowledgeBase,
+                content,
+                textSplitter
             );
-            
+
             log.info("文本分块完成: {} 个chunks", chunks.size());
-            
-            // 3. 为每个chunk添加metadata（知识库ID）
-            // 统一使用 String 类型存储，确保查询一致性
-            chunks.forEach(chunk -> chunk.getMetadata().put("kb_id", knowledgeBaseId.toString()));
-            // 4. 分批向量化并存储（阿里云 DashScope API 限制 batch size <= 10）
+
             int totalChunks = chunks.size();
-            int batchCount = (totalChunks + MAX_BATCH_SIZE - 1) / MAX_BATCH_SIZE; // 向上取整
-            log.info("开始分批向量化: 总共 {} 个chunks，分 {} 批处理，每批最多 {} 个",
-                    totalChunks, batchCount, MAX_BATCH_SIZE);
+            int batchCount = (totalChunks + MAX_BATCH_SIZE - 1) / MAX_BATCH_SIZE;
+            log.info("开始分批向量化: 共 {} 个chunks，分 {} 批处理，每批最多 {} 个", totalChunks, batchCount, MAX_BATCH_SIZE);
+
             for (int i = 0; i < batchCount; i++) {
                 int start = i * MAX_BATCH_SIZE;
                 int end = Math.min(start + MAX_BATCH_SIZE, totalChunks);
                 List<Document> batch = chunks.subList(start, end);
-                log.debug("处理第 {}/{} 批: chunks {}-{}", i + 1, batchCount, start + 1, end);
+                log.debug("处理第 {}/{} 批 chunks {}-{}", i + 1, batchCount, start + 1, end);
                 ensureActive(knowledgeBaseId);
                 vectorStore.add(batch);
             }
-            log.info("知识库向量化完成: kbId={}, chunks={}, batches={}",
-                    knowledgeBaseId, totalChunks, batchCount);
+
+            knowledgeBase.setChunkCount(totalChunks);
+            knowledgeBaseRepository.save(knowledgeBase);
+
+            log.info("知识库向量化完成: kbId={}, chunks={}, batches={}", knowledgeBaseId, totalChunks, batchCount);
         } catch (Exception e) {
             log.error("向量化知识库失败: kbId={}, error={}", knowledgeBaseId, e.getMessage(), e);
             throw new RuntimeException("向量化知识库失败: " + e.getMessage(), e);
         }
     }
-    
-    /**
-     * 基于多个知识库进行相似度搜索
-     * 
-     * @param query 查询文本
-     * @param knowledgeBaseIds 知识库ID列表（如果为空则搜索所有）
-     * @param topK 返回top K个结果
-     * @return 相关文档列表
-     */
+
     public List<Document> similaritySearch(String query, List<Long> knowledgeBaseIds, int topK, double minScore) {
-        log.info("向量相似度搜索: query={}, kbIds={}, topK={}, minScore={}",
-            query, knowledgeBaseIds, topK, minScore);
-        
+        log.info("向量相似度搜索: query={}, kbIds={}, topK={}, minScore={}", query, knowledgeBaseIds, topK, minScore);
+
         try {
             SearchRequest.Builder builder = SearchRequest.builder()
                 .query(query)
@@ -114,22 +104,21 @@ public class KnowledgeBaseVectorService {
             if (results == null) {
                 return List.of();
             }
-            
+
             log.info("搜索完成: 找到 {} 个相关文档", results.size());
             return results;
-            
         } catch (Exception e) {
-            log.warn("向量搜索前置过滤失败，回退到本地过滤: {}", e.getMessage());
+            log.warn("向量搜索前置过滤失败，回退到本地过滤 {}", e.getMessage());
             return similaritySearchFallback(query, knowledgeBaseIds, topK, minScore);
         }
     }
 
     private List<Document> similaritySearchFallback(String query, List<Long> knowledgeBaseIds, int topK, double minScore) {
         try {
-            // 回退检索仍保留 topK/minScore，避免兜底路径引入过多弱相关命中
+            int effectiveTopK = Math.max(topK, 1);
             SearchRequest.Builder builder = SearchRequest.builder()
                 .query(query)
-                .topK(Math.max(topK * 3, topK));
+                .topK(effectiveTopK * 3);
             if (minScore > 0) {
                 builder.similarityThreshold(minScore);
             }
@@ -146,10 +135,10 @@ public class KnowledgeBaseVectorService {
             }
 
             List<Document> results = allResults.stream()
-                .limit(topK)
-                .collect(Collectors.toList());
+                .limit(effectiveTopK)
+                .toList();
 
-            log.info("回退检索完成: 找到 {} 个相关文档", results.size());
+            log.info("回退搜索完成: 找到 {} 个相关文档", results.size());
             return results;
         } catch (Exception e) {
             log.error("向量搜索失败: {}", e.getMessage(), e);
@@ -158,14 +147,15 @@ public class KnowledgeBaseVectorService {
     }
 
     private boolean isDocInKnowledgeBases(Document doc, List<Long> knowledgeBaseIds) {
-        Object kbId = doc.getMetadata().get("kb_id");
+        Object kbId = doc.getMetadata().get(KnowledgeBaseChunkEvidenceMapper.METADATA_KB_ID);
+        if (kbId == null) {
+            kbId = doc.getMetadata().get(KnowledgeBaseChunkEvidenceMapper.METADATA_KB_ID_LONG);
+        }
         if (kbId == null) {
             return false;
         }
         try {
-            Long kbIdLong = kbId instanceof Long
-                ? (Long) kbId
-                : Long.parseLong(kbId.toString());
+            Long kbIdLong = kbId instanceof Long ? (Long) kbId : Long.parseLong(kbId.toString());
             return knowledgeBaseIds.contains(kbIdLong);
         } catch (NumberFormatException e) {
             return false;
@@ -178,15 +168,9 @@ public class KnowledgeBaseVectorService {
             .map(String::valueOf)
             .map(id -> "'" + id + "'")
             .collect(Collectors.joining(", "));
-        return "kb_id in [" + values + "]";
+        return KnowledgeBaseChunkEvidenceMapper.METADATA_KB_ID + " in [" + values + "]";
     }
-    
-    /**
-     * 删除指定知识库的所有向量数据
-     * 委托给 VectorRepository 处理
-     * 
-     * @param knowledgeBaseId 知识库ID
-     */
+
     @Transactional(rollbackFor = Exception.class)
     public void deleteByKnowledgeBaseId(Long knowledgeBaseId) {
         try {
@@ -205,5 +189,9 @@ public class KnowledgeBaseVectorService {
             throw new IllegalStateException("知识库已不可向量化: kbId=" + knowledgeBaseId);
         }
     }
-}
 
+    private KnowledgeBaseEntity loadActiveKnowledgeBase(Long knowledgeBaseId) {
+        return knowledgeBaseRepository.findByIdAndLifecycleStatus(knowledgeBaseId, KnowledgeBaseLifecycleStatus.ACTIVE)
+            .orElseThrow(() -> new IllegalStateException("知识库已不可向量化: kbId=" + knowledgeBaseId));
+    }
+}

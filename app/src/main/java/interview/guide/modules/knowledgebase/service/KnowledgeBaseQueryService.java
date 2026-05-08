@@ -38,7 +38,6 @@ public class KnowledgeBaseQueryService {
     private static final String NO_RESULT_RESPONSE = "抱歉，在选定的知识库中未检索到相关信息。请换一个更具体的关键词或补充上下文后再试。";
     private static final Pattern PRECISION_TOKEN_PATTERN = Pattern.compile("(?<![A-Za-z0-9_-])[A-Za-z0-9][A-Za-z0-9_-]{1,31}(?![A-Za-z0-9_-])");
     private static final int STREAM_PROBE_CHARS = 120;
-    private static final int DEBUG_PREVIEW_CHARS = 180;
 
     private final ChatClient chatClient;
     private final KnowledgeBaseVectorService vectorService;
@@ -614,36 +613,8 @@ public class KnowledgeBaseQueryService {
             return List.of();
         }
         return docs.stream()
-            .map(doc -> new QueryDebugInfo.Hit(
-                readKnowledgeBaseId(doc),
-                buildPreview(doc.getText())
-            ))
+            .map(KnowledgeBaseChunkEvidenceMapper::toDebugHit)
             .toList();
-    }
-
-    /**
-     * 从文档 metadata 中读取知识库 ID，用于调试面板展示来源。
-     */
-    private String readKnowledgeBaseId(Document doc) {
-        if (doc == null || doc.getMetadata() == null) {
-            return null;
-        }
-        Object knowledgeBaseId = doc.getMetadata().get("kb_id");
-        return knowledgeBaseId == null ? null : knowledgeBaseId.toString();
-    }
-
-    /**
-     * 生成调试预览文本，压缩空白并限制长度，避免日志和接口返回过大。
-     */
-    private String buildPreview(String text) {
-        if (text == null || text.isBlank()) {
-            return "";
-        }
-        String normalized = text.replaceAll("\\s+", " ").trim();
-        if (normalized.length() <= DEBUG_PREVIEW_CHARS) {
-            return normalized;
-        }
-        return normalized.substring(0, DEBUG_PREVIEW_CHARS) + "...";
     }
 
     /**

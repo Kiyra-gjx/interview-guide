@@ -1,5 +1,7 @@
 package interview.guide.modules.knowledgebase.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.util.List;
 
 /**
@@ -22,10 +24,17 @@ public record QueryDebugInfo(
     /**
      * 单个命中文档的调试视图。
      */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Hit(
         String knowledgeBaseId,
+        String sourceTitle,
+        String sectionTitle,
+        Integer chunkIndex,
         String preview
     ) {
+        public Hit(String knowledgeBaseId, String preview) {
+            this(knowledgeBaseId, null, null, null, preview);
+        }
     }
 
     /**

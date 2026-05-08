@@ -95,7 +95,7 @@ class AgentToolResultTest {
             "summary",
             Map.of(),
             Map.of(
-                "hits", List.of(new QueryDebugInfo.Hit("kb-1", "preview")),
+                "hits", List.of(new QueryDebugInfo.Hit("kb-1", "source", "section", 3, "preview")),
                 "owner", new DebugPojo("resume", 2)
             ),
             List.of()
@@ -105,7 +105,13 @@ class AgentToolResultTest {
 
         assertThat((List<?>) output.debug().get("hits"))
             .singleElement()
-            .isEqualTo(Map.of("knowledgeBaseId", "kb-1", "preview", "preview"));
+            .isEqualTo(Map.of(
+                "knowledgeBaseId", "kb-1",
+                "sourceTitle", "source",
+                "sectionTitle", "section",
+                "chunkIndex", 3,
+                "preview", "preview"
+            ));
         assertThat(output.debug().get("owner"))
             .isEqualTo(Map.of("count", 2, "source", "resume"));
     }
