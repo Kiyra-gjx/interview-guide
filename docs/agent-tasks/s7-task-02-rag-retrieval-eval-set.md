@@ -2,8 +2,8 @@
 
 ## 0. 任务状态
 
-- 状态：规划中
-- 当前定位：Stage 7 的 RAG 检索可信性评测任务
+- 状态：已完成
+- 当前定位：Stage 7 的 RAG 检索可信性评测任务，当前实现为固定 fixture 的 deterministic regression harness
 - 前置依赖：S7-01 至少完成 MVP 语料和 chunk 来源证据
 
 ## 1. 任务目标
@@ -65,6 +65,7 @@ Gradle task 建议命名：
 - 固定 query 至少 20 条
 - 每条 query 都有 expected evidence
 - no-answer case 至少 3 条
+- no-answer case 至少包含 1 条“有弱相关候选文档但缺少 precision token，因此拒答”的场景
 - 报告区分 retrieval 命中和 final answer grounded
 - 所有结果能回到 sample set、raw results、summary、report、baseline 和 diff
 
@@ -79,3 +80,16 @@ Gradle task 建议命名：
 > RAG 检索准确率达到线上生产标准。
 
 除非有真实线上数据和独立评测口径。
+
+
+## 9. Completion Notes
+
+- status: completed on `2026-05-08`
+- Gradle entry: `./gradlew.bat :app:agentStage7RagRetrievalEval`
+- script entry: `powershell -ExecutionPolicy Bypass -File scripts/run-agent-stage7-rag-retrieval-eval.ps1`
+- evidence root: `docs/evidence/agent-quantification/stage-7-rag-retrieval-set/`
+- eval usage doc: `docs/agent-evals/stage-7-rag-retrieval-set.md`
+- fixed queries: `20`
+- no-answer cases: `3`
+- weak-hit no-answer cases: `1`
+- archived report, baseline, and diff are available under the evidence root.

@@ -3,8 +3,8 @@
 ## 0. 阶段状态
 
 - 阶段状态：进行中
-- 已完成任务：S7-01
-- 当前任务：S7-02、S7-03、S7-04
+- 已完成任务：S7-01、S7-02
+- 当前任务：S7-03、S7-04
 - 前置条件：Stage 6 已完成，现有 eval / evidence 目录、baseline / diff 和报告机制可复用
 
 ## 1. 阶段定位
@@ -17,7 +17,7 @@ Stage 7 不再继续扩展泛化 Agent 形态，而是补齐面试中最容易�
 - 外部文档、简历、工具结果里的恶意指令是否会污染 Agent 决策
 - Agent 决策层是否真的能稳定选择工具、校验参数、拒绝错误调用
 
-当前进展：S7-01 已完成，已补齐 RAG 语料与 chunk 证据基础；S7-02、S7-03、S7-04 仍待继续推进。
+当前进展：S7-01 已完成，已补齐 RAG 语料与 chunk 证据基础；S7-02 已完成固定 RAG retrieval regression harness；S7-03、S7-04 仍待继续推进。
 
 ## 2. 本阶段目标
 
@@ -86,3 +86,13 @@ Stage 7 的计划不再单独放 `next-eval-suite-plan.md`，而是收口在本�
 > 通过 BFCL / AgentDojo / RAGBench 官方 benchmark。
 
 除非后续真的接入官方 harness，并能保留可复现实验配置。
+
+
+## 10. Completion Notes
+
+- `S7-02` completed on `2026-05-08`.
+- Added `stage-7-rag-retrieval-set` with `20` fixed queries, including `17` answerable cases and `3` no-answer rejection cases.
+- Included `1` weak-hit no-answer case that returns candidate documents but fails the precision-token effective-hit gate.
+- Added Gradle entry `./gradlew.bat :app:agentStage7RagRetrievalEval`.
+- Added runner `scripts/run-agent-stage7-rag-retrieval-eval.ps1`.
+- Archived sample set, raw results, summary, reports, baseline, and diff under `docs/evidence/agent-quantification/stage-7-rag-retrieval-set/`.

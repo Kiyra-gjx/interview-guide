@@ -1,0 +1,903 @@
+{
+  "suiteId" : "stage-7-rag-retrieval-set",
+  "generatedAt" : "2026-05-08T13:39:34.428957900",
+  "summary" : {
+    "totalQueries" : 20,
+    "passedQueries" : 20,
+    "answerableQueries" : 17,
+    "noAnswerQueries" : 3,
+    "top1HitRate" : 100.0,
+    "top3HitRate" : 100.0,
+    "answerGroundedRate" : 100.0,
+    "noAnswerRejectionRate" : 100.0,
+    "hallucinationCount" : 0,
+    "averageLatencyMs" : 87,
+    "maxLatencyMs" : 1700
+  },
+  "caseResults" : [ {
+    "caseId" : "RAG-001",
+    "queryType" : "concept",
+    "query" : "volatile count++ atomicity",
+    "expectedSource" : "java-concurrency.md",
+    "expectedSection" : "volatile",
+    "expectedEvidence" : [ "volatile", "count++", "AtomicInteger" ],
+    "effectiveHit" : true,
+    "top1Hit" : true,
+    "top3Hit" : true,
+    "answerGrounded" : true,
+    "noAnswerRejected" : false,
+    "hallucinated" : false,
+    "retrievalQuery" : "volatile count++ atomicity",
+    "hitCount" : 2,
+    "hits" : [ {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "volatile",
+      "chunkIndex" : 1,
+      "preview" : "volatile count++ AtomicInteger RAG-001-context-only volatile count++ atomicity"
+    }, {
+      "sourceTitle" : "distractor.md",
+      "sectionTitle" : "unrelated",
+      "chunkIndex" : 2,
+      "preview" : "unrelated interview notes"
+    } ],
+    "candidates" : [ {
+      "query" : "volatile count++ atomicity",
+      "rawHitCount" : 2,
+      "effectiveHit" : true,
+      "rejectionReason" : null,
+      "hits" : [ {
+        "sourceTitle" : "java-concurrency.md",
+        "sectionTitle" : "volatile",
+        "chunkIndex" : 1,
+        "preview" : "volatile count++ AtomicInteger RAG-001-context-only volatile count++ atomicity"
+      }, {
+        "sourceTitle" : "distractor.md",
+        "sectionTitle" : "unrelated",
+        "chunkIndex" : 2,
+        "preview" : "unrelated interview notes"
+      } ]
+    } ],
+    "answerPreview" : "Grounded answer from retrieved context: volatile; count++; AtomicInteger; RAG-001-context-only",
+    "latencyMs" : 1700,
+    "passed" : true,
+    "note" : "matched retrieval and answer expectations"
+  }, {
+    "caseId" : "RAG-002",
+    "queryType" : "concept",
+    "query" : "ThreadPoolExecutor queue full rejection policy",
+    "expectedSource" : "java-concurrency.md",
+    "expectedSection" : "thread pool",
+    "expectedEvidence" : [ "ThreadPoolExecutor", "queue", "rejectedExecutionHandler" ],
+    "effectiveHit" : true,
+    "top1Hit" : true,
+    "top3Hit" : true,
+    "answerGrounded" : true,
+    "noAnswerRejected" : false,
+    "hallucinated" : false,
+    "retrievalQuery" : "ThreadPoolExecutor queue full rejection policy",
+    "hitCount" : 2,
+    "hits" : [ {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "thread pool",
+      "chunkIndex" : 1,
+      "preview" : "ThreadPoolExecutor queue rejectedExecutionHandler RAG-002-context-only ThreadPoolExecutor queue full rejection policy"
+    }, {
+      "sourceTitle" : "distractor.md",
+      "sectionTitle" : "unrelated",
+      "chunkIndex" : 2,
+      "preview" : "unrelated interview notes"
+    } ],
+    "candidates" : [ {
+      "query" : "ThreadPoolExecutor queue full rejection policy",
+      "rawHitCount" : 2,
+      "effectiveHit" : true,
+      "rejectionReason" : null,
+      "hits" : [ {
+        "sourceTitle" : "java-concurrency.md",
+        "sectionTitle" : "thread pool",
+        "chunkIndex" : 1,
+        "preview" : "ThreadPoolExecutor queue rejectedExecutionHandler RAG-002-context-only ThreadPoolExecutor queue full rejection policy"
+      }, {
+        "sourceTitle" : "distractor.md",
+        "sectionTitle" : "unrelated",
+        "chunkIndex" : 2,
+        "preview" : "unrelated interview notes"
+      } ]
+    } ],
+    "answerPreview" : "Grounded answer from retrieved context: ThreadPoolExecutor; queue; rejectedExecutionHandler; RAG-002-context-only",
+    "latencyMs" : 3,
+    "passed" : true,
+    "note" : "matched retrieval and answer expectations"
+  }, {
+    "caseId" : "RAG-003",
+    "queryType" : "concept",
+    "query" : "Java heap space OOM troubleshooting",
+    "expectedSource" : "jvm-gc.md",
+    "expectedSection" : "OOM troubleshooting",
+    "expectedEvidence" : [ "Java heap space", "heap dump", "leak" ],
+    "effectiveHit" : true,
+    "top1Hit" : true,
+    "top3Hit" : true,
+    "answerGrounded" : true,
+    "noAnswerRejected" : false,
+    "hallucinated" : false,
+    "retrievalQuery" : "Java heap space OOM troubleshooting",
+    "hitCount" : 2,
+    "hits" : [ {
+      "sourceTitle" : "jvm-gc.md",
+      "sectionTitle" : "OOM troubleshooting",
+      "chunkIndex" : 1,
+      "preview" : "Java heap space heap dump leak RAG-003-context-only Java heap space OOM troubleshooting"
+    }, {
+      "sourceTitle" : "distractor.md",
+      "sectionTitle" : "unrelated",
+      "chunkIndex" : 2,
+      "preview" : "unrelated interview notes"
+    } ],
+    "candidates" : [ {
+      "query" : "Java heap space OOM troubleshooting",
+      "rawHitCount" : 2,
+      "effectiveHit" : true,
+      "rejectionReason" : null,
+      "hits" : [ {
+        "sourceTitle" : "jvm-gc.md",
+        "sectionTitle" : "OOM troubleshooting",
+        "chunkIndex" : 1,
+        "preview" : "Java heap space heap dump leak RAG-003-context-only Java heap space OOM troubleshooting"
+      }, {
+        "sourceTitle" : "distractor.md",
+        "sectionTitle" : "unrelated",
+        "chunkIndex" : 2,
+        "preview" : "unrelated interview notes"
+      } ]
+    } ],
+    "answerPreview" : "Grounded answer from retrieved context: Java heap space; heap dump; leak; RAG-003-context-only",
+    "latencyMs" : 4,
+    "passed" : true,
+    "note" : "matched retrieval and answer expectations"
+  }, {
+    "caseId" : "RAG-004",
+    "queryType" : "concept",
+    "query" : "Spring transaction self invocation proxy failure",
+    "expectedSource" : "spring-tx-aop.md",
+    "expectedSection" : "transaction proxy",
+    "expectedEvidence" : [ "self invocation", "proxy", "@Transactional" ],
+    "effectiveHit" : true,
+    "top1Hit" : true,
+    "top3Hit" : true,
+    "answerGrounded" : true,
+    "noAnswerRejected" : false,
+    "hallucinated" : false,
+    "retrievalQuery" : "Spring transaction self invocation proxy failure",
+    "hitCount" : 2,
+    "hits" : [ {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "transaction proxy",
+      "chunkIndex" : 1,
+      "preview" : "self invocation proxy @Transactional RAG-004-context-only Spring transaction self invocation proxy failure"
+    }, {
+      "sourceTitle" : "distractor.md",
+      "sectionTitle" : "unrelated",
+      "chunkIndex" : 2,
+      "preview" : "unrelated interview notes"
+    } ],
+    "candidates" : [ {
+      "query" : "Spring transaction self invocation proxy failure",
+      "rawHitCount" : 2,
+      "effectiveHit" : true,
+      "rejectionReason" : null,
+      "hits" : [ {
+        "sourceTitle" : "spring-tx-aop.md",
+        "sectionTitle" : "transaction proxy",
+        "chunkIndex" : 1,
+        "preview" : "self invocation proxy @Transactional RAG-004-context-only Spring transaction self invocation proxy failure"
+      }, {
+        "sourceTitle" : "distractor.md",
+        "sectionTitle" : "unrelated",
+        "chunkIndex" : 2,
+        "preview" : "unrelated interview notes"
+      } ]
+    } ],
+    "answerPreview" : "Grounded answer from retrieved context: self invocation; proxy; @Transactional; RAG-004-context-only",
+    "latencyMs" : 3,
+    "passed" : true,
+    "note" : "matched retrieval and answer expectations"
+  }, {
+    "caseId" : "RAG-005",
+    "queryType" : "concept",
+    "query" : "Redis cache penetration breakdown avalanche",
+    "expectedSource" : "redis-cache.md",
+    "expectedSection" : "cache failure patterns",
+    "expectedEvidence" : [ "penetration", "breakdown", "avalanche" ],
+    "effectiveHit" : true,
+    "top1Hit" : true,
+    "top3Hit" : true,
+    "answerGrounded" : true,
+    "noAnswerRejected" : false,
+    "hallucinated" : false,
+    "retrievalQuery" : "Redis cache penetration breakdown avalanche",
+    "hitCount" : 2,
+    "hits" : [ {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "cache failure patterns",
+      "chunkIndex" : 1,
+      "preview" : "penetration breakdown avalanche RAG-005-context-only Redis cache penetration breakdown avalanche"
+    }, {
+      "sourceTitle" : "distractor.md",
+      "sectionTitle" : "unrelated",
+      "chunkIndex" : 2,
+      "preview" : "unrelated interview notes"
+    } ],
+    "candidates" : [ {
+      "query" : "Redis cache penetration breakdown avalanche",
+      "rawHitCount" : 2,
+      "effectiveHit" : true,
+      "rejectionReason" : null,
+      "hits" : [ {
+        "sourceTitle" : "redis-cache.md",
+        "sectionTitle" : "cache failure patterns",
+        "chunkIndex" : 1,
+        "preview" : "penetration breakdown avalanche RAG-005-context-only Redis cache penetration breakdown avalanche"
+      }, {
+        "sourceTitle" : "distractor.md",
+        "sectionTitle" : "unrelated",
+        "chunkIndex" : 2,
+        "preview" : "unrelated interview notes"
+      } ]
+    } ],
+    "answerPreview" : "Grounded answer from retrieved context: penetration; breakdown; avalanche; RAG-005-context-only",
+    "latencyMs" : 3,
+    "passed" : true,
+    "note" : "matched retrieval and answer expectations"
+  }, {
+    "caseId" : "RAG-006",
+    "queryType" : "concept",
+    "query" : "MySQL composite index leftmost prefix range condition",
+    "expectedSource" : "mysql-index.md",
+    "expectedSection" : "composite index",
+    "expectedEvidence" : [ "leftmost prefix", "range condition", "composite index" ],
+    "effectiveHit" : true,
+    "top1Hit" : true,
+    "top3Hit" : true,
+    "answerGrounded" : true,
+    "noAnswerRejected" : false,
+    "hallucinated" : false,
+    "retrievalQuery" : "MySQL composite index leftmost prefix range condition",
+    "hitCount" : 2,
+    "hits" : [ {
+      "sourceTitle" : "mysql-index.md",
+      "sectionTitle" : "composite index",
+      "chunkIndex" : 1,
+      "preview" : "leftmost prefix range condition composite index RAG-006-context-only MySQL composite index leftmost prefix range condition"
+    }, {
+      "sourceTitle" : "distractor.md",
+      "sectionTitle" : "unrelated",
+      "chunkIndex" : 2,
+      "preview" : "unrelated interview notes"
+    } ],
+    "candidates" : [ {
+      "query" : "MySQL composite index leftmost prefix range condition",
+      "rawHitCount" : 2,
+      "effectiveHit" : true,
+      "rejectionReason" : null,
+      "hits" : [ {
+        "sourceTitle" : "mysql-index.md",
+        "sectionTitle" : "composite index",
+        "chunkIndex" : 1,
+        "preview" : "leftmost prefix range condition composite index RAG-006-context-only MySQL composite index leftmost prefix range condition"
+      }, {
+        "sourceTitle" : "distractor.md",
+        "sectionTitle" : "unrelated",
+        "chunkIndex" : 2,
+        "preview" : "unrelated interview notes"
+      } ]
+    } ],
+    "answerPreview" : "Grounded answer from retrieved context: leftmost prefix; range condition; composite index; RAG-006-context-only",
+    "latencyMs" : 3,
+    "passed" : true,
+    "note" : "matched retrieval and answer expectations"
+  }, {
+    "caseId" : "RAG-007",
+    "queryType" : "concept",
+    "query" : "rate limiting fixed window sliding window token bucket",
+    "expectedSource" : "system-design.md",
+    "expectedSection" : "rate limiting algorithms",
+    "expectedEvidence" : [ "fixed window", "sliding window", "token bucket" ],
+    "effectiveHit" : true,
+    "top1Hit" : true,
+    "top3Hit" : true,
+    "answerGrounded" : true,
+    "noAnswerRejected" : false,
+    "hallucinated" : false,
+    "retrievalQuery" : "rate limiting fixed window sliding window token bucket",
+    "hitCount" : 2,
+    "hits" : [ {
+      "sourceTitle" : "system-design.md",
+      "sectionTitle" : "rate limiting algorithms",
+      "chunkIndex" : 1,
+      "preview" : "fixed window sliding window token bucket RAG-007-context-only rate limiting fixed window sliding window token bucket"
+    }, {
+      "sourceTitle" : "distractor.md",
+      "sectionTitle" : "unrelated",
+      "chunkIndex" : 2,
+      "preview" : "unrelated interview notes"
+    } ],
+    "candidates" : [ {
+      "query" : "rate limiting fixed window sliding window token bucket",
+      "rawHitCount" : 2,
+      "effectiveHit" : true,
+      "rejectionReason" : null,
+      "hits" : [ {
+        "sourceTitle" : "system-design.md",
+        "sectionTitle" : "rate limiting algorithms",
+        "chunkIndex" : 1,
+        "preview" : "fixed window sliding window token bucket RAG-007-context-only rate limiting fixed window sliding window token bucket"
+      }, {
+        "sourceTitle" : "distractor.md",
+        "sectionTitle" : "unrelated",
+        "chunkIndex" : 2,
+        "preview" : "unrelated interview notes"
+      } ]
+    } ],
+    "answerPreview" : "Grounded answer from retrieved context: fixed window; sliding window; token bucket; RAG-007-context-only",
+    "latencyMs" : 3,
+    "passed" : true,
+    "note" : "matched retrieval and answer expectations"
+  }, {
+    "caseId" : "RAG-008",
+    "queryType" : "grounded-answer",
+    "query" : "interview rubric evidence recording",
+    "expectedSource" : "interview-rubric.md",
+    "expectedSection" : "evidence record",
+    "expectedEvidence" : [ "evidence record", "observable behavior", "score" ],
+    "effectiveHit" : true,
+    "top1Hit" : true,
+    "top3Hit" : true,
+    "answerGrounded" : true,
+    "noAnswerRejected" : false,
+    "hallucinated" : false,
+    "retrievalQuery" : "interview rubric evidence recording",
+    "hitCount" : 2,
+    "hits" : [ {
+      "sourceTitle" : "interview-rubric.md",
+      "sectionTitle" : "evidence record",
+      "chunkIndex" : 1,
+      "preview" : "evidence record observable behavior score RAG-008-context-only interview rubric evidence recording"
+    }, {
+      "sourceTitle" : "distractor.md",
+      "sectionTitle" : "unrelated",
+      "chunkIndex" : 2,
+      "preview" : "unrelated interview notes"
+    } ],
+    "candidates" : [ {
+      "query" : "interview rubric evidence recording",
+      "rawHitCount" : 2,
+      "effectiveHit" : true,
+      "rejectionReason" : null,
+      "hits" : [ {
+        "sourceTitle" : "interview-rubric.md",
+        "sectionTitle" : "evidence record",
+        "chunkIndex" : 1,
+        "preview" : "evidence record observable behavior score RAG-008-context-only interview rubric evidence recording"
+      }, {
+        "sourceTitle" : "distractor.md",
+        "sectionTitle" : "unrelated",
+        "chunkIndex" : 2,
+        "preview" : "unrelated interview notes"
+      } ]
+    } ],
+    "answerPreview" : "Grounded answer from retrieved context: evidence record; observable behavior; score; RAG-008-context-only",
+    "latencyMs" : 3,
+    "passed" : true,
+    "note" : "matched retrieval and answer expectations"
+  }, {
+    "caseId" : "RAG-009",
+    "queryType" : "grounded-answer",
+    "query" : "STAR template Result metrics",
+    "expectedSource" : "star-template.md",
+    "expectedSection" : "Result",
+    "expectedEvidence" : [ "Result", "metrics", "business impact" ],
+    "effectiveHit" : true,
+    "top1Hit" : true,
+    "top3Hit" : true,
+    "answerGrounded" : true,
+    "noAnswerRejected" : false,
+    "hallucinated" : false,
+    "retrievalQuery" : "STAR template Result metrics",
+    "hitCount" : 2,
+    "hits" : [ {
+      "sourceTitle" : "star-template.md",
+      "sectionTitle" : "Result",
+      "chunkIndex" : 1,
+      "preview" : "Result metrics business impact RAG-009-context-only STAR template Result metrics"
+    }, {
+      "sourceTitle" : "distractor.md",
+      "sectionTitle" : "unrelated",
+      "chunkIndex" : 2,
+      "preview" : "unrelated interview notes"
+    } ],
+    "candidates" : [ {
+      "query" : "STAR template Result metrics",
+      "rawHitCount" : 2,
+      "effectiveHit" : true,
+      "rejectionReason" : null,
+      "hits" : [ {
+        "sourceTitle" : "star-template.md",
+        "sectionTitle" : "Result",
+        "chunkIndex" : 1,
+        "preview" : "Result metrics business impact RAG-009-context-only STAR template Result metrics"
+      }, {
+        "sourceTitle" : "distractor.md",
+        "sectionTitle" : "unrelated",
+        "chunkIndex" : 2,
+        "preview" : "unrelated interview notes"
+      } ]
+    } ],
+    "answerPreview" : "Grounded answer from retrieved context: Result; metrics; business impact; RAG-009-context-only",
+    "latencyMs" : 3,
+    "passed" : true,
+    "note" : "matched retrieval and answer expectations"
+  }, {
+    "caseId" : "RAG-010",
+    "queryType" : "grounded-answer",
+    "query" : "resume RAG project chunk metadata highlights",
+    "expectedSource" : "resume-highlights.md",
+    "expectedSection" : "project description",
+    "expectedEvidence" : [ "RAG", "chunk metadata", "sourceTitle" ],
+    "effectiveHit" : true,
+    "top1Hit" : true,
+    "top3Hit" : true,
+    "answerGrounded" : true,
+    "noAnswerRejected" : false,
+    "hallucinated" : false,
+    "retrievalQuery" : "resume RAG project chunk metadata highlights",
+    "hitCount" : 2,
+    "hits" : [ {
+      "sourceTitle" : "resume-highlights.md",
+      "sectionTitle" : "project description",
+      "chunkIndex" : 1,
+      "preview" : "RAG chunk metadata sourceTitle RAG-010-context-only resume RAG project chunk metadata highlights"
+    }, {
+      "sourceTitle" : "distractor.md",
+      "sectionTitle" : "unrelated",
+      "chunkIndex" : 2,
+      "preview" : "unrelated interview notes"
+    } ],
+    "candidates" : [ {
+      "query" : "resume RAG project chunk metadata highlights",
+      "rawHitCount" : 2,
+      "effectiveHit" : true,
+      "rejectionReason" : null,
+      "hits" : [ {
+        "sourceTitle" : "resume-highlights.md",
+        "sectionTitle" : "project description",
+        "chunkIndex" : 1,
+        "preview" : "RAG chunk metadata sourceTitle RAG-010-context-only resume RAG project chunk metadata highlights"
+      }, {
+        "sourceTitle" : "distractor.md",
+        "sectionTitle" : "unrelated",
+        "chunkIndex" : 2,
+        "preview" : "unrelated interview notes"
+      } ]
+    } ],
+    "answerPreview" : "Grounded answer from retrieved context: RAG; chunk metadata; sourceTitle; RAG-010-context-only",
+    "latencyMs" : 2,
+    "passed" : true,
+    "note" : "matched retrieval and answer expectations"
+  }, {
+    "caseId" : "RAG-011",
+    "queryType" : "grounded-answer",
+    "query" : "backend JD Java database cache capabilities",
+    "expectedSource" : "backend-jd.md",
+    "expectedSection" : "required skills",
+    "expectedEvidence" : [ "Java", "database", "cache" ],
+    "effectiveHit" : true,
+    "top1Hit" : true,
+    "top3Hit" : true,
+    "answerGrounded" : true,
+    "noAnswerRejected" : false,
+    "hallucinated" : false,
+    "retrievalQuery" : "backend JD Java database cache capabilities",
+    "hitCount" : 2,
+    "hits" : [ {
+      "sourceTitle" : "backend-jd.md",
+      "sectionTitle" : "required skills",
+      "chunkIndex" : 1,
+      "preview" : "Java database cache RAG-011-context-only backend JD Java database cache capabilities"
+    }, {
+      "sourceTitle" : "distractor.md",
+      "sectionTitle" : "unrelated",
+      "chunkIndex" : 2,
+      "preview" : "unrelated interview notes"
+    } ],
+    "candidates" : [ {
+      "query" : "backend JD Java database cache capabilities",
+      "rawHitCount" : 2,
+      "effectiveHit" : true,
+      "rejectionReason" : null,
+      "hits" : [ {
+        "sourceTitle" : "backend-jd.md",
+        "sectionTitle" : "required skills",
+        "chunkIndex" : 1,
+        "preview" : "Java database cache RAG-011-context-only backend JD Java database cache capabilities"
+      }, {
+        "sourceTitle" : "distractor.md",
+        "sectionTitle" : "unrelated",
+        "chunkIndex" : 2,
+        "preview" : "unrelated interview notes"
+      } ]
+    } ],
+    "answerPreview" : "Grounded answer from retrieved context: Java; database; cache; RAG-011-context-only",
+    "latencyMs" : 3,
+    "passed" : true,
+    "note" : "matched retrieval and answer expectations"
+  }, {
+    "caseId" : "RAG-012",
+    "queryType" : "precision-term",
+    "query" : "AOP",
+    "expectedSource" : "spring-tx-aop.md",
+    "expectedSection" : "AOP aspect order",
+    "expectedEvidence" : [ "AOP", "@Order", "proxy" ],
+    "effectiveHit" : true,
+    "top1Hit" : true,
+    "top3Hit" : true,
+    "answerGrounded" : true,
+    "noAnswerRejected" : false,
+    "hallucinated" : false,
+    "retrievalQuery" : "AOP",
+    "hitCount" : 2,
+    "hits" : [ {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "AOP aspect order",
+      "chunkIndex" : 1,
+      "preview" : "AOP @Order proxy RAG-012-context-only AOP"
+    }, {
+      "sourceTitle" : "distractor.md",
+      "sectionTitle" : "unrelated",
+      "chunkIndex" : 2,
+      "preview" : "unrelated interview notes"
+    } ],
+    "candidates" : [ {
+      "query" : "AOP",
+      "rawHitCount" : 2,
+      "effectiveHit" : true,
+      "rejectionReason" : null,
+      "hits" : [ {
+        "sourceTitle" : "spring-tx-aop.md",
+        "sectionTitle" : "AOP aspect order",
+        "chunkIndex" : 1,
+        "preview" : "AOP @Order proxy RAG-012-context-only AOP"
+      }, {
+        "sourceTitle" : "distractor.md",
+        "sectionTitle" : "unrelated",
+        "chunkIndex" : 2,
+        "preview" : "unrelated interview notes"
+      } ]
+    } ],
+    "answerPreview" : "Grounded answer from retrieved context: AOP; @Order; proxy; RAG-012-context-only",
+    "latencyMs" : 2,
+    "passed" : true,
+    "note" : "matched retrieval and answer expectations"
+  }, {
+    "caseId" : "RAG-013",
+    "queryType" : "precision-term",
+    "query" : "MVCC",
+    "expectedSource" : "mysql-index.md",
+    "expectedSection" : "transaction isolation",
+    "expectedEvidence" : [ "MVCC", "consistent read", "InnoDB" ],
+    "effectiveHit" : true,
+    "top1Hit" : true,
+    "top3Hit" : true,
+    "answerGrounded" : true,
+    "noAnswerRejected" : false,
+    "hallucinated" : false,
+    "retrievalQuery" : "MVCC",
+    "hitCount" : 2,
+    "hits" : [ {
+      "sourceTitle" : "mysql-index.md",
+      "sectionTitle" : "transaction isolation",
+      "chunkIndex" : 1,
+      "preview" : "MVCC consistent read InnoDB RAG-013-context-only MVCC"
+    }, {
+      "sourceTitle" : "distractor.md",
+      "sectionTitle" : "unrelated",
+      "chunkIndex" : 2,
+      "preview" : "unrelated interview notes"
+    } ],
+    "candidates" : [ {
+      "query" : "MVCC",
+      "rawHitCount" : 2,
+      "effectiveHit" : true,
+      "rejectionReason" : null,
+      "hits" : [ {
+        "sourceTitle" : "mysql-index.md",
+        "sectionTitle" : "transaction isolation",
+        "chunkIndex" : 1,
+        "preview" : "MVCC consistent read InnoDB RAG-013-context-only MVCC"
+      }, {
+        "sourceTitle" : "distractor.md",
+        "sectionTitle" : "unrelated",
+        "chunkIndex" : 2,
+        "preview" : "unrelated interview notes"
+      } ]
+    } ],
+    "answerPreview" : "Grounded answer from retrieved context: MVCC; consistent read; InnoDB; RAG-013-context-only",
+    "latencyMs" : 2,
+    "passed" : true,
+    "note" : "matched retrieval and answer expectations"
+  }, {
+    "caseId" : "RAG-014",
+    "queryType" : "precision-term",
+    "query" : "CMS",
+    "expectedSource" : "jvm-gc.md",
+    "expectedSection" : "garbage collectors",
+    "expectedEvidence" : [ "CMS", "low pause", "fragmentation" ],
+    "effectiveHit" : true,
+    "top1Hit" : true,
+    "top3Hit" : true,
+    "answerGrounded" : true,
+    "noAnswerRejected" : false,
+    "hallucinated" : false,
+    "retrievalQuery" : "CMS",
+    "hitCount" : 2,
+    "hits" : [ {
+      "sourceTitle" : "jvm-gc.md",
+      "sectionTitle" : "garbage collectors",
+      "chunkIndex" : 1,
+      "preview" : "CMS low pause fragmentation RAG-014-context-only CMS"
+    }, {
+      "sourceTitle" : "distractor.md",
+      "sectionTitle" : "unrelated",
+      "chunkIndex" : 2,
+      "preview" : "unrelated interview notes"
+    } ],
+    "candidates" : [ {
+      "query" : "CMS",
+      "rawHitCount" : 2,
+      "effectiveHit" : true,
+      "rejectionReason" : null,
+      "hits" : [ {
+        "sourceTitle" : "jvm-gc.md",
+        "sectionTitle" : "garbage collectors",
+        "chunkIndex" : 1,
+        "preview" : "CMS low pause fragmentation RAG-014-context-only CMS"
+      }, {
+        "sourceTitle" : "distractor.md",
+        "sectionTitle" : "unrelated",
+        "chunkIndex" : 2,
+        "preview" : "unrelated interview notes"
+      } ]
+    } ],
+    "answerPreview" : "Grounded answer from retrieved context: CMS; low pause; fragmentation; RAG-014-context-only",
+    "latencyMs" : 2,
+    "passed" : true,
+    "note" : "matched retrieval and answer expectations"
+  }, {
+    "caseId" : "RAG-015",
+    "queryType" : "precision-term",
+    "query" : "CAS",
+    "expectedSource" : "java-concurrency.md",
+    "expectedSection" : "volatile",
+    "expectedEvidence" : [ "CAS", "AtomicInteger", "retry" ],
+    "effectiveHit" : true,
+    "top1Hit" : true,
+    "top3Hit" : true,
+    "answerGrounded" : true,
+    "noAnswerRejected" : false,
+    "hallucinated" : false,
+    "retrievalQuery" : "CAS",
+    "hitCount" : 2,
+    "hits" : [ {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "volatile",
+      "chunkIndex" : 1,
+      "preview" : "CAS AtomicInteger retry RAG-015-context-only CAS"
+    }, {
+      "sourceTitle" : "distractor.md",
+      "sectionTitle" : "unrelated",
+      "chunkIndex" : 2,
+      "preview" : "unrelated interview notes"
+    } ],
+    "candidates" : [ {
+      "query" : "CAS",
+      "rawHitCount" : 2,
+      "effectiveHit" : true,
+      "rejectionReason" : null,
+      "hits" : [ {
+        "sourceTitle" : "java-concurrency.md",
+        "sectionTitle" : "volatile",
+        "chunkIndex" : 1,
+        "preview" : "CAS AtomicInteger retry RAG-015-context-only CAS"
+      }, {
+        "sourceTitle" : "distractor.md",
+        "sectionTitle" : "unrelated",
+        "chunkIndex" : 2,
+        "preview" : "unrelated interview notes"
+      } ]
+    } ],
+    "answerPreview" : "Grounded answer from retrieved context: CAS; AtomicInteger; retry; RAG-015-context-only",
+    "latencyMs" : 2,
+    "passed" : true,
+    "note" : "matched retrieval and answer expectations"
+  }, {
+    "caseId" : "RAG-016",
+    "queryType" : "precision-term",
+    "query" : "Bloom filter",
+    "expectedSource" : "redis-cache.md",
+    "expectedSection" : "cache failure patterns",
+    "expectedEvidence" : [ "Bloom filter", "cache penetration", "false positive" ],
+    "effectiveHit" : true,
+    "top1Hit" : true,
+    "top3Hit" : true,
+    "answerGrounded" : true,
+    "noAnswerRejected" : false,
+    "hallucinated" : false,
+    "retrievalQuery" : "Bloom filter",
+    "hitCount" : 2,
+    "hits" : [ {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "cache failure patterns",
+      "chunkIndex" : 1,
+      "preview" : "Bloom filter cache penetration false positive RAG-016-context-only Bloom filter"
+    }, {
+      "sourceTitle" : "distractor.md",
+      "sectionTitle" : "unrelated",
+      "chunkIndex" : 2,
+      "preview" : "unrelated interview notes"
+    } ],
+    "candidates" : [ {
+      "query" : "Bloom filter",
+      "rawHitCount" : 2,
+      "effectiveHit" : true,
+      "rejectionReason" : null,
+      "hits" : [ {
+        "sourceTitle" : "redis-cache.md",
+        "sectionTitle" : "cache failure patterns",
+        "chunkIndex" : 1,
+        "preview" : "Bloom filter cache penetration false positive RAG-016-context-only Bloom filter"
+      }, {
+        "sourceTitle" : "distractor.md",
+        "sectionTitle" : "unrelated",
+        "chunkIndex" : 2,
+        "preview" : "unrelated interview notes"
+      } ]
+    } ],
+    "answerPreview" : "Grounded answer from retrieved context: Bloom filter; cache penetration; false positive; RAG-016-context-only",
+    "latencyMs" : 2,
+    "passed" : true,
+    "note" : "matched retrieval and answer expectations"
+  }, {
+    "caseId" : "RAG-017",
+    "queryType" : "grounded-answer",
+    "query" : "Redis distributed lock SET NX PX Lua release",
+    "expectedSource" : "redis-cache.md",
+    "expectedSection" : "distributed lock",
+    "expectedEvidence" : [ "SET NX PX", "Lua", "value" ],
+    "effectiveHit" : true,
+    "top1Hit" : true,
+    "top3Hit" : true,
+    "answerGrounded" : true,
+    "noAnswerRejected" : false,
+    "hallucinated" : false,
+    "retrievalQuery" : "Redis distributed lock SET NX PX Lua release",
+    "hitCount" : 2,
+    "hits" : [ {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "distributed lock",
+      "chunkIndex" : 1,
+      "preview" : "SET NX PX Lua value RAG-017-context-only Redis distributed lock SET NX PX Lua release"
+    }, {
+      "sourceTitle" : "distractor.md",
+      "sectionTitle" : "unrelated",
+      "chunkIndex" : 2,
+      "preview" : "unrelated interview notes"
+    } ],
+    "candidates" : [ {
+      "query" : "Redis distributed lock SET NX PX Lua release",
+      "rawHitCount" : 2,
+      "effectiveHit" : true,
+      "rejectionReason" : null,
+      "hits" : [ {
+        "sourceTitle" : "redis-cache.md",
+        "sectionTitle" : "distributed lock",
+        "chunkIndex" : 1,
+        "preview" : "SET NX PX Lua value RAG-017-context-only Redis distributed lock SET NX PX Lua release"
+      }, {
+        "sourceTitle" : "distractor.md",
+        "sectionTitle" : "unrelated",
+        "chunkIndex" : 2,
+        "preview" : "unrelated interview notes"
+      } ]
+    } ],
+    "answerPreview" : "Grounded answer from retrieved context: SET NX PX; Lua; value; RAG-017-context-only",
+    "latencyMs" : 2,
+    "passed" : true,
+    "note" : "matched retrieval and answer expectations"
+  }, {
+    "caseId" : "RAG-018",
+    "queryType" : "no-answer",
+    "query" : "Kubernetes HPA scaling metrics",
+    "expectedSource" : "none",
+    "expectedSection" : "none",
+    "expectedEvidence" : [ ],
+    "effectiveHit" : false,
+    "top1Hit" : false,
+    "top3Hit" : false,
+    "answerGrounded" : false,
+    "noAnswerRejected" : true,
+    "hallucinated" : false,
+    "retrievalQuery" : null,
+    "hitCount" : 0,
+    "hits" : [ ],
+    "candidates" : [ {
+      "query" : "Kubernetes HPA scaling metrics",
+      "rawHitCount" : 0,
+      "effectiveHit" : false,
+      "rejectionReason" : "no_hits",
+      "hits" : [ ]
+    } ],
+    "answerPreview" : "抱歉，在选定的知识库中未检索到相关信息。请换一个更具体的关键词或补充上下文后再试。",
+    "latencyMs" : 1,
+    "passed" : true,
+    "note" : "matched retrieval and answer expectations"
+  }, {
+    "caseId" : "RAG-019",
+    "queryType" : "no-answer",
+    "query" : "Elasticsearch inverted index segment merge",
+    "expectedSource" : "none",
+    "expectedSection" : "none",
+    "expectedEvidence" : [ ],
+    "effectiveHit" : false,
+    "top1Hit" : false,
+    "top3Hit" : false,
+    "answerGrounded" : false,
+    "noAnswerRejected" : true,
+    "hallucinated" : false,
+    "retrievalQuery" : null,
+    "hitCount" : 0,
+    "hits" : [ ],
+    "candidates" : [ {
+      "query" : "Elasticsearch inverted index segment merge",
+      "rawHitCount" : 0,
+      "effectiveHit" : false,
+      "rejectionReason" : "no_hits",
+      "hits" : [ ]
+    } ],
+    "answerPreview" : "抱歉，在选定的知识库中未检索到相关信息。请换一个更具体的关键词或补充上下文后再试。",
+    "latencyMs" : 3,
+    "passed" : true,
+    "note" : "matched retrieval and answer expectations"
+  }, {
+    "caseId" : "RAG-020",
+    "queryType" : "no-answer",
+    "query" : "OAuth2 authorization code PKCE flow",
+    "expectedSource" : "none",
+    "expectedSection" : "none",
+    "expectedEvidence" : [ ],
+    "effectiveHit" : false,
+    "top1Hit" : false,
+    "top3Hit" : false,
+    "answerGrounded" : false,
+    "noAnswerRejected" : true,
+    "hallucinated" : false,
+    "retrievalQuery" : null,
+    "hitCount" : 0,
+    "hits" : [ ],
+    "candidates" : [ {
+      "query" : "OAuth2 authorization code PKCE flow",
+      "rawHitCount" : 1,
+      "effectiveHit" : false,
+      "rejectionReason" : "missing_precision_tokens:OAuth2",
+      "hits" : [ {
+        "sourceTitle" : "auth-notes.md",
+        "sectionTitle" : "authorization overview",
+        "chunkIndex" : 1,
+        "preview" : "Authorization code login flow and redirect validation are covered here, but this corpus intentionally omits the PKCE verifier and challenge mechanism."
+      } ]
+    } ],
+    "answerPreview" : "抱歉，在选定的知识库中未检索到相关信息。请换一个更具体的关键词或补充上下文后再试。",
+    "latencyMs" : 2,
+    "passed" : true,
+    "note" : "matched retrieval and answer expectations"
+  } ]
+}

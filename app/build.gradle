@@ -150,3 +150,15 @@ tasks.register('agentStage5RecoveryEval', Test) {
         includeTestsMatching 'interview.guide.modules.agent.eval.AgentStage5RecoveryEvalTest'
     }
 }
+
+tasks.register('agentStage7RagRetrievalEval', Test) {
+    description = 'Runs the fixed Stage 7 RAG retrieval quantification suite.'
+    group = 'verification'
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    outputs.upToDateWhen { false }
+    filter {
+        includeTestsMatching 'interview.guide.modules.agent.eval.AgentStage7RagRetrievalEvalTest'
+    }
+}

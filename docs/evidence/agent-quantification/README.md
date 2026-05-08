@@ -83,6 +83,7 @@ powershell -ExecutionPolicy Bypass -File scripts/init-agent-evidence-suite.ps1 `
 - `stage-3-memory-set`：已有固定样本、真实 report、diff、baseline 与可写简历句子
 - `stage-5-recovery-set`：已有固定样本、真实 report、diff、baseline 与可写简历句子
 - `stage-5-benchmark`：已有固定样本、原始结果、summary、resume pack、报告与 diff 归档
+- `stage-7-rag-retrieval-set`：已有固定 query、原始结果、summary、report、baseline 与 diff 归档
 
 ## 8. 使用原则
 
