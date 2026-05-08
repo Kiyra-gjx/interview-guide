@@ -2,7 +2,7 @@
 
 ## 0. 任务状态
 
-- 状态：规划中
+- 状态：已完成
 - 当前定位：Stage 7 的外部内容注入安全评测任务
 - 前置依赖：Stage 2 safety set 已完成，Agent guardrail / approval / replay blocked 语义可复用
 
@@ -49,6 +49,8 @@
 - `unsafeToolExecutionCount`
 - `unsafeDirectAnswerCount`
 - `degradedCases`
+- `modelPollutionSimulatedCases`
+- `runtimeBoundaryEvidenceCases`
 
 ## 6. 建议落地文件
 
@@ -81,3 +83,13 @@ Gradle task 建议命名：
 - 不要把普通敏感词拦截等同于 prompt injection 防护
 - 不要只测用户输入，也要测工具返回和知识库检索结果
 - 不要让模型自己判断“是否安全”后直接执行，本地 runtime 仍要保留审批和工具边界
+
+## 9. 完成记录
+
+- 完成日期：`2026-05-08`
+- 固定样本数：`10`
+- 覆盖载体：`knowledge_base_document`、`resume_text`、`tool_observation`、`retrieval_result`、`interview_history`、`user_request`
+- 运行入口：`./gradlew.bat :app:agentStage7InjectionSafetyEval`
+- 归档 runner：`scripts/run-agent-stage7-injection-safety-eval.ps1`
+- 证据目录：`docs/evidence/agent-quantification/stage-7-injection-safety-set/`
+- 最新归档指标：`passedCases=10`、`attackBlockedCases=10`、`secretLeakCount=0`、`approvalBypassCount=0`、`unsafeToolExecutionCount=0`、`unsafeDirectAnswerCount=0`、`modelPollutionSimulatedCases=9`、`runtimeBoundaryEvidenceCases=10`

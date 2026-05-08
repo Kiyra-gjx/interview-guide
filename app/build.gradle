@@ -162,3 +162,15 @@ tasks.register('agentStage7RagRetrievalEval', Test) {
         includeTestsMatching 'interview.guide.modules.agent.eval.AgentStage7RagRetrievalEvalTest'
     }
 }
+
+tasks.register('agentStage7InjectionSafetyEval', Test) {
+    description = 'Runs the fixed Stage 7 external content injection safety quantification suite.'
+    group = 'verification'
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    outputs.upToDateWhen { false }
+    filter {
+        includeTestsMatching 'interview.guide.modules.agent.eval.AgentStage7InjectionSafetyEvalTest'
+    }
+}

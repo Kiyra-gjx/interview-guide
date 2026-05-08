@@ -18,6 +18,7 @@
 - `stage-5-recovery-set.md`
 - `stage-5-benchmark.md`
 - `stage-7-rag-retrieval-set.md`
+- `stage-7-injection-safety-set.md`
 
 ## 后续 Stage 7 eval
 
@@ -27,7 +28,6 @@ Stage 7 的计划入口是：
 
 对应 runner 落地后，再补充以下使用说明：
 
-- `stage-7-injection-safety-set.md`
 - `stage-7-tool-routing-set.md`
 
 ## 规则

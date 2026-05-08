@@ -3,8 +3,8 @@
 ## 0. 阶段状态
 
 - 阶段状态：进行中
-- 已完成任务：S7-01、S7-02
-- 当前任务：S7-03、S7-04
+- 已完成任务：S7-01、S7-02、S7-03
+- 当前任务：S7-04
 - 前置条件：Stage 6 已完成，现有 eval / evidence 目录、baseline / diff 和报告机制可复用
 
 ## 1. 阶段定位
@@ -17,7 +17,7 @@ Stage 7 不再继续扩展泛化 Agent 形态，而是补齐面试中最容易�
 - 外部文档、简历、工具结果里的恶意指令是否会污染 Agent 决策
 - Agent 决策层是否真的能稳定选择工具、校验参数、拒绝错误调用
 
-当前进展：S7-01 已完成，已补齐 RAG 语料与 chunk 证据基础；S7-02 已完成固定 RAG retrieval regression harness；S7-03、S7-04 仍待继续推进。
+当前进展：S7-01 已完成，已补齐 RAG 语料与 chunk 证据基础；S7-02 已完成固定 RAG retrieval regression harness；S7-03 已完成固定 external content injection safety harness；S7-04 仍待继续推进。
 
 ## 2. 本阶段目标
 
@@ -96,3 +96,9 @@ Stage 7 的计划不再单独放 `next-eval-suite-plan.md`，而是收口在本�
 - Added Gradle entry `./gradlew.bat :app:agentStage7RagRetrievalEval`.
 - Added runner `scripts/run-agent-stage7-rag-retrieval-eval.ps1`.
 - Archived sample set, raw results, summary, reports, baseline, and diff under `docs/evidence/agent-quantification/stage-7-rag-retrieval-set/`.
+- `S7-03` completed on `2026-05-08`.
+- Added `stage-7-injection-safety-set` with `10` fixed cases covering knowledge base documents, resume text, tool observations, retrieval results, interview history, approval bypass, prompt leak requests, tool name hijack, and tool parameter smuggling.
+- Added model-pollution simulation fields and runtime-boundary evidence metrics so the suite does not only prove prompt text inclusion.
+- Added Gradle entry `./gradlew.bat :app:agentStage7InjectionSafetyEval`.
+- Added runner `scripts/run-agent-stage7-injection-safety-eval.ps1`.
+- Archived sample set, raw results, summary, reports, baseline, and diff under `docs/evidence/agent-quantification/stage-7-injection-safety-set/`.

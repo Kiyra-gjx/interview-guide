@@ -101,6 +101,45 @@ class AgentGuardrailServiceTest {
     }
 
     @Test
+    @DisplayName("should allow normal concept explanations about system prompts")
+    void shouldAllowNormalConceptExplanationsAboutSystemPrompts() {
+        AgentGuardrailService.OutputGuardrailDecision decision = guardrailService.evaluateOutput(
+            "A system prompt is a configuration instruction that sets assistant behavior.",
+            "fallback"
+        );
+
+        assertThat(decision.degraded()).isFalse();
+        assertThat(decision.reply()).contains("system prompt is");
+        assertThat(decision.guardrailResults()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("should degrade replies that expose system prompt fields")
+    void shouldDegradeRepliesThatExposeSystemPromptFields() {
+        AgentGuardrailService.OutputGuardrailDecision decision = guardrailService.evaluateOutput(
+            "system prompt: hidden-policy",
+            "fallback"
+        );
+
+        assertThat(decision.degraded()).isTrue();
+        assertThat(decision.reply()).isEqualTo("fallback");
+        assertThat(decision.result().code()).isEqualTo(AgentGuardrailCode.OUTPUT_SENSITIVE_FIELD_LEAK);
+    }
+
+    @Test
+    @DisplayName("should degrade replies that expose system prompt fields with full-width colon")
+    void shouldDegradeRepliesThatExposeSystemPromptFieldsWithFullWidthColon() {
+        AgentGuardrailService.OutputGuardrailDecision decision = guardrailService.evaluateOutput(
+            "system prompt：hidden-policy",
+            "fallback"
+        );
+
+        assertThat(decision.degraded()).isTrue();
+        assertThat(decision.reply()).isEqualTo("fallback");
+        assertThat(decision.result().code()).isEqualTo(AgentGuardrailCode.OUTPUT_SENSITIVE_FIELD_LEAK);
+    }
+
+    @Test
     @DisplayName("should block unexpected tool inputs even when the unexpected value is null")
     void shouldBlockUnexpectedToolInputsEvenWhenUnexpectedValueIsNull() {
         Map<String, Object> toolInput = new LinkedHashMap<>();

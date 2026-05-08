@@ -5,7 +5,7 @@
 - 当前整体状态：Stage 6 已完成，Stage 7 规划中
 - 已完成阶段：Stage 1、Stage 2、Stage 3、Stage 4、Stage 5、Stage 6
 - 当前已完成任务：S1-01 到 S6-03
-- 当前建议推进任务：推进 Stage 7 的 RAG 语料与检索评测、外部内容注入安全、工具路由契约评测
+- 当前建议推进任务：推进 Stage 7 的工具路由契约评测
 - 当前最低完成线定义：完成 Stage 4 即达到完整单 Agent（Level A）
 - 更高一级目标：Stage 5 是受控多步 Agent（Level B），不是最低完成线
 
@@ -123,7 +123,7 @@
   - `stage-7-injection-safety-set` 至少覆盖知识库、简历、工具结果三类外部内容注入
   - `stage-7-tool-routing-set` 至少覆盖核心工具选择、参数校验、拒绝调用和审批路由
 - 当前状态：规划中
-- 当前任务：S7-01、S7-02、S7-03、S7-04
+- 当前任务：S7-04
 - 说明：Stage 7 不接完整公开 benchmark 官方 harness，公开 benchmark 只作为评测维度参考
 - 参考文档：[Stage 7：RAG Trust, Tool Routing, and Injection Safety](./agent-stages/stage-7-rag-trust-tool-routing-and-injection-safety.md)
 

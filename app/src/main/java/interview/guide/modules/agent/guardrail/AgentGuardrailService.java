@@ -28,7 +28,7 @@ public class AgentGuardrailService {
     );
     private static final Pattern RAW_JSON_REPLY_PATTERN = Pattern.compile("^\\s*[\\[{].*[\\]}]\\s*$", Pattern.DOTALL);
     private static final Pattern INTERNAL_OUTPUT_FIELD_PATTERN = Pattern.compile(
-        "(\\b(debugpayload|toolinputjson|memorybefore|memoryafter|answerpayload|summarytruncated|answertruncated|debugtruncated|factstruncated)\\b)|(\\btool\\s*output\\b\\s*(?:=|:\\s*[\\[{]|\\.))|(\\bnormalization\\b\\s*(?:=|:\\s*[\\[{]|\\.))",
+        "(\\bsystem\\s*prompt\\b\\s*(?:=|:|：))|(\\bchain\\s*of\\s*thought\\b\\s*(?:=|:|：))|(\\b(debugpayload|toolinputjson|memorybefore|memoryafter|answerpayload|summarytruncated|answertruncated|debugtruncated|factstruncated)\\b)|(\\btool\\s*output\\b\\s*(?:=|[:：]\\s*[\\[{]|\\.))|(\\bnormalization\\b\\s*(?:=|[:：]\\s*[\\[{]|\\.))",
         Pattern.CASE_INSENSITIVE
     );
 
