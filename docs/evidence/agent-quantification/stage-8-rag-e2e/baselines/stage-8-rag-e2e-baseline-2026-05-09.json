@@ -1,0 +1,2030 @@
+{
+  "suiteId" : "stage-8-rag-e2e",
+  "generatedAt" : "2026-05-10T00:28:22.560234500",
+  "config" : {
+    "datasetVersion" : "1.1",
+    "corpus" : "docs/evidence/agent-quantification/stage-7-rag-corpus/sample-docs",
+    "embeddingModel" : "text-embedding-v3",
+    "llmModel" : "qwen-plus",
+    "topK" : [ 3, 5, 10 ],
+    "minScore" : 0.28,
+    "pipeline" : "real KnowledgeBaseVectorService + KnowledgeBaseQueryService",
+    "judgeMode" : "llm-as-judge with rubric fallback"
+  },
+  "summary" : {
+    "totalQueries" : 30,
+    "passedQueries" : 29,
+    "answerableQueries" : 22,
+    "noAnswerQueries" : 8,
+    "skipped" : false,
+    "recallAt3" : 0.9242,
+    "recallAt5" : 0.9697,
+    "recallAt10" : 0.9697,
+    "hitRateAt3" : 1.0,
+    "hitRateAt5" : 1.0,
+    "hitRateAt10" : 1.0,
+    "mrr" : 1.0,
+    "ndcgAt3" : 0.9447,
+    "ndcgAt5" : 0.9704,
+    "ndcgAt10" : 0.9704,
+    "correctness" : 5.0,
+    "attribution" : 4.7727,
+    "completeness" : 4.7273,
+    "faithfulness" : 4.8636,
+    "readability" : 5.0,
+    "latencyP50Ms" : 7486,
+    "latencyP95Ms" : 15043,
+    "latencyP99Ms" : 15625
+  },
+  "caseResults" : [ {
+    "caseId" : "S8-001",
+    "queryType" : "concept",
+    "query" : "volatile count++ 为什么不是原子操作",
+    "answerable" : true,
+    "expectedSources" : [ "java-concurrency.md" ],
+    "retrievalQuery" : "volatile count++ 为什么不是原子操作",
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : true,
+    "hitCount" : 8,
+    "hits" : [ {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "volatile 与原子类",
+      "chunkIndex" : 3,
+      "preview" : "volatile 适合一写多读的状态标记、配置开关和双重检查锁定中的引用发布。volatile 能保证可见性和禁止相关重排序，但不能保证复合操作原子性。`count++` 包含读、加一、写回三个步骤，使用 volatile 仍然可能丢失更新。 AtomicInteger、AtomicLong 和 AtomicReference 通过 CAS 实现无锁原子更新..."
+    }, {
+      "sourceTitle" : "interview-rubric.md",
+      "sectionTitle" : "分档标准",
+      "chunkIndex" : 2,
+      "preview" : "一档回答存在明显概念错误或答非所问。例如把 volatile 说成能保证所有操作原子性，或者把缓存击穿和雪崩完全混淆。二档回答能说出名词但缺少机制，常见表现是罗列关键词却无法解释原因。三档回答能解释机制并覆盖基本场景。四档回答能结合工程实践、取舍和排查方法。五档回答能主动说明边界、指标和失败处理。 评分时要避免只看候选人是否说出某个固定术语。部分候选人可能不..."
+    }, {
+      "sourceTitle" : "jvm-gc.md",
+      "sectionTitle" : "常见问题排查",
+      "chunkIndex" : 5,
+      "preview" : "频繁 Young GC 可能来自对象分配速率过高、年轻代过小或短生命周期对象过多。频繁 Full GC 可能来自老年代增长过快、内存泄漏、元空间压力或晋升失败。内存泄漏排查通常先确认堆使用持续上升，再用 heap dump 比较对象数量和引用链。 OOM 类型需要具体判断。Java heap space 通常表示堆不足或泄漏；Metaspace 可能和动态生..."
+    }, {
+      "sourceTitle" : "resume-highlights.md",
+      "sectionTitle" : "改写示例",
+      "chunkIndex" : 5,
+      "preview" : "弱表达：“参与知识库模块开发，支持文档上传和智能问答。” 改写为：“负责知识库文档解析、向量化和 RAG 问答链路，补充检索 debug 信息，展示命中 chunk 的来源文档、section、顺序和预览，降低排查检索误命中的成本。” 弱表达：“熟悉并发编程，做过线程池优化。” 改写为：“针对异步任务积压问题，重设 ThreadPoolExecutor 核心..."
+    }, {
+      "sourceTitle" : "mysql-index.md",
+      "sectionTitle" : "事务与锁",
+      "chunkIndex" : 4,
+      "preview" : "InnoDB 支持行锁，但行锁依赖索引。如果更新条件没有命中索引，可能扫描并锁住更多行，造成并发下降。锁类型包括记录锁、间隙锁和 next-key lock。next-key lock 是记录锁加间隙锁，用于在某些隔离级别和当前读场景下防止幻读。 MVCC 通过 undo log 和 read view 提供一致性读。READ COMMITTED 通常每次语..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "synchronized 与 ReentrantLock",
+      "chunkIndex" : 2,
+      "preview" : "synchronized 是 JVM 内置监视器锁，进入和退出同步块由字节码 monitorenter 和 monitorexit 表示。它的优点是语义简单、异常时自动释放锁、JVM 能做锁消除和锁粗化。面试中应说明 synchronized 保证互斥，也通过锁释放和获取建立 happens-before，从而保证可见性。 ReentrantLock 是 J..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "数据结构",
+      "chunkIndex" : 3,
+      "preview" : "String 适合简单 KV、计数器和分布式锁值。Hash 适合对象字段缓存，可以局部更新字段，但字段过多也会带来内存和维护成本。List 适合简单队列，Set 适合去重集合，Sorted Set 适合排行榜和按分数范围查询。Bitmap 适合签到和布尔状态集合，HyperLogLog 适合 UV 估算。 选择数据结构时要从访问模式出发，而不是先背命令。比如..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "线程池",
+      "chunkIndex" : 4,
+      "preview" : "ThreadPoolExecutor 的关键参数包括 corePoolSize、maximumPoolSize、keepAliveTime、workQueue、threadFactory 和 rejectedExecutionHandler。任务提交时先创建核心线程，核心线程满后进入队列，队列满后创建非核心线程，达到最大线程数后触发拒绝策略。 生产环境不建议..."
+    } ],
+    "retrievalMetrics" : {
+      "recallAt3" : 1.0,
+      "recallAt5" : 1.0,
+      "recallAt10" : 1.0,
+      "hitRateAt3" : 1.0,
+      "hitRateAt5" : 1.0,
+      "hitRateAt10" : 1.0,
+      "mrr" : 1.0,
+      "ndcgAt3" : 1.0,
+      "ndcgAt5" : 1.0,
+      "ndcgAt10" : 1.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "llm-as-judge"
+    },
+    "noAnswerMatched" : false,
+    "latencyMs" : 7124,
+    "answerPreview" : "## `volatile count++` 为什么不是原子操作 - **`count++` 本身是复合操作**：知识库明确指出，`count++` 包含“读、加一、写回三个步骤”，属于非原子的复合操作。 - **`volatile` 仅保证可见性和禁止重排序，不保证原子性**：知识库强调：“volatile 能保证可见性和禁止相关重排序，但不能保证复合操作原子性”。 - **因此即使修饰 `count`，仍可能丢失更新**：由于三个步骤...",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-002",
+    "queryType" : "concept",
+    "query" : "ThreadPoolExecutor 队列满了以后任务提交流程和拒绝策略",
+    "answerable" : true,
+    "expectedSources" : [ "java-concurrency.md" ],
+    "retrievalQuery" : "ThreadPoolExecutor 队列满时的任务提交流程及拒绝策略机制",
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : true,
+    "hitCount" : 8,
+    "hits" : [ {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "线程池",
+      "chunkIndex" : 4,
+      "preview" : "ThreadPoolExecutor 的关键参数包括 corePoolSize、maximumPoolSize、keepAliveTime、workQueue、threadFactory 和 rejectedExecutionHandler。任务提交时先创建核心线程，核心线程满后进入队列，队列满后创建非核心线程，达到最大线程数后触发拒绝策略。 生产环境不建议..."
+    }, {
+      "sourceTitle" : "resume-highlights.md",
+      "sectionTitle" : "改写示例",
+      "chunkIndex" : 5,
+      "preview" : "弱表达：“参与知识库模块开发，支持文档上传和智能问答。” 改写为：“负责知识库文档解析、向量化和 RAG 问答链路，补充检索 debug 信息，展示命中 chunk 的来源文档、section、顺序和预览，降低排查检索误命中的成本。” 弱表达：“熟悉并发编程，做过线程池优化。” 改写为：“针对异步任务积压问题，重设 ThreadPoolExecutor 核心..."
+    }, {
+      "sourceTitle" : "star-template.md",
+      "sectionTitle" : "Action 动作",
+      "chunkIndex" : 4,
+      "preview" : "动作部分应按问题拆解讲方案。可以先说定位过程，再说关键改动，再说风险控制。比如性能优化可以讲“通过日志和 APM 发现瓶颈在订单聚合查询；用覆盖索引减少回表；对低频维表增加本地缓存；对热点用户增加 Redis 缓存；上线前做压测和灰度”。 技术动作要解释取舍。为什么用缓存而不是只加索引，为什么删除缓存而不是更新缓存，为什么用有界队列而不是无界队列。能讲清替代..."
+    }, {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "事务代理机制",
+      "chunkIndex" : 1,
+      "preview" : "Spring 声明式事务通常通过 AOP 代理实现。调用被 `@Transactional` 标注的方法时，代理对象在方法执行前开启事务，在方法正常返回时提交，在抛出符合回滚规则的异常时回滚。默认情况下，运行时异常和 Error 会触发回滚，受检异常不会自动回滚，除非配置 rollbackFor。 事务失效的常见原因包括同类内部方法调用绕过代理、方法不是 p..."
+    }, {
+      "sourceTitle" : "star-template.md",
+      "sectionTitle" : "Task 职责",
+      "chunkIndex" : 3,
+      "preview" : "任务部分要讲清自己负责什么。团队项目中尤其要区分个人贡献和团队成果。可以说“我负责缓存 key 设计、接口改造和压测验证，DBA 协助建立索引，测试同学负责回归”。不要把团队全部成果包装成个人单独完成。 职责还应包含成功标准。比如“目标是在不改变业务语义的前提下，把查询接口 P95 降到 200ms 以下，并保证库存更新后 5 秒内缓存收敛”。有成功标准，后..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "常见追问",
+      "chunkIndex" : 5,
+      "preview" : "死锁通常需要同时满足互斥、请求保持、不可剥夺和循环等待四个条件。排查时可以用 jstack、线程 dump 或监控平台查看 BLOCKED 线程和持有锁关系。避免死锁的常见方式包括固定加锁顺序、缩小锁粒度、使用 tryLock 超时回退和避免在持锁期间调用外部服务。 并发面试回答应优先给出场景、机制、风险和工程取舍。例如“为什么不用 synchronized..."
+    }, {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "工程实践",
+      "chunkIndex" : 5,
+      "preview" : "事务方法中应避免长时间持有数据库连接，例如远程 HTTP 调用、大文件处理或复杂计算不应放在事务内。长事务会增加锁等待、连接占用和回滚成本。常见优化是先做参数校验和外部查询，再开启事务执行关键写入。 事务边界建议放在 service 层，controller 不直接管理事务，repository 只负责持久化细节。对批量写入要关注批大小、索引影响和失败补偿。..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "基础模型",
+      "chunkIndex" : 1,
+      "preview" : "Java 并发问题通常从线程状态、内存可见性、原子性和有序性展开。线程状态包括 NEW、RUNNABLE、BLOCKED、WAITING、TIMED_WAITING 和 TERMINATED。面试回答时不要只背状态名，要说明状态切换原因，例如进入 synchronized 竞争失败会进入 BLOCKED，调用 Object.wait 会释放监视器并进入 WA..."
+    } ],
+    "retrievalMetrics" : {
+      "recallAt3" : 1.0,
+      "recallAt5" : 1.0,
+      "recallAt10" : 1.0,
+      "hitRateAt3" : 1.0,
+      "hitRateAt5" : 1.0,
+      "hitRateAt10" : 1.0,
+      "mrr" : 1.0,
+      "ndcgAt3" : 1.0,
+      "ndcgAt5" : 1.0,
+      "ndcgAt10" : 1.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "llm-as-judge"
+    },
+    "noAnswerMatched" : false,
+    "latencyMs" : 11464,
+    "answerPreview" : "## ThreadPoolExecutor 队列满后的任务提交流程与拒绝策略 根据知识库内容，ThreadPoolExecutor 在任务提交时遵循明确的执行顺序，队列满是触发后续行为的关键节点： 1. **任务提交流程（队列满后）** - 任务提交时，线程池**先尝试创建核心线程**执行任务； - 核心线程数已达 `corePoolSize` 后，新任务**进入 `workQueue`（工作队列）等待**； - 当队列已满（即 `wo...",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-003",
+    "queryType" : "concept",
+    "query" : "Java heap space OOM 应该怎么排查",
+    "answerable" : true,
+    "expectedSources" : [ "jvm-gc.md" ],
+    "retrievalQuery" : "Java heap space OOM 排查方法",
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : true,
+    "hitCount" : 8,
+    "hits" : [ {
+      "sourceTitle" : "jvm-gc.md",
+      "sectionTitle" : "常见问题排查",
+      "chunkIndex" : 5,
+      "preview" : "频繁 Young GC 可能来自对象分配速率过高、年轻代过小或短生命周期对象过多。频繁 Full GC 可能来自老年代增长过快、内存泄漏、元空间压力或晋升失败。内存泄漏排查通常先确认堆使用持续上升，再用 heap dump 比较对象数量和引用链。 OOM 类型需要具体判断。Java heap space 通常表示堆不足或泄漏；Metaspace 可能和动态生..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "基础模型",
+      "chunkIndex" : 1,
+      "preview" : "Java 并发问题通常从线程状态、内存可见性、原子性和有序性展开。线程状态包括 NEW、RUNNABLE、BLOCKED、WAITING、TIMED_WAITING 和 TERMINATED。面试回答时不要只背状态名，要说明状态切换原因，例如进入 synchronized 竞争失败会进入 BLOCKED，调用 Object.wait 会释放监视器并进入 WA..."
+    }, {
+      "sourceTitle" : "jvm-gc.md",
+      "sectionTitle" : "对象创建与逃逸",
+      "chunkIndex" : 2,
+      "preview" : "对象创建大致包括类加载检查、分配内存、零值初始化、对象头设置和执行构造方法。内存分配方式可能是指针碰撞或空闲列表，取决于堆是否规整。并发创建对象时，JVM 可以用 CAS 重试或线程本地分配缓冲 TLAB 降低同步成本。 逃逸分析用于判断对象是否只在方法内使用。如果对象没有逃逸到方法外，JIT 可能做栈上分配、标量替换或锁消除。面试中不应承诺所有短生命周期对..."
+    }, {
+      "sourceTitle" : "jvm-gc.md",
+      "sectionTitle" : "运行时数据区",
+      "chunkIndex" : 1,
+      "preview" : "JVM 运行时数据区通常包括堆、虚拟机栈、本地方法栈、程序计数器和方法区。堆用于存放大多数对象实例，是 GC 的主要区域。虚拟机栈保存栈帧，栈帧中有局部变量表、操作数栈、动态链接和方法返回地址。程序计数器记录当前线程执行位置，是线程私有区域。 面试回答中要注意区分 JVM 内存模型和 Java 内存模型。运行时数据区是 JVM 内部的内存布局，Java 内存..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "常见追问",
+      "chunkIndex" : 5,
+      "preview" : "死锁通常需要同时满足互斥、请求保持、不可剥夺和循环等待四个条件。排查时可以用 jstack、线程 dump 或监控平台查看 BLOCKED 线程和持有锁关系。避免死锁的常见方式包括固定加锁顺序、缩小锁粒度、使用 tryLock 超时回退和避免在持锁期间调用外部服务。 并发面试回答应优先给出场景、机制、风险和工程取舍。例如“为什么不用 synchronized..."
+    }, {
+      "sourceTitle" : "jvm-gc.md",
+      "sectionTitle" : "GC Roots 与可达性",
+      "chunkIndex" : 3,
+      "preview" : "Java 判断对象是否存活主要用可达性分析。GC Roots 可以包括虚拟机栈中引用的对象、方法区中类静态属性引用的对象、常量引用的对象、JNI 引用的对象和被同步锁持有的对象。从 GC Roots 出发能到达的对象被认为存活，不能到达的对象可以回收。 引用类型包括强引用、软引用、弱引用和虚引用。强引用存在时对象不会被回收；软引用适合缓存，内存不足时可能回收..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "数据结构",
+      "chunkIndex" : 3,
+      "preview" : "String 适合简单 KV、计数器和分布式锁值。Hash 适合对象字段缓存，可以局部更新字段，但字段过多也会带来内存和维护成本。List 适合简单队列，Set 适合去重集合，Sorted Set 适合排行榜和按分数范围查询。Bitmap 适合签到和布尔状态集合，HyperLogLog 适合 UV 估算。 选择数据结构时要从访问模式出发，而不是先背命令。比如..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "缓存模式",
+      "chunkIndex" : 1,
+      "preview" : "缓存旁路模式是业务最常见的方案：读请求先查缓存，缓存未命中再查数据库，然后写回缓存；写请求先更新数据库，再删除缓存。删除缓存通常比更新缓存更稳妥，因为缓存值可能由多表聚合或复杂计算得到，直接更新容易写入不一致结果。 读写一致性要说明边界。先更新数据库再删除缓存仍可能出现短暂不一致，例如删除缓存失败或并发读把旧值写回缓存。工程上可以用重试删除、消息队列补偿、延..."
+    } ],
+    "retrievalMetrics" : {
+      "recallAt3" : 1.0,
+      "recallAt5" : 1.0,
+      "recallAt10" : 1.0,
+      "hitRateAt3" : 1.0,
+      "hitRateAt5" : 1.0,
+      "hitRateAt10" : 1.0,
+      "mrr" : 1.0,
+      "ndcgAt3" : 1.0,
+      "ndcgAt5" : 1.0,
+      "ndcgAt10" : 1.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "llm-as-judge"
+    },
+    "noAnswerMatched" : false,
+    "latencyMs" : 11889,
+    "answerPreview" : "## Java heap space OOM 排查方法 根据知识库内容，`Java heap space` 类型的 OOM 通常表示**堆内存不足或存在内存泄漏**。排查需将现象、证据与处理动作串联分析： 1. **确认现象与初步定位** - 观察 GC 日志：若频繁发生 **Young GC 或 Full GC**，且每次 GC 后老年代/整个堆使用率持续上升，提示可能存在**内存泄漏或对象晋升过快**；若堆使用率未持续上升但仍 OO...",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-004",
+    "queryType" : "concept",
+    "query" : "Spring @Transactional 同类内部调用为什么会失效",
+    "answerable" : true,
+    "expectedSources" : [ "spring-tx-aop.md" ],
+    "retrievalQuery" : "Spring @Transactional 注解在同类内部方法调用时失效的原因",
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : true,
+    "hitCount" : 8,
+    "hits" : [ {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "事务代理机制",
+      "chunkIndex" : 1,
+      "preview" : "Spring 声明式事务通常通过 AOP 代理实现。调用被 `@Transactional` 标注的方法时，代理对象在方法执行前开启事务，在方法正常返回时提交，在抛出符合回滚规则的异常时回滚。默认情况下，运行时异常和 Error 会触发回滚，受检异常不会自动回滚，除非配置 rollbackFor。 事务失效的常见原因包括同类内部方法调用绕过代理、方法不是 p..."
+    }, {
+      "sourceTitle" : "mysql-index.md",
+      "sectionTitle" : "索引失效",
+      "chunkIndex" : 3,
+      "preview" : "常见索引失效场景包括对索引列使用函数、隐式类型转换、前导模糊 like、or 条件不当、范围条件后列无法继续定位，以及统计信息不准导致优化器选择全表扫描。`where date(create_time)=...` 可能无法有效使用 create_time 索引，应该改成范围查询。 Explain 是判断执行计划的重要工具。常看字段包括 type、key、ro..."
+    }, {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "工程实践",
+      "chunkIndex" : 5,
+      "preview" : "事务方法中应避免长时间持有数据库连接，例如远程 HTTP 调用、大文件处理或复杂计算不应放在事务内。长事务会增加锁等待、连接占用和回滚成本。常见优化是先做参数校验和外部查询，再开启事务执行关键写入。 事务边界建议放在 service 层，controller 不直接管理事务，repository 只负责持久化细节。对批量写入要关注批大小、索引影响和失败补偿。..."
+    }, {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "隔离级别",
+      "chunkIndex" : 3,
+      "preview" : "事务隔离级别用于处理脏读、不可重复读和幻读。READ_UNCOMMITTED 可能读到未提交数据；READ_COMMITTED 避免脏读；REPEATABLE_READ 避免不可重复读，MySQL InnoDB 默认级别通常是 REPEATABLE_READ；SERIALIZABLE 最严格但并发性能最低。 回答隔离级别时要结合数据库实现。MySQL Inn..."
+    }, {
+      "sourceTitle" : "star-template.md",
+      "sectionTitle" : "Action 动作",
+      "chunkIndex" : 4,
+      "preview" : "动作部分应按问题拆解讲方案。可以先说定位过程，再说关键改动，再说风险控制。比如性能优化可以讲“通过日志和 APM 发现瓶颈在订单聚合查询；用覆盖索引减少回表；对低频维表增加本地缓存；对热点用户增加 Redis 缓存；上线前做压测和灰度”。 技术动作要解释取舍。为什么用缓存而不是只加索引，为什么删除缓存而不是更新缓存，为什么用有界队列而不是无界队列。能讲清替代..."
+    }, {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "AOP 切面顺序",
+      "chunkIndex" : 4,
+      "preview" : "Spring AOP 基于代理，JDK 动态代理面向接口，CGLIB 通过子类代理类。final 类或 final 方法不适合 CGLIB 代理增强。多个切面同时存在时，可以使用 `@Order` 控制顺序。事务切面、日志切面和鉴权切面混用时，顺序会影响日志记录的时机和异常捕获范围。 AOP 适合横切关注点，例如日志、监控、鉴权、事务和幂等校验。不适合把核心..."
+    }, {
+      "sourceTitle" : "system-design.md",
+      "sectionTitle" : "降级与熔断",
+      "chunkIndex" : 4,
+      "preview" : "降级是在资源紧张或依赖异常时关闭非核心能力，例如关闭推荐、减少实时统计、返回默认配置。熔断是在依赖连续失败后短时间快速失败，避免请求堆积。限流、降级和熔断经常组合使用：限流挡住过量入口，熔断隔离失败依赖，降级保住主流程。 设计降级时要有明确的用户可接受返回。比如面试题推荐服务失败时，可以返回热门题或空列表；支付创建订单不能返回假成功。降级结果必须在产品和业务..."
+    }, {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "传播行为",
+      "chunkIndex" : 2,
+      "preview" : "REQUIRED 是默认传播行为，有事务就加入，没有就新建。REQUIRES_NEW 总是挂起当前事务并开启新事务，适合审计日志等希望独立提交的场景。NESTED 使用保存点实现嵌套回滚，依赖底层事务管理器和数据库支持。SUPPORTS 有事务就加入，没有事务就非事务执行。 传播行为追问通常考察边界。比如主订单创建成功后写操作日志，如果日志失败不应影响主事务..."
+    } ],
+    "retrievalMetrics" : {
+      "recallAt3" : 1.0,
+      "recallAt5" : 1.0,
+      "recallAt10" : 1.0,
+      "hitRateAt3" : 1.0,
+      "hitRateAt5" : 1.0,
+      "hitRateAt10" : 1.0,
+      "mrr" : 1.0,
+      "ndcgAt3" : 1.0,
+      "ndcgAt5" : 1.0,
+      "ndcgAt10" : 1.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 4.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "llm-as-judge"
+    },
+    "noAnswerMatched" : false,
+    "latencyMs" : 6236,
+    "answerPreview" : "## Spring `@Transactional` 同类内部调用失效的原因 - **根本原因在于代理机制失效**：Spring 声明式事务通过 AOP 代理实现，调用被 `@Transactional` 标注的方法时，**必须经由代理对象**触发事务拦截逻辑；而同类内部方法调用（如 `this.methodB()`）是直接的 JVM 方法调用，绕过了代理对象，因此事务注解不生效。 - **知识库明确指出**：“事务失效的常见原因包括同...",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-005",
+    "queryType" : "precision-term",
+    "query" : "MVCC 在 READ COMMITTED 和 REPEATABLE READ 下 read view 有什么区别",
+    "answerable" : true,
+    "expectedSources" : [ "mysql-index.md" ],
+    "retrievalQuery" : "MVCC 中 READ COMMITTED 和 REPEATABLE READ 隔离级别下 Read View 的生成时机与可见性规则差异",
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : true,
+    "hitCount" : 8,
+    "hits" : [ {
+      "sourceTitle" : "mysql-index.md",
+      "sectionTitle" : "事务与锁",
+      "chunkIndex" : 4,
+      "preview" : "InnoDB 支持行锁，但行锁依赖索引。如果更新条件没有命中索引，可能扫描并锁住更多行，造成并发下降。锁类型包括记录锁、间隙锁和 next-key lock。next-key lock 是记录锁加间隙锁，用于在某些隔离级别和当前读场景下防止幻读。 MVCC 通过 undo log 和 read view 提供一致性读。READ COMMITTED 通常每次语..."
+    }, {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "隔离级别",
+      "chunkIndex" : 3,
+      "preview" : "事务隔离级别用于处理脏读、不可重复读和幻读。READ_UNCOMMITTED 可能读到未提交数据；READ_COMMITTED 避免脏读；REPEATABLE_READ 避免不可重复读，MySQL InnoDB 默认级别通常是 REPEATABLE_READ；SERIALIZABLE 最严格但并发性能最低。 回答隔离级别时要结合数据库实现。MySQL Inn..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "synchronized 与 ReentrantLock",
+      "chunkIndex" : 2,
+      "preview" : "synchronized 是 JVM 内置监视器锁，进入和退出同步块由字节码 monitorenter 和 monitorexit 表示。它的优点是语义简单、异常时自动释放锁、JVM 能做锁消除和锁粗化。面试中应说明 synchronized 保证互斥，也通过锁释放和获取建立 happens-before，从而保证可见性。 ReentrantLock 是 J..."
+    }, {
+      "sourceTitle" : "interview-rubric.md",
+      "sectionTitle" : "分档标准",
+      "chunkIndex" : 2,
+      "preview" : "一档回答存在明显概念错误或答非所问。例如把 volatile 说成能保证所有操作原子性，或者把缓存击穿和雪崩完全混淆。二档回答能说出名词但缺少机制，常见表现是罗列关键词却无法解释原因。三档回答能解释机制并覆盖基本场景。四档回答能结合工程实践、取舍和排查方法。五档回答能主动说明边界、指标和失败处理。 评分时要避免只看候选人是否说出某个固定术语。部分候选人可能不..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "volatile 与原子类",
+      "chunkIndex" : 3,
+      "preview" : "volatile 适合一写多读的状态标记、配置开关和双重检查锁定中的引用发布。volatile 能保证可见性和禁止相关重排序，但不能保证复合操作原子性。`count++` 包含读、加一、写回三个步骤，使用 volatile 仍然可能丢失更新。 AtomicInteger、AtomicLong 和 AtomicReference 通过 CAS 实现无锁原子更新..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "缓存模式",
+      "chunkIndex" : 1,
+      "preview" : "缓存旁路模式是业务最常见的方案：读请求先查缓存，缓存未命中再查数据库，然后写回缓存；写请求先更新数据库，再删除缓存。删除缓存通常比更新缓存更稳妥，因为缓存值可能由多表聚合或复杂计算得到，直接更新容易写入不一致结果。 读写一致性要说明边界。先更新数据库再删除缓存仍可能出现短暂不一致，例如删除缓存失败或并发读把旧值写回缓存。工程上可以用重试删除、消息队列补偿、延..."
+    }, {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "传播行为",
+      "chunkIndex" : 2,
+      "preview" : "REQUIRED 是默认传播行为，有事务就加入，没有就新建。REQUIRES_NEW 总是挂起当前事务并开启新事务，适合审计日志等希望独立提交的场景。NESTED 使用保存点实现嵌套回滚，依赖底层事务管理器和数据库支持。SUPPORTS 有事务就加入，没有事务就非事务执行。 传播行为追问通常考察边界。比如主订单创建成功后写操作日志，如果日志失败不应影响主事务..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "基础模型",
+      "chunkIndex" : 1,
+      "preview" : "Java 并发问题通常从线程状态、内存可见性、原子性和有序性展开。线程状态包括 NEW、RUNNABLE、BLOCKED、WAITING、TIMED_WAITING 和 TERMINATED。面试回答时不要只背状态名，要说明状态切换原因，例如进入 synchronized 竞争失败会进入 BLOCKED，调用 Object.wait 会释放监视器并进入 WA..."
+    } ],
+    "retrievalMetrics" : {
+      "recallAt3" : 1.0,
+      "recallAt5" : 1.0,
+      "recallAt10" : 1.0,
+      "hitRateAt3" : 1.0,
+      "hitRateAt5" : 1.0,
+      "hitRateAt10" : 1.0,
+      "mrr" : 1.0,
+      "ndcgAt3" : 1.0,
+      "ndcgAt5" : 1.0,
+      "ndcgAt10" : 1.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "llm-as-judge"
+    },
+    "noAnswerMatched" : false,
+    "latencyMs" : 6376,
+    "answerPreview" : "## MVCC 中 READ COMMITTED 与 REPEATABLE READ 的 read view 区别 根据知识库内容，二者在 read view 的生成机制上存在关键差异： 1. **READ COMMITTED** - **每次执行语句时都会生成新的 read view** - 这意味着同一事务内多次查询可能看到不同版本的数据（因其他事务已提交），从而避免脏读，但不保证可重复读。 2. **REPEATABLE READ...",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-006",
+    "queryType" : "concept",
+    "query" : "Redis 缓存穿透、击穿、雪崩分别怎么处理",
+    "answerable" : true,
+    "expectedSources" : [ "redis-cache.md" ],
+    "retrievalQuery" : "Redis缓存穿透击穿雪崩的解决方案",
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : true,
+    "hitCount" : 8,
+    "hits" : [ {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "穿透、击穿、雪崩",
+      "chunkIndex" : 2,
+      "preview" : "缓存穿透指查询不存在的数据，请求绕过缓存持续打到数据库。常见处理包括缓存空值、布隆过滤器和参数校验。缓存空值要设置较短过期时间，避免大量无效 key 占用内存。布隆过滤器适合大集合存在性判断，但有误判概率，不适合返回完整数据。 缓存击穿指热点 key 过期瞬间，大量请求同时回源。处理方式包括互斥锁、逻辑过期、热点 key 永不过期加异步刷新。缓存雪崩指大量 ..."
+    }, {
+      "sourceTitle" : "system-design.md",
+      "sectionTitle" : "缓存策略",
+      "chunkIndex" : 3,
+      "preview" : "缓存设计要明确 key 结构、value 格式、过期时间、更新策略和一致性边界。热点配置类数据可以较长 TTL 并支持主动刷新；用户状态类数据 TTL 应较短；强一致交易数据不应只靠缓存判断。缓存 key 要包含版本或租户维度，避免多环境、多租户数据串扰。 缓存预热适合确定的热点数据，例如首页配置、热门榜单和字典表。缓存淘汰要关注 Redis maxmemo..."
+    }, {
+      "sourceTitle" : "star-template.md",
+      "sectionTitle" : "Action 动作",
+      "chunkIndex" : 4,
+      "preview" : "动作部分应按问题拆解讲方案。可以先说定位过程，再说关键改动，再说风险控制。比如性能优化可以讲“通过日志和 APM 发现瓶颈在订单聚合查询；用覆盖索引减少回表；对低频维表增加本地缓存；对热点用户增加 Redis 缓存；上线前做压测和灰度”。 技术动作要解释取舍。为什么用缓存而不是只加索引，为什么删除缓存而不是更新缓存，为什么用有界队列而不是无界队列。能讲清替代..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "性能与治理",
+      "chunkIndex" : 5,
+      "preview" : "Redis 性能问题常见来源包括大 key、热 key、慢查询、网络带宽和持久化压力。大 key 会导致删除阻塞、迁移慢和单次返回过大。热 key 会让单个节点压力过高，可以通过本地缓存、key 拆分、读副本或请求合并缓解。 线上治理要开启慢日志、监控命中率、内存使用、连接数、阻塞命令、过期 key 数量和 evicted keys。缓存命中率下降时要区分业..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "缓存模式",
+      "chunkIndex" : 1,
+      "preview" : "缓存旁路模式是业务最常见的方案：读请求先查缓存，缓存未命中再查数据库，然后写回缓存；写请求先更新数据库，再删除缓存。删除缓存通常比更新缓存更稳妥，因为缓存值可能由多表聚合或复杂计算得到，直接更新容易写入不一致结果。 读写一致性要说明边界。先更新数据库再删除缓存仍可能出现短暂不一致，例如删除缓存失败或并发读把旧值写回缓存。工程上可以用重试删除、消息队列补偿、延..."
+    }, {
+      "sourceTitle" : "system-design.md",
+      "sectionTitle" : "观测指标",
+      "chunkIndex" : 5,
+      "preview" : "限流和缓存上线后需要监控命中率、限流次数、拒绝率、P95/P99 延迟、错误率、队列长度、线程池活跃数、数据库连接池使用率和 Redis 慢查询。只看平均延迟会掩盖尾延迟问题。限流阈值要根据压测、容量评估和线上指标逐步调整。 压测要区分单接口压测和链路压测。单接口压测能发现局部瓶颈，链路压测能发现依赖传播和资源竞争。压测前要准备隔离环境、数据规模、监控面板和..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "分布式锁",
+      "chunkIndex" : 4,
+      "preview" : "Redis 分布式锁的基础形式是 `SET key value NX PX ttl`，value 要唯一，用于释放时校验持有者。释放锁应使用 Lua 脚本保证“判断 value 和删除 key”的原子性。只用 setnx 再 expire 分两步可能在进程崩溃时留下无过期锁。 分布式锁的风险包括锁过期但业务未完成、客户端长 GC 暂停、网络分区和时钟假设。可..."
+    }, {
+      "sourceTitle" : "interview-rubric.md",
+      "sectionTitle" : "评分维度",
+      "chunkIndex" : 1,
+      "preview" : "技术面试回答可以从准确性、结构性、场景化、边界意识和沟通质量五个维度评分。准确性关注概念是否正确、有没有明显错误。结构性关注回答是否有层次，例如先定义问题，再讲机制，最后讲实践。场景化关注是否能结合真实业务，而不是只背概念。边界意识关注是否知道方案适用条件和风险。沟通质量关注表达是否清楚、是否能回应追问。 高分回答通常不是最长回答，而是能够抓住问题核心。比如..."
+    } ],
+    "retrievalMetrics" : {
+      "recallAt3" : 1.0,
+      "recallAt5" : 1.0,
+      "recallAt10" : 1.0,
+      "hitRateAt3" : 1.0,
+      "hitRateAt5" : 1.0,
+      "hitRateAt10" : 1.0,
+      "mrr" : 1.0,
+      "ndcgAt3" : 1.0,
+      "ndcgAt5" : 1.0,
+      "ndcgAt10" : 1.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "llm-as-judge"
+    },
+    "noAnswerMatched" : false,
+    "latencyMs" : 10468,
+    "answerPreview" : "## 缓存穿透处理方式 - **缓存空值**：对查询结果为空的数据也写入缓存，设置**较短过期时间**，避免大量无效 key 占用内存 - **布隆过滤器**：在请求到达缓存前，用布隆过滤器快速判断数据是否存在；适用于**大集合存在性判断**，但有误判概率，**不适合返回完整数据** - **参数校验**：在入口层对请求参数进行合法性校验，拦截明显非法或恶意构造的 key ## 缓存击穿处理方式 - **互斥锁（Mutex Lock）*...",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-007",
+    "queryType" : "multi-doc",
+    "query" : "接口限流和缓存治理应该监控哪些指标",
+    "answerable" : true,
+    "expectedSources" : [ "system-design.md", "redis-cache.md" ],
+    "retrievalQuery" : "接口限流和缓存治理需要监控的关键指标有哪些",
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : true,
+    "hitCount" : 8,
+    "hits" : [ {
+      "sourceTitle" : "system-design.md",
+      "sectionTitle" : "观测指标",
+      "chunkIndex" : 5,
+      "preview" : "限流和缓存上线后需要监控命中率、限流次数、拒绝率、P95/P99 延迟、错误率、队列长度、线程池活跃数、数据库连接池使用率和 Redis 慢查询。只看平均延迟会掩盖尾延迟问题。限流阈值要根据压测、容量评估和线上指标逐步调整。 压测要区分单接口压测和链路压测。单接口压测能发现局部瓶颈，链路压测能发现依赖传播和资源竞争。压测前要准备隔离环境、数据规模、监控面板和..."
+    }, {
+      "sourceTitle" : "system-design.md",
+      "sectionTitle" : "设计目标",
+      "chunkIndex" : 1,
+      "preview" : "系统设计题首先要澄清目标：用户规模、QPS、读写比例、延迟要求、一致性要求、可用性目标和成本约束。限流与缓存不是独立技巧，而是服务稳定性设计的一部分。回答时应先说明保护对象，例如保护数据库、保护第三方接口、保护核心服务线程池或保护用户体验。 一个后端接口在高峰期变慢时，不应该只加缓存。要先判断瓶颈来自数据库查询、锁竞争、外部服务、CPU、网络还是连接池。缓存..."
+    }, {
+      "sourceTitle" : "system-design.md",
+      "sectionTitle" : "限流算法",
+      "chunkIndex" : 2,
+      "preview" : "固定窗口计数实现简单，但窗口边界可能出现流量突刺。滑动窗口把时间切成多个小窗口，统计更平滑。漏桶算法以恒定速率流出，适合平滑请求。令牌桶按固定速率生成令牌，允许一定突发流量，是接口限流中常用方案。 限流维度可以按用户、IP、租户、接口、应用实例或全局资源设置。单机限流实现简单但不能控制集群总量，分布式限流可以用 Redis、网关或专门限流组件。分布式限流要关..."
+    }, {
+      "sourceTitle" : "system-design.md",
+      "sectionTitle" : "缓存策略",
+      "chunkIndex" : 3,
+      "preview" : "缓存设计要明确 key 结构、value 格式、过期时间、更新策略和一致性边界。热点配置类数据可以较长 TTL 并支持主动刷新；用户状态类数据 TTL 应较短；强一致交易数据不应只靠缓存判断。缓存 key 要包含版本或租户维度，避免多环境、多租户数据串扰。 缓存预热适合确定的热点数据，例如首页配置、热门榜单和字典表。缓存淘汰要关注 Redis maxmemo..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "性能与治理",
+      "chunkIndex" : 5,
+      "preview" : "Redis 性能问题常见来源包括大 key、热 key、慢查询、网络带宽和持久化压力。大 key 会导致删除阻塞、迁移慢和单次返回过大。热 key 会让单个节点压力过高，可以通过本地缓存、key 拆分、读副本或请求合并缓解。 线上治理要开启慢日志、监控命中率、内存使用、连接数、阻塞命令、过期 key 数量和 evicted keys。缓存命中率下降时要区分业..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "穿透、击穿、雪崩",
+      "chunkIndex" : 2,
+      "preview" : "缓存穿透指查询不存在的数据，请求绕过缓存持续打到数据库。常见处理包括缓存空值、布隆过滤器和参数校验。缓存空值要设置较短过期时间，避免大量无效 key 占用内存。布隆过滤器适合大集合存在性判断，但有误判概率，不适合返回完整数据。 缓存击穿指热点 key 过期瞬间，大量请求同时回源。处理方式包括互斥锁、逻辑过期、热点 key 永不过期加异步刷新。缓存雪崩指大量 ..."
+    }, {
+      "sourceTitle" : "star-template.md",
+      "sectionTitle" : "Result 结果",
+      "chunkIndex" : 5,
+      "preview" : "结果最好包含数字指标，例如延迟下降、错误率下降、吞吐提升、人工耗时减少、成本下降或稳定性提升。指标应有口径，例如平均值、P95、P99、峰值 QPS、样本周期。没有指标时，可以用可验证现象替代，例如“发布后两周没有再出现队列堆积告警”。 结果也要包含遗留问题和复盘。真实项目很少完美，说明后续计划反而更可信。比如“缓存方案解决了读压力，但强一致场景仍走数据库；..."
+    }, {
+      "sourceTitle" : "resume-highlights.md",
+      "sectionTitle" : "量化指标",
+      "chunkIndex" : 2,
+      "preview" : "常见量化指标包括延迟、吞吐、错误率、可用性、成本、人工效率、数据规模和用户规模。性能类可以写平均延迟、P95、P99、QPS、CPU 或数据库负载。效率类可以写处理时长减少、自动化覆盖率提升、人工步骤减少。稳定性类可以写故障次数下降、告警收敛或恢复时间缩短。 指标要注意口径真实。不要把压测峰值包装成线上稳定 QPS，不要把团队整体收益全部写成个人贡献。没有精..."
+    } ],
+    "retrievalMetrics" : {
+      "recallAt3" : 1.0,
+      "recallAt5" : 1.0,
+      "recallAt10" : 1.0,
+      "hitRateAt3" : 1.0,
+      "hitRateAt5" : 1.0,
+      "hitRateAt10" : 1.0,
+      "mrr" : 1.0,
+      "ndcgAt3" : 1.0,
+      "ndcgAt5" : 1.0,
+      "ndcgAt10" : 1.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "llm-as-judge"
+    },
+    "noAnswerMatched" : false,
+    "latencyMs" : 14806,
+    "answerPreview" : "## 接口限流和缓存治理应监控的核心指标 根据知识库内容，接口限流和缓存治理需分别关注以下关键监控指标，且强调**多维度、可量化、重尾部**的原则： ### 限流相关监控指标 - **限流次数**：统计单位时间内被限流拦截的请求数量 - **拒绝率**：被限流拒绝的请求占总请求的比例 - **队列长度**：限流队列中等待处理的请求数（反映积压程度） - **线程池活跃数**：服务端线程池中正在执行任务的线程数量，用于判断资源饱和度 - ...",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-008",
+    "queryType" : "multi-doc",
+    "query" : "事务里为什么不应该放远程 HTTP 调用，和连接池锁等待有什么关系",
+    "answerable" : true,
+    "expectedSources" : [ "spring-tx-aop.md", "mysql-index.md" ],
+    "retrievalQuery" : "为什么在数据库事务中不应执行远程HTTP调用，以及这与连接池锁等待之间存在什么关联",
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : true,
+    "hitCount" : 8,
+    "hits" : [ {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "工程实践",
+      "chunkIndex" : 5,
+      "preview" : "事务方法中应避免长时间持有数据库连接，例如远程 HTTP 调用、大文件处理或复杂计算不应放在事务内。长事务会增加锁等待、连接占用和回滚成本。常见优化是先做参数校验和外部查询，再开启事务执行关键写入。 事务边界建议放在 service 层，controller 不直接管理事务，repository 只负责持久化细节。对批量写入要关注批大小、索引影响和失败补偿。..."
+    }, {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "隔离级别",
+      "chunkIndex" : 3,
+      "preview" : "事务隔离级别用于处理脏读、不可重复读和幻读。READ_UNCOMMITTED 可能读到未提交数据；READ_COMMITTED 避免脏读；REPEATABLE_READ 避免不可重复读，MySQL InnoDB 默认级别通常是 REPEATABLE_READ；SERIALIZABLE 最严格但并发性能最低。 回答隔离级别时要结合数据库实现。MySQL Inn..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "常见追问",
+      "chunkIndex" : 5,
+      "preview" : "死锁通常需要同时满足互斥、请求保持、不可剥夺和循环等待四个条件。排查时可以用 jstack、线程 dump 或监控平台查看 BLOCKED 线程和持有锁关系。避免死锁的常见方式包括固定加锁顺序、缩小锁粒度、使用 tryLock 超时回退和避免在持锁期间调用外部服务。 并发面试回答应优先给出场景、机制、风险和工程取舍。例如“为什么不用 synchronized..."
+    }, {
+      "sourceTitle" : "star-template.md",
+      "sectionTitle" : "Action 动作",
+      "chunkIndex" : 4,
+      "preview" : "动作部分应按问题拆解讲方案。可以先说定位过程，再说关键改动，再说风险控制。比如性能优化可以讲“通过日志和 APM 发现瓶颈在订单聚合查询；用覆盖索引减少回表；对低频维表增加本地缓存；对热点用户增加 Redis 缓存；上线前做压测和灰度”。 技术动作要解释取舍。为什么用缓存而不是只加索引，为什么删除缓存而不是更新缓存，为什么用有界队列而不是无界队列。能讲清替代..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "缓存模式",
+      "chunkIndex" : 1,
+      "preview" : "缓存旁路模式是业务最常见的方案：读请求先查缓存，缓存未命中再查数据库，然后写回缓存；写请求先更新数据库，再删除缓存。删除缓存通常比更新缓存更稳妥，因为缓存值可能由多表聚合或复杂计算得到，直接更新容易写入不一致结果。 读写一致性要说明边界。先更新数据库再删除缓存仍可能出现短暂不一致，例如删除缓存失败或并发读把旧值写回缓存。工程上可以用重试删除、消息队列补偿、延..."
+    }, {
+      "sourceTitle" : "mysql-index.md",
+      "sectionTitle" : "事务与锁",
+      "chunkIndex" : 4,
+      "preview" : "InnoDB 支持行锁，但行锁依赖索引。如果更新条件没有命中索引，可能扫描并锁住更多行，造成并发下降。锁类型包括记录锁、间隙锁和 next-key lock。next-key lock 是记录锁加间隙锁，用于在某些隔离级别和当前读场景下防止幻读。 MVCC 通过 undo log 和 read view 提供一致性读。READ COMMITTED 通常每次语..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "线程池",
+      "chunkIndex" : 4,
+      "preview" : "ThreadPoolExecutor 的关键参数包括 corePoolSize、maximumPoolSize、keepAliveTime、workQueue、threadFactory 和 rejectedExecutionHandler。任务提交时先创建核心线程，核心线程满后进入队列，队列满后创建非核心线程，达到最大线程数后触发拒绝策略。 生产环境不建议..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "穿透、击穿、雪崩",
+      "chunkIndex" : 2,
+      "preview" : "缓存穿透指查询不存在的数据，请求绕过缓存持续打到数据库。常见处理包括缓存空值、布隆过滤器和参数校验。缓存空值要设置较短过期时间，避免大量无效 key 占用内存。布隆过滤器适合大集合存在性判断，但有误判概率，不适合返回完整数据。 缓存击穿指热点 key 过期瞬间，大量请求同时回源。处理方式包括互斥锁、逻辑过期、热点 key 永不过期加异步刷新。缓存雪崩指大量 ..."
+    } ],
+    "retrievalMetrics" : {
+      "recallAt3" : 0.5,
+      "recallAt5" : 1.0,
+      "recallAt10" : 1.0,
+      "hitRateAt3" : 1.0,
+      "hitRateAt5" : 1.0,
+      "hitRateAt10" : 1.0,
+      "mrr" : 1.0,
+      "ndcgAt3" : 0.7039,
+      "ndcgAt5" : 0.8855,
+      "ndcgAt10" : 0.8855
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "llm-as-judge"
+    },
+    "noAnswerMatched" : false,
+    "latencyMs" : 9933,
+    "answerPreview" : "## 事务中不应放远程 HTTP 调用的原因 - **延长数据库连接占用时间**：知识库明确指出，“事务方法中应避免长时间持有数据库连接，例如远程 HTTP 调用……不应放在事务内”，因为远程调用通常耗时不可控（网络延迟、下游响应慢等），会导致事务持续持有数据库连接，阻塞连接池中有限的连接资源。 - **加剧连接池锁等待与耗尽风险**：当事务长时间不提交，连接无法归还连接池，其他请求需等待空闲连接；若并发量高，将引发连接池“获取连接超时...",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-009",
+    "queryType" : "no-answer",
+    "query" : "Kubernetes HPA 根据 CPU 和自定义指标扩容的流程",
+    "answerable" : false,
+    "expectedSources" : [ ],
+    "retrievalQuery" : null,
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : false,
+    "hitCount" : 0,
+    "hits" : [ ],
+    "retrievalMetrics" : {
+      "recallAt3" : 0.0,
+      "recallAt5" : 0.0,
+      "recallAt10" : 0.0,
+      "hitRateAt3" : 0.0,
+      "hitRateAt5" : 0.0,
+      "hitRateAt10" : 0.0,
+      "mrr" : 0.0,
+      "ndcgAt3" : 0.0,
+      "ndcgAt5" : 0.0,
+      "ndcgAt10" : 0.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "no-answer-rule"
+    },
+    "noAnswerMatched" : true,
+    "latencyMs" : 1442,
+    "answerPreview" : "抱歉，在选定的知识库中未检索到相关信息。请换一个更具体的关键词或补充上下文后再试。",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-010",
+    "queryType" : "weak-hit",
+    "query" : "OAuth2 authorization code PKCE flow",
+    "answerable" : false,
+    "expectedSources" : [ ],
+    "retrievalQuery" : null,
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : false,
+    "hitCount" : 0,
+    "hits" : [ ],
+    "retrievalMetrics" : {
+      "recallAt3" : 0.0,
+      "recallAt5" : 0.0,
+      "recallAt10" : 0.0,
+      "hitRateAt3" : 0.0,
+      "hitRateAt5" : 0.0,
+      "hitRateAt10" : 0.0,
+      "mrr" : 0.0,
+      "ndcgAt3" : 0.0,
+      "ndcgAt5" : 0.0,
+      "ndcgAt10" : 0.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "no-answer-rule"
+    },
+    "noAnswerMatched" : true,
+    "latencyMs" : 1202,
+    "answerPreview" : "抱歉，在选定的知识库中未检索到相关信息。请换一个更具体的关键词或补充上下文后再试。",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-011",
+    "queryType" : "concept",
+    "query" : "synchronized 和 ReentrantLock 在工程上怎么取舍",
+    "answerable" : true,
+    "expectedSources" : [ "java-concurrency.md" ],
+    "retrievalQuery" : "synchronized 与 ReentrantLock 在实际工程开发中的选型依据和适用场景",
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : true,
+    "hitCount" : 8,
+    "hits" : [ {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "synchronized 与 ReentrantLock",
+      "chunkIndex" : 2,
+      "preview" : "synchronized 是 JVM 内置监视器锁，进入和退出同步块由字节码 monitorenter 和 monitorexit 表示。它的优点是语义简单、异常时自动释放锁、JVM 能做锁消除和锁粗化。面试中应说明 synchronized 保证互斥，也通过锁释放和获取建立 happens-before，从而保证可见性。 ReentrantLock 是 J..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "常见追问",
+      "chunkIndex" : 5,
+      "preview" : "死锁通常需要同时满足互斥、请求保持、不可剥夺和循环等待四个条件。排查时可以用 jstack、线程 dump 或监控平台查看 BLOCKED 线程和持有锁关系。避免死锁的常见方式包括固定加锁顺序、缩小锁粒度、使用 tryLock 超时回退和避免在持锁期间调用外部服务。 并发面试回答应优先给出场景、机制、风险和工程取舍。例如“为什么不用 synchronized..."
+    }, {
+      "sourceTitle" : "jvm-gc.md",
+      "sectionTitle" : "垃圾收集器",
+      "chunkIndex" : 4,
+      "preview" : "Serial GC 简单但会 Stop-The-World，适合小堆或客户端场景。Parallel GC 注重吞吐量，适合批处理。CMS 以低停顿为目标，但存在内存碎片和并发模式失败风险。G1 把堆拆成 Region，通过预测停顿选择回收集合，适合较大堆和可控停顿目标。ZGC 和 Shenandoah 进一步降低停顿，但需要结合 JDK 版本和业务验证。 选..."
+    }, {
+      "sourceTitle" : "mysql-index.md",
+      "sectionTitle" : "事务与锁",
+      "chunkIndex" : 4,
+      "preview" : "InnoDB 支持行锁，但行锁依赖索引。如果更新条件没有命中索引，可能扫描并锁住更多行，造成并发下降。锁类型包括记录锁、间隙锁和 next-key lock。next-key lock 是记录锁加间隙锁，用于在某些隔离级别和当前读场景下防止幻读。 MVCC 通过 undo log 和 read view 提供一致性读。READ COMMITTED 通常每次语..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "volatile 与原子类",
+      "chunkIndex" : 3,
+      "preview" : "volatile 适合一写多读的状态标记、配置开关和双重检查锁定中的引用发布。volatile 能保证可见性和禁止相关重排序，但不能保证复合操作原子性。`count++` 包含读、加一、写回三个步骤，使用 volatile 仍然可能丢失更新。 AtomicInteger、AtomicLong 和 AtomicReference 通过 CAS 实现无锁原子更新..."
+    }, {
+      "sourceTitle" : "system-design.md",
+      "sectionTitle" : "观测指标",
+      "chunkIndex" : 5,
+      "preview" : "限流和缓存上线后需要监控命中率、限流次数、拒绝率、P95/P99 延迟、错误率、队列长度、线程池活跃数、数据库连接池使用率和 Redis 慢查询。只看平均延迟会掩盖尾延迟问题。限流阈值要根据压测、容量评估和线上指标逐步调整。 压测要区分单接口压测和链路压测。单接口压测能发现局部瓶颈，链路压测能发现依赖传播和资源竞争。压测前要准备隔离环境、数据规模、监控面板和..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "缓存模式",
+      "chunkIndex" : 1,
+      "preview" : "缓存旁路模式是业务最常见的方案：读请求先查缓存，缓存未命中再查数据库，然后写回缓存；写请求先更新数据库，再删除缓存。删除缓存通常比更新缓存更稳妥，因为缓存值可能由多表聚合或复杂计算得到，直接更新容易写入不一致结果。 读写一致性要说明边界。先更新数据库再删除缓存仍可能出现短暂不一致，例如删除缓存失败或并发读把旧值写回缓存。工程上可以用重试删除、消息队列补偿、延..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "分布式锁",
+      "chunkIndex" : 4,
+      "preview" : "Redis 分布式锁的基础形式是 `SET key value NX PX ttl`，value 要唯一，用于释放时校验持有者。释放锁应使用 Lua 脚本保证“判断 value 和删除 key”的原子性。只用 setnx 再 expire 分两步可能在进程崩溃时留下无过期锁。 分布式锁的风险包括锁过期但业务未完成、客户端长 GC 暂停、网络分区和时钟假设。可..."
+    } ],
+    "retrievalMetrics" : {
+      "recallAt3" : 1.0,
+      "recallAt5" : 1.0,
+      "recallAt10" : 1.0,
+      "hitRateAt3" : 1.0,
+      "hitRateAt5" : 1.0,
+      "hitRateAt10" : 1.0,
+      "mrr" : 1.0,
+      "ndcgAt3" : 1.0,
+      "ndcgAt5" : 1.0,
+      "ndcgAt10" : 1.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "llm-as-judge"
+    },
+    "noAnswerMatched" : false,
+    "latencyMs" : 9435,
+    "answerPreview" : "## 工程上 synchronized 与 ReentrantLock 的取舍原则 根据知识库内容，两者的工程取舍应基于**功能需求**而非单纯性能比较，具体如下： 1. **优先使用 `synchronized` 的场景** - 普通互斥需求（如简单临界区保护）； - 语义简洁、异常时自动释放锁、JVM 可进行锁消除和锁粗化优化； - 不需要高级特性（如中断响应、超时获取、多等待队列）。 2. **必须选用 `ReentrantLoc...",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-012",
+    "queryType" : "concept",
+    "query" : "JVM 运行时数据区和 Java 内存模型有什么区别",
+    "answerable" : true,
+    "expectedSources" : [ "jvm-gc.md", "java-concurrency.md" ],
+    "retrievalQuery" : "JVM运行时数据区与Java内存模型（JMM）的区别",
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : true,
+    "hitCount" : 8,
+    "hits" : [ {
+      "sourceTitle" : "jvm-gc.md",
+      "sectionTitle" : "运行时数据区",
+      "chunkIndex" : 1,
+      "preview" : "JVM 运行时数据区通常包括堆、虚拟机栈、本地方法栈、程序计数器和方法区。堆用于存放大多数对象实例，是 GC 的主要区域。虚拟机栈保存栈帧，栈帧中有局部变量表、操作数栈、动态链接和方法返回地址。程序计数器记录当前线程执行位置，是线程私有区域。 面试回答中要注意区分 JVM 内存模型和 Java 内存模型。运行时数据区是 JVM 内部的内存布局，Java 内存..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "基础模型",
+      "chunkIndex" : 1,
+      "preview" : "Java 并发问题通常从线程状态、内存可见性、原子性和有序性展开。线程状态包括 NEW、RUNNABLE、BLOCKED、WAITING、TIMED_WAITING 和 TERMINATED。面试回答时不要只背状态名，要说明状态切换原因，例如进入 synchronized 竞争失败会进入 BLOCKED，调用 Object.wait 会释放监视器并进入 WA..."
+    }, {
+      "sourceTitle" : "jvm-gc.md",
+      "sectionTitle" : "对象创建与逃逸",
+      "chunkIndex" : 2,
+      "preview" : "对象创建大致包括类加载检查、分配内存、零值初始化、对象头设置和执行构造方法。内存分配方式可能是指针碰撞或空闲列表，取决于堆是否规整。并发创建对象时，JVM 可以用 CAS 重试或线程本地分配缓冲 TLAB 降低同步成本。 逃逸分析用于判断对象是否只在方法内使用。如果对象没有逃逸到方法外，JIT 可能做栈上分配、标量替换或锁消除。面试中不应承诺所有短生命周期对..."
+    }, {
+      "sourceTitle" : "jvm-gc.md",
+      "sectionTitle" : "常见问题排查",
+      "chunkIndex" : 5,
+      "preview" : "频繁 Young GC 可能来自对象分配速率过高、年轻代过小或短生命周期对象过多。频繁 Full GC 可能来自老年代增长过快、内存泄漏、元空间压力或晋升失败。内存泄漏排查通常先确认堆使用持续上升，再用 heap dump 比较对象数量和引用链。 OOM 类型需要具体判断。Java heap space 通常表示堆不足或泄漏；Metaspace 可能和动态生..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "synchronized 与 ReentrantLock",
+      "chunkIndex" : 2,
+      "preview" : "synchronized 是 JVM 内置监视器锁，进入和退出同步块由字节码 monitorenter 和 monitorexit 表示。它的优点是语义简单、异常时自动释放锁、JVM 能做锁消除和锁粗化。面试中应说明 synchronized 保证互斥，也通过锁释放和获取建立 happens-before，从而保证可见性。 ReentrantLock 是 J..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "缓存模式",
+      "chunkIndex" : 1,
+      "preview" : "缓存旁路模式是业务最常见的方案：读请求先查缓存，缓存未命中再查数据库，然后写回缓存；写请求先更新数据库，再删除缓存。删除缓存通常比更新缓存更稳妥，因为缓存值可能由多表聚合或复杂计算得到，直接更新容易写入不一致结果。 读写一致性要说明边界。先更新数据库再删除缓存仍可能出现短暂不一致，例如删除缓存失败或并发读把旧值写回缓存。工程上可以用重试删除、消息队列补偿、延..."
+    }, {
+      "sourceTitle" : "backend-jd.md",
+      "sectionTitle" : "必备技术能力",
+      "chunkIndex" : 2,
+      "preview" : "Java 基础能力包括面向对象、异常处理、泛型、集合框架、Stream、反射和常用 IO。并发能力包括 synchronized、volatile、线程池、锁、原子类、并发容器和常见并发问题排查。JVM 能力包括内存区域、GC、类加载、OOM 排查和基本调优。 Spring 能力包括 IoC、AOP、事务、MVC 请求链路、配置管理和常见 starter 使..."
+    }, {
+      "sourceTitle" : "jvm-gc.md",
+      "sectionTitle" : "GC Roots 与可达性",
+      "chunkIndex" : 3,
+      "preview" : "Java 判断对象是否存活主要用可达性分析。GC Roots 可以包括虚拟机栈中引用的对象、方法区中类静态属性引用的对象、常量引用的对象、JNI 引用的对象和被同步锁持有的对象。从 GC Roots 出发能到达的对象被认为存活，不能到达的对象可以回收。 引用类型包括强引用、软引用、弱引用和虚引用。强引用存在时对象不会被回收；软引用适合缓存，内存不足时可能回收..."
+    } ],
+    "retrievalMetrics" : {
+      "recallAt3" : 1.0,
+      "recallAt5" : 1.0,
+      "recallAt10" : 1.0,
+      "hitRateAt3" : 1.0,
+      "hitRateAt5" : 1.0,
+      "hitRateAt10" : 1.0,
+      "mrr" : 1.0,
+      "ndcgAt3" : 1.0,
+      "ndcgAt5" : 1.0,
+      "ndcgAt10" : 1.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "llm-as-judge"
+    },
+    "noAnswerMatched" : false,
+    "latencyMs" : 11898,
+    "answerPreview" : "## JVM 运行时数据区与 Java 内存模型的区别 - **本质定位不同**： - JVM 运行时数据区是 **JVM 内部的内存布局结构**，描述的是虚拟机在运行 Java 程序时实际划分的物理/逻辑内存区域； - Java 内存模型（JMM）是 **多线程并发下的抽象规范**，定义共享变量在主内存与线程工作内存之间的交互规则，聚焦于**可见性、原子性和有序性**。 - **组成内容不同**： - 运行时数据区包括 **堆、虚拟机...",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-013",
+    "queryType" : "concept",
+    "query" : "Redis 分布式锁为什么要用 SET NX PX 和 Lua 脚本释放",
+    "answerable" : true,
+    "expectedSources" : [ "redis-cache.md" ],
+    "retrievalQuery" : "Redis分布式锁为何采用SET NX PX命令加锁并使用Lua脚本释放锁",
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : true,
+    "hitCount" : 8,
+    "hits" : [ {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "分布式锁",
+      "chunkIndex" : 4,
+      "preview" : "Redis 分布式锁的基础形式是 `SET key value NX PX ttl`，value 要唯一，用于释放时校验持有者。释放锁应使用 Lua 脚本保证“判断 value 和删除 key”的原子性。只用 setnx 再 expire 分两步可能在进程崩溃时留下无过期锁。 分布式锁的风险包括锁过期但业务未完成、客户端长 GC 暂停、网络分区和时钟假设。可..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "synchronized 与 ReentrantLock",
+      "chunkIndex" : 2,
+      "preview" : "synchronized 是 JVM 内置监视器锁，进入和退出同步块由字节码 monitorenter 和 monitorexit 表示。它的优点是语义简单、异常时自动释放锁、JVM 能做锁消除和锁粗化。面试中应说明 synchronized 保证互斥，也通过锁释放和获取建立 happens-before，从而保证可见性。 ReentrantLock 是 J..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "volatile 与原子类",
+      "chunkIndex" : 3,
+      "preview" : "volatile 适合一写多读的状态标记、配置开关和双重检查锁定中的引用发布。volatile 能保证可见性和禁止相关重排序，但不能保证复合操作原子性。`count++` 包含读、加一、写回三个步骤，使用 volatile 仍然可能丢失更新。 AtomicInteger、AtomicLong 和 AtomicReference 通过 CAS 实现无锁原子更新..."
+    }, {
+      "sourceTitle" : "mysql-index.md",
+      "sectionTitle" : "事务与锁",
+      "chunkIndex" : 4,
+      "preview" : "InnoDB 支持行锁，但行锁依赖索引。如果更新条件没有命中索引，可能扫描并锁住更多行，造成并发下降。锁类型包括记录锁、间隙锁和 next-key lock。next-key lock 是记录锁加间隙锁，用于在某些隔离级别和当前读场景下防止幻读。 MVCC 通过 undo log 和 read view 提供一致性读。READ COMMITTED 通常每次语..."
+    }, {
+      "sourceTitle" : "star-template.md",
+      "sectionTitle" : "Action 动作",
+      "chunkIndex" : 4,
+      "preview" : "动作部分应按问题拆解讲方案。可以先说定位过程，再说关键改动，再说风险控制。比如性能优化可以讲“通过日志和 APM 发现瓶颈在订单聚合查询；用覆盖索引减少回表；对低频维表增加本地缓存；对热点用户增加 Redis 缓存；上线前做压测和灰度”。 技术动作要解释取舍。为什么用缓存而不是只加索引，为什么删除缓存而不是更新缓存，为什么用有界队列而不是无界队列。能讲清替代..."
+    }, {
+      "sourceTitle" : "system-design.md",
+      "sectionTitle" : "限流算法",
+      "chunkIndex" : 2,
+      "preview" : "固定窗口计数实现简单，但窗口边界可能出现流量突刺。滑动窗口把时间切成多个小窗口，统计更平滑。漏桶算法以恒定速率流出，适合平滑请求。令牌桶按固定速率生成令牌，允许一定突发流量，是接口限流中常用方案。 限流维度可以按用户、IP、租户、接口、应用实例或全局资源设置。单机限流实现简单但不能控制集群总量，分布式限流可以用 Redis、网关或专门限流组件。分布式限流要关..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "性能与治理",
+      "chunkIndex" : 5,
+      "preview" : "Redis 性能问题常见来源包括大 key、热 key、慢查询、网络带宽和持久化压力。大 key 会导致删除阻塞、迁移慢和单次返回过大。热 key 会让单个节点压力过高，可以通过本地缓存、key 拆分、读副本或请求合并缓解。 线上治理要开启慢日志、监控命中率、内存使用、连接数、阻塞命令、过期 key 数量和 evicted keys。缓存命中率下降时要区分业..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "常见追问",
+      "chunkIndex" : 5,
+      "preview" : "死锁通常需要同时满足互斥、请求保持、不可剥夺和循环等待四个条件。排查时可以用 jstack、线程 dump 或监控平台查看 BLOCKED 线程和持有锁关系。避免死锁的常见方式包括固定加锁顺序、缩小锁粒度、使用 tryLock 超时回退和避免在持锁期间调用外部服务。 并发面试回答应优先给出场景、机制、风险和工程取舍。例如“为什么不用 synchronized..."
+    } ],
+    "retrievalMetrics" : {
+      "recallAt3" : 1.0,
+      "recallAt5" : 1.0,
+      "recallAt10" : 1.0,
+      "hitRateAt3" : 1.0,
+      "hitRateAt5" : 1.0,
+      "hitRateAt10" : 1.0,
+      "mrr" : 1.0,
+      "ndcgAt3" : 1.0,
+      "ndcgAt5" : 1.0,
+      "ndcgAt10" : 1.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "llm-as-judge"
+    },
+    "noAnswerMatched" : false,
+    "latencyMs" : 10394,
+    "answerPreview" : "## Redis 分布式锁为何使用 `SET key value NX PX ttl` - **`NX` 和 `PX` 保证原子性与自动过期**：知识库明确指出，Redis 分布式锁的基础形式是 `SET key value NX PX ttl`，其中 `NX`（Not eXists）确保仅当 key 不存在时才设置成功，避免覆盖其他客户端持有的锁；`PX ttl` 设置毫秒级过期时间，防止因客户端崩溃导致锁永远无法释放，从而避免死锁。...",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-014",
+    "queryType" : "concept",
+    "query" : "MySQL 联合索引最左前缀和范围条件后的列还能不能用",
+    "answerable" : true,
+    "expectedSources" : [ "mysql-index.md" ],
+    "retrievalQuery" : "MySQL联合索引中，范围条件之后的列是否还能利用最左前缀原则进行索引查找",
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : true,
+    "hitCount" : 8,
+    "hits" : [ {
+      "sourceTitle" : "mysql-index.md",
+      "sectionTitle" : "联合索引",
+      "chunkIndex" : 2,
+      "preview" : "联合索引遵循最左前缀原则。索引 `(a, b, c)` 可以支持 `a`、`a,b`、`a,b,c` 的前缀查询，也可以在 `a` 等值后对 `b` 做范围。遇到范围条件后，后续列通常不能继续用于精确定位，但可能仍用于索引下推过滤。 设计联合索引要结合 where、order by 和 group by。高选择性列不一定永远放最前面，如果业务常按租户隔离，t..."
+    }, {
+      "sourceTitle" : "mysql-index.md",
+      "sectionTitle" : "B+Tree 索引",
+      "chunkIndex" : 1,
+      "preview" : "MySQL InnoDB 常用 B+Tree 索引。B+Tree 的非叶子节点存储键和指针，叶子节点按键有序并通过链表连接，适合等值查询、范围查询和排序。相比二叉树，B+Tree 扇出更高，树高更低，能减少磁盘 IO。面试中应说明索引提升查询速度的代价是占用空间、降低写入速度和增加维护成本。 聚簇索引的叶子节点保存整行数据，InnoDB 表通常按主键组织。二..."
+    }, {
+      "sourceTitle" : "mysql-index.md",
+      "sectionTitle" : "索引失效",
+      "chunkIndex" : 3,
+      "preview" : "常见索引失效场景包括对索引列使用函数、隐式类型转换、前导模糊 like、or 条件不当、范围条件后列无法继续定位，以及统计信息不准导致优化器选择全表扫描。`where date(create_time)=...` 可能无法有效使用 create_time 索引，应该改成范围查询。 Explain 是判断执行计划的重要工具。常看字段包括 type、key、ro..."
+    }, {
+      "sourceTitle" : "interview-rubric.md",
+      "sectionTitle" : "追问设计",
+      "chunkIndex" : 3,
+      "preview" : "追问应该沿着同一主题逐步加深。基础题确认概念，例如“什么是 happens-before”。机制题确认原理，例如“volatile 为什么不能保证 count++ 原子性”。工程题确认经验，例如“线程池队列满了怎么办”。边界题确认判断力，例如“什么时候不该用缓存”。 好的追问会暴露真实理解。比如 MySQL 索引题可以从“联合索引最左前缀”追到“范围条件后的..."
+    }, {
+      "sourceTitle" : "mysql-index.md",
+      "sectionTitle" : "优化实践",
+      "chunkIndex" : 5,
+      "preview" : "慢 SQL 优化流程通常是确认 SQL、查看执行计划、检查索引、评估返回行数、观察锁等待和 IO。不要一上来就加索引。加索引前要确认该索引能覆盖稳定的高频查询，并评估写入成本和冗余索引。重复索引和低价值索引会拖慢写入。 分页查询在大偏移时会变慢，因为数据库需要扫描并丢弃大量行。可以用基于游标的翻页，例如 `where id > last_id order b..."
+    }, {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "AOP 切面顺序",
+      "chunkIndex" : 4,
+      "preview" : "Spring AOP 基于代理，JDK 动态代理面向接口，CGLIB 通过子类代理类。final 类或 final 方法不适合 CGLIB 代理增强。多个切面同时存在时，可以使用 `@Order` 控制顺序。事务切面、日志切面和鉴权切面混用时，顺序会影响日志记录的时机和异常捕获范围。 AOP 适合横切关注点，例如日志、监控、鉴权、事务和幂等校验。不适合把核心..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "数据结构",
+      "chunkIndex" : 3,
+      "preview" : "String 适合简单 KV、计数器和分布式锁值。Hash 适合对象字段缓存，可以局部更新字段，但字段过多也会带来内存和维护成本。List 适合简单队列，Set 适合去重集合，Sorted Set 适合排行榜和按分数范围查询。Bitmap 适合签到和布尔状态集合，HyperLogLog 适合 UV 估算。 选择数据结构时要从访问模式出发，而不是先背命令。比如..."
+    }, {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "隔离级别",
+      "chunkIndex" : 3,
+      "preview" : "事务隔离级别用于处理脏读、不可重复读和幻读。READ_UNCOMMITTED 可能读到未提交数据；READ_COMMITTED 避免脏读；REPEATABLE_READ 避免不可重复读，MySQL InnoDB 默认级别通常是 REPEATABLE_READ；SERIALIZABLE 最严格但并发性能最低。 回答隔离级别时要结合数据库实现。MySQL Inn..."
+    } ],
+    "retrievalMetrics" : {
+      "recallAt3" : 1.0,
+      "recallAt5" : 1.0,
+      "recallAt10" : 1.0,
+      "hitRateAt3" : 1.0,
+      "hitRateAt5" : 1.0,
+      "hitRateAt10" : 1.0,
+      "mrr" : 1.0,
+      "ndcgAt3" : 1.0,
+      "ndcgAt5" : 1.0,
+      "ndcgAt10" : 1.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "llm-as-judge"
+    },
+    "noAnswerMatched" : false,
+    "latencyMs" : 7864,
+    "answerPreview" : "## MySQL 联合索引最左前缀与范围条件后列的使用规则 - **最左前缀原则的具体表现**：联合索引 `(a, b, c)` 可以支持 `a`、`a,b`、`a,b,c` 的前缀查询；也可在 `a` 等值后对 `b` 做范围查询（如 `WHERE a = 1 AND b > 10`）。 - **范围条件后的列能否继续用于精确定位**：**通常不能**。知识库明确指出：“遇到范围条件后，后续列通常不能继续用于精确定位”。 - **但范...",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-015",
+    "queryType" : "concept",
+    "query" : "AOP 适合做什么，不适合把什么逻辑放到切面里",
+    "answerable" : true,
+    "expectedSources" : [ "spring-tx-aop.md" ],
+    "retrievalQuery" : "AOP 适用场景及不适合放入切面的逻辑类型",
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : true,
+    "hitCount" : 8,
+    "hits" : [ {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "AOP 切面顺序",
+      "chunkIndex" : 4,
+      "preview" : "Spring AOP 基于代理，JDK 动态代理面向接口，CGLIB 通过子类代理类。final 类或 final 方法不适合 CGLIB 代理增强。多个切面同时存在时，可以使用 `@Order` 控制顺序。事务切面、日志切面和鉴权切面混用时，顺序会影响日志记录的时机和异常捕获范围。 AOP 适合横切关注点，例如日志、监控、鉴权、事务和幂等校验。不适合把核心..."
+    }, {
+      "sourceTitle" : "interview-rubric.md",
+      "sectionTitle" : "分档标准",
+      "chunkIndex" : 2,
+      "preview" : "一档回答存在明显概念错误或答非所问。例如把 volatile 说成能保证所有操作原子性，或者把缓存击穿和雪崩完全混淆。二档回答能说出名词但缺少机制，常见表现是罗列关键词却无法解释原因。三档回答能解释机制并覆盖基本场景。四档回答能结合工程实践、取舍和排查方法。五档回答能主动说明边界、指标和失败处理。 评分时要避免只看候选人是否说出某个固定术语。部分候选人可能不..."
+    }, {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "事务代理机制",
+      "chunkIndex" : 1,
+      "preview" : "Spring 声明式事务通常通过 AOP 代理实现。调用被 `@Transactional` 标注的方法时，代理对象在方法执行前开启事务，在方法正常返回时提交，在抛出符合回滚规则的异常时回滚。默认情况下，运行时异常和 Error 会触发回滚，受检异常不会自动回滚，除非配置 rollbackFor。 事务失效的常见原因包括同类内部方法调用绕过代理、方法不是 p..."
+    }, {
+      "sourceTitle" : "interview-rubric.md",
+      "sectionTitle" : "常见误区",
+      "chunkIndex" : 5,
+      "preview" : "不要把项目包装能力和技术理解混为一谈。表达流畅但内容不准确不能高分，表达稍慢但推理清楚也不应低估。不要因为候选人使用不同技术栈就完全否定其能力，应关注底层原理和迁移能力。对初中级岗位，评价重点应是基础扎实和可培养；对高级岗位，重点应是系统性、取舍能力和故障处理经验。 Rubric 还应避免单题定生死。一次回答失误可能来自紧张或题目理解偏差，应通过多个维度交叉..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "数据结构",
+      "chunkIndex" : 3,
+      "preview" : "String 适合简单 KV、计数器和分布式锁值。Hash 适合对象字段缓存，可以局部更新字段，但字段过多也会带来内存和维护成本。List 适合简单队列，Set 适合去重集合，Sorted Set 适合排行榜和按分数范围查询。Bitmap 适合签到和布尔状态集合，HyperLogLog 适合 UV 估算。 选择数据结构时要从访问模式出发，而不是先背命令。比如..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "volatile 与原子类",
+      "chunkIndex" : 3,
+      "preview" : "volatile 适合一写多读的状态标记、配置开关和双重检查锁定中的引用发布。volatile 能保证可见性和禁止相关重排序，但不能保证复合操作原子性。`count++` 包含读、加一、写回三个步骤，使用 volatile 仍然可能丢失更新。 AtomicInteger、AtomicLong 和 AtomicReference 通过 CAS 实现无锁原子更新..."
+    }, {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "工程实践",
+      "chunkIndex" : 5,
+      "preview" : "事务方法中应避免长时间持有数据库连接，例如远程 HTTP 调用、大文件处理或复杂计算不应放在事务内。长事务会增加锁等待、连接占用和回滚成本。常见优化是先做参数校验和外部查询，再开启事务执行关键写入。 事务边界建议放在 service 层，controller 不直接管理事务，repository 只负责持久化细节。对批量写入要关注批大小、索引影响和失败补偿。..."
+    }, {
+      "sourceTitle" : "jvm-gc.md",
+      "sectionTitle" : "垃圾收集器",
+      "chunkIndex" : 4,
+      "preview" : "Serial GC 简单但会 Stop-The-World，适合小堆或客户端场景。Parallel GC 注重吞吐量，适合批处理。CMS 以低停顿为目标，但存在内存碎片和并发模式失败风险。G1 把堆拆成 Region，通过预测停顿选择回收集合，适合较大堆和可控停顿目标。ZGC 和 Shenandoah 进一步降低停顿，但需要结合 JDK 版本和业务验证。 选..."
+    } ],
+    "retrievalMetrics" : {
+      "recallAt3" : 1.0,
+      "recallAt5" : 1.0,
+      "recallAt10" : 1.0,
+      "hitRateAt3" : 1.0,
+      "hitRateAt5" : 1.0,
+      "hitRateAt10" : 1.0,
+      "mrr" : 1.0,
+      "ndcgAt3" : 1.0,
+      "ndcgAt5" : 1.0,
+      "ndcgAt10" : 1.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "llm-as-judge"
+    },
+    "noAnswerMatched" : false,
+    "latencyMs" : 5220,
+    "answerPreview" : "## AOP 适合做什么 - **适合处理横切关注点**：根据知识库内容，AOP 适合用于日志、监控、鉴权、事务和幂等校验等场景。这些逻辑与核心业务正交，具有高度复用性。 ## AOP 不适合把什么逻辑放到切面里 - **不适合隐藏核心业务流程**：知识库明确指出，“不适合把核心业务流程隐藏进切面，否则代码可读性和调试成本会变差”。 - **需警惕调用链隐式化风险**：虽然 AOP 的收益是复用横切逻辑，但其风险在于“调用链隐式化”，这...",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-016",
+    "queryType" : "precision-term",
+    "query" : "CAS 的 ABA 问题和 AtomicStampedReference 是什么关系",
+    "answerable" : true,
+    "expectedSources" : [ "java-concurrency.md" ],
+    "retrievalQuery" : "CAS 的 ABA 问题与 AtomicStampedReference 类之间的关系",
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : true,
+    "hitCount" : 8,
+    "hits" : [ {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "volatile 与原子类",
+      "chunkIndex" : 3,
+      "preview" : "volatile 适合一写多读的状态标记、配置开关和双重检查锁定中的引用发布。volatile 能保证可见性和禁止相关重排序，但不能保证复合操作原子性。`count++` 包含读、加一、写回三个步骤，使用 volatile 仍然可能丢失更新。 AtomicInteger、AtomicLong 和 AtomicReference 通过 CAS 实现无锁原子更新..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "基础模型",
+      "chunkIndex" : 1,
+      "preview" : "Java 并发问题通常从线程状态、内存可见性、原子性和有序性展开。线程状态包括 NEW、RUNNABLE、BLOCKED、WAITING、TIMED_WAITING 和 TERMINATED。面试回答时不要只背状态名，要说明状态切换原因，例如进入 synchronized 竞争失败会进入 BLOCKED，调用 Object.wait 会释放监视器并进入 WA..."
+    }, {
+      "sourceTitle" : "interview-rubric.md",
+      "sectionTitle" : "分档标准",
+      "chunkIndex" : 2,
+      "preview" : "一档回答存在明显概念错误或答非所问。例如把 volatile 说成能保证所有操作原子性，或者把缓存击穿和雪崩完全混淆。二档回答能说出名词但缺少机制，常见表现是罗列关键词却无法解释原因。三档回答能解释机制并覆盖基本场景。四档回答能结合工程实践、取舍和排查方法。五档回答能主动说明边界、指标和失败处理。 评分时要避免只看候选人是否说出某个固定术语。部分候选人可能不..."
+    }, {
+      "sourceTitle" : "resume-highlights.md",
+      "sectionTitle" : "改写示例",
+      "chunkIndex" : 5,
+      "preview" : "弱表达：“参与知识库模块开发，支持文档上传和智能问答。” 改写为：“负责知识库文档解析、向量化和 RAG 问答链路，补充检索 debug 信息，展示命中 chunk 的来源文档、section、顺序和预览，降低排查检索误命中的成本。” 弱表达：“熟悉并发编程，做过线程池优化。” 改写为：“针对异步任务积压问题，重设 ThreadPoolExecutor 核心..."
+    }, {
+      "sourceTitle" : "star-template.md",
+      "sectionTitle" : "模板目标",
+      "chunkIndex" : 1,
+      "preview" : "STAR 模板包括 Situation、Task、Action 和 Result，用于把项目经历讲成可验证的业务故事。Situation 描述背景和约束，Task 描述目标和职责，Action 描述具体动作和技术方案，Result 描述结果和指标。面试中使用 STAR 的目的不是套格式，而是让回答有上下文、有贡献、有证据。 项目讲解最常见的问题是只讲技术名词..."
+    }, {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "AOP 切面顺序",
+      "chunkIndex" : 4,
+      "preview" : "Spring AOP 基于代理，JDK 动态代理面向接口，CGLIB 通过子类代理类。final 类或 final 方法不适合 CGLIB 代理增强。多个切面同时存在时，可以使用 `@Order` 控制顺序。事务切面、日志切面和鉴权切面混用时，顺序会影响日志记录的时机和异常捕获范围。 AOP 适合横切关注点，例如日志、监控、鉴权、事务和幂等校验。不适合把核心..."
+    }, {
+      "sourceTitle" : "jvm-gc.md",
+      "sectionTitle" : "常见问题排查",
+      "chunkIndex" : 5,
+      "preview" : "频繁 Young GC 可能来自对象分配速率过高、年轻代过小或短生命周期对象过多。频繁 Full GC 可能来自老年代增长过快、内存泄漏、元空间压力或晋升失败。内存泄漏排查通常先确认堆使用持续上升，再用 heap dump 比较对象数量和引用链。 OOM 类型需要具体判断。Java heap space 通常表示堆不足或泄漏；Metaspace 可能和动态生..."
+    }, {
+      "sourceTitle" : "jvm-gc.md",
+      "sectionTitle" : "GC Roots 与可达性",
+      "chunkIndex" : 3,
+      "preview" : "Java 判断对象是否存活主要用可达性分析。GC Roots 可以包括虚拟机栈中引用的对象、方法区中类静态属性引用的对象、常量引用的对象、JNI 引用的对象和被同步锁持有的对象。从 GC Roots 出发能到达的对象被认为存活，不能到达的对象可以回收。 引用类型包括强引用、软引用、弱引用和虚引用。强引用存在时对象不会被回收；软引用适合缓存，内存不足时可能回收..."
+    } ],
+    "retrievalMetrics" : {
+      "recallAt3" : 1.0,
+      "recallAt5" : 1.0,
+      "recallAt10" : 1.0,
+      "hitRateAt3" : 1.0,
+      "hitRateAt5" : 1.0,
+      "hitRateAt10" : 1.0,
+      "mrr" : 1.0,
+      "ndcgAt3" : 1.0,
+      "ndcgAt5" : 1.0,
+      "ndcgAt10" : 1.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 4.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "llm-as-judge"
+    },
+    "noAnswerMatched" : false,
+    "latencyMs" : 7486,
+    "answerPreview" : "## CAS 的 ABA 问题与 AtomicStampedReference 的关系 - **ABA 问题的本质**：CAS（Compare-And-Swap）操作仅比较内存中变量的**当前值是否等于预期旧值**，若相等则更新为新值；但无法感知该变量是否曾被其他线程修改后又改回原值（即 `A → B → A` 的变化过程）。这种“看似未变、实则经历中间态”的情况可能导致逻辑错误。 - **AtomicStampedReference ...",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-017",
+    "queryType" : "precision-term",
+    "query" : "Metaspace OOM 通常和什么有关",
+    "answerable" : true,
+    "expectedSources" : [ "jvm-gc.md" ],
+    "retrievalQuery" : "Metaspace OOM 通常与类加载器泄漏、动态类生成过多或 MetaspaceSize/MaxMetaspaceSize 配置过小有关",
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : true,
+    "hitCount" : 8,
+    "hits" : [ {
+      "sourceTitle" : "jvm-gc.md",
+      "sectionTitle" : "常见问题排查",
+      "chunkIndex" : 5,
+      "preview" : "频繁 Young GC 可能来自对象分配速率过高、年轻代过小或短生命周期对象过多。频繁 Full GC 可能来自老年代增长过快、内存泄漏、元空间压力或晋升失败。内存泄漏排查通常先确认堆使用持续上升，再用 heap dump 比较对象数量和引用链。 OOM 类型需要具体判断。Java heap space 通常表示堆不足或泄漏；Metaspace 可能和动态生..."
+    }, {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "事务代理机制",
+      "chunkIndex" : 1,
+      "preview" : "Spring 声明式事务通常通过 AOP 代理实现。调用被 `@Transactional` 标注的方法时，代理对象在方法执行前开启事务，在方法正常返回时提交，在抛出符合回滚规则的异常时回滚。默认情况下，运行时异常和 Error 会触发回滚，受检异常不会自动回滚，除非配置 rollbackFor。 事务失效的常见原因包括同类内部方法调用绕过代理、方法不是 p..."
+    }, {
+      "sourceTitle" : "mysql-index.md",
+      "sectionTitle" : "索引失效",
+      "chunkIndex" : 3,
+      "preview" : "常见索引失效场景包括对索引列使用函数、隐式类型转换、前导模糊 like、or 条件不当、范围条件后列无法继续定位，以及统计信息不准导致优化器选择全表扫描。`where date(create_time)=...` 可能无法有效使用 create_time 索引，应该改成范围查询。 Explain 是判断执行计划的重要工具。常看字段包括 type、key、ro..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "基础模型",
+      "chunkIndex" : 1,
+      "preview" : "Java 并发问题通常从线程状态、内存可见性、原子性和有序性展开。线程状态包括 NEW、RUNNABLE、BLOCKED、WAITING、TIMED_WAITING 和 TERMINATED。面试回答时不要只背状态名，要说明状态切换原因，例如进入 synchronized 竞争失败会进入 BLOCKED，调用 Object.wait 会释放监视器并进入 WA..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "缓存模式",
+      "chunkIndex" : 1,
+      "preview" : "缓存旁路模式是业务最常见的方案：读请求先查缓存，缓存未命中再查数据库，然后写回缓存；写请求先更新数据库，再删除缓存。删除缓存通常比更新缓存更稳妥，因为缓存值可能由多表聚合或复杂计算得到，直接更新容易写入不一致结果。 读写一致性要说明边界。先更新数据库再删除缓存仍可能出现短暂不一致，例如删除缓存失败或并发读把旧值写回缓存。工程上可以用重试删除、消息队列补偿、延..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "穿透、击穿、雪崩",
+      "chunkIndex" : 2,
+      "preview" : "缓存穿透指查询不存在的数据，请求绕过缓存持续打到数据库。常见处理包括缓存空值、布隆过滤器和参数校验。缓存空值要设置较短过期时间，避免大量无效 key 占用内存。布隆过滤器适合大集合存在性判断，但有误判概率，不适合返回完整数据。 缓存击穿指热点 key 过期瞬间，大量请求同时回源。处理方式包括互斥锁、逻辑过期、热点 key 永不过期加异步刷新。缓存雪崩指大量 ..."
+    }, {
+      "sourceTitle" : "star-template.md",
+      "sectionTitle" : "模板目标",
+      "chunkIndex" : 1,
+      "preview" : "STAR 模板包括 Situation、Task、Action 和 Result，用于把项目经历讲成可验证的业务故事。Situation 描述背景和约束，Task 描述目标和职责，Action 描述具体动作和技术方案，Result 描述结果和指标。面试中使用 STAR 的目的不是套格式，而是让回答有上下文、有贡献、有证据。 项目讲解最常见的问题是只讲技术名词..."
+    }, {
+      "sourceTitle" : "jvm-gc.md",
+      "sectionTitle" : "运行时数据区",
+      "chunkIndex" : 1,
+      "preview" : "JVM 运行时数据区通常包括堆、虚拟机栈、本地方法栈、程序计数器和方法区。堆用于存放大多数对象实例，是 GC 的主要区域。虚拟机栈保存栈帧，栈帧中有局部变量表、操作数栈、动态链接和方法返回地址。程序计数器记录当前线程执行位置，是线程私有区域。 面试回答中要注意区分 JVM 内存模型和 Java 内存模型。运行时数据区是 JVM 内部的内存布局，Java 内存..."
+    } ],
+    "retrievalMetrics" : {
+      "recallAt3" : 1.0,
+      "recallAt5" : 1.0,
+      "recallAt10" : 1.0,
+      "hitRateAt3" : 1.0,
+      "hitRateAt5" : 1.0,
+      "hitRateAt10" : 1.0,
+      "mrr" : 1.0,
+      "ndcgAt3" : 1.0,
+      "ndcgAt5" : 1.0,
+      "ndcgAt10" : 1.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 4.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "llm-as-judge"
+    },
+    "noAnswerMatched" : false,
+    "latencyMs" : 5955,
+    "answerPreview" : "## Metaspace OOM 的常见原因 根据知识库内容，Metaspace OOM 通常与以下两类问题密切相关： - **动态生成类**：例如使用 CGLIB、ASM、Javassist 等字节码增强技术，或在 Spring AOP、热部署（如 DevTools）、脚本引擎（Groovy/JSR-223）等场景中频繁生成新类。 - **类加载器未释放**：当自定义类加载器加载的类长期驻留，且其引用未被正确清理时，对应的元数据无法被...",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-018",
+    "queryType" : "precision-term",
+    "query" : "Redis maxmemory-policy 里 allkeys-lru 和 volatile-lru 有什么区别",
+    "answerable" : true,
+    "expectedSources" : [ "system-design.md" ],
+    "retrievalQuery" : "Redis maxmemory-policy 中 allkeys-lru 与 volatile-lru 策略的区别",
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : true,
+    "hitCount" : 8,
+    "hits" : [ {
+      "sourceTitle" : "system-design.md",
+      "sectionTitle" : "缓存策略",
+      "chunkIndex" : 3,
+      "preview" : "缓存设计要明确 key 结构、value 格式、过期时间、更新策略和一致性边界。热点配置类数据可以较长 TTL 并支持主动刷新；用户状态类数据 TTL 应较短；强一致交易数据不应只靠缓存判断。缓存 key 要包含版本或租户维度，避免多环境、多租户数据串扰。 缓存预热适合确定的热点数据，例如首页配置、热门榜单和字典表。缓存淘汰要关注 Redis maxmemo..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "volatile 与原子类",
+      "chunkIndex" : 3,
+      "preview" : "volatile 适合一写多读的状态标记、配置开关和双重检查锁定中的引用发布。volatile 能保证可见性和禁止相关重排序，但不能保证复合操作原子性。`count++` 包含读、加一、写回三个步骤，使用 volatile 仍然可能丢失更新。 AtomicInteger、AtomicLong 和 AtomicReference 通过 CAS 实现无锁原子更新..."
+    }, {
+      "sourceTitle" : "star-template.md",
+      "sectionTitle" : "Action 动作",
+      "chunkIndex" : 4,
+      "preview" : "动作部分应按问题拆解讲方案。可以先说定位过程，再说关键改动，再说风险控制。比如性能优化可以讲“通过日志和 APM 发现瓶颈在订单聚合查询；用覆盖索引减少回表；对低频维表增加本地缓存；对热点用户增加 Redis 缓存；上线前做压测和灰度”。 技术动作要解释取舍。为什么用缓存而不是只加索引，为什么删除缓存而不是更新缓存，为什么用有界队列而不是无界队列。能讲清替代..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "分布式锁",
+      "chunkIndex" : 4,
+      "preview" : "Redis 分布式锁的基础形式是 `SET key value NX PX ttl`，value 要唯一，用于释放时校验持有者。释放锁应使用 Lua 脚本保证“判断 value 和删除 key”的原子性。只用 setnx 再 expire 分两步可能在进程崩溃时留下无过期锁。 分布式锁的风险包括锁过期但业务未完成、客户端长 GC 暂停、网络分区和时钟假设。可..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "缓存模式",
+      "chunkIndex" : 1,
+      "preview" : "缓存旁路模式是业务最常见的方案：读请求先查缓存，缓存未命中再查数据库，然后写回缓存；写请求先更新数据库，再删除缓存。删除缓存通常比更新缓存更稳妥，因为缓存值可能由多表聚合或复杂计算得到，直接更新容易写入不一致结果。 读写一致性要说明边界。先更新数据库再删除缓存仍可能出现短暂不一致，例如删除缓存失败或并发读把旧值写回缓存。工程上可以用重试删除、消息队列补偿、延..."
+    }, {
+      "sourceTitle" : "java-concurrency.md",
+      "sectionTitle" : "synchronized 与 ReentrantLock",
+      "chunkIndex" : 2,
+      "preview" : "synchronized 是 JVM 内置监视器锁，进入和退出同步块由字节码 monitorenter 和 monitorexit 表示。它的优点是语义简单、异常时自动释放锁、JVM 能做锁消除和锁粗化。面试中应说明 synchronized 保证互斥，也通过锁释放和获取建立 happens-before，从而保证可见性。 ReentrantLock 是 J..."
+    }, {
+      "sourceTitle" : "interview-rubric.md",
+      "sectionTitle" : "分档标准",
+      "chunkIndex" : 2,
+      "preview" : "一档回答存在明显概念错误或答非所问。例如把 volatile 说成能保证所有操作原子性，或者把缓存击穿和雪崩完全混淆。二档回答能说出名词但缺少机制，常见表现是罗列关键词却无法解释原因。三档回答能解释机制并覆盖基本场景。四档回答能结合工程实践、取舍和排查方法。五档回答能主动说明边界、指标和失败处理。 评分时要避免只看候选人是否说出某个固定术语。部分候选人可能不..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "穿透、击穿、雪崩",
+      "chunkIndex" : 2,
+      "preview" : "缓存穿透指查询不存在的数据，请求绕过缓存持续打到数据库。常见处理包括缓存空值、布隆过滤器和参数校验。缓存空值要设置较短过期时间，避免大量无效 key 占用内存。布隆过滤器适合大集合存在性判断，但有误判概率，不适合返回完整数据。 缓存击穿指热点 key 过期瞬间，大量请求同时回源。处理方式包括互斥锁、逻辑过期、热点 key 永不过期加异步刷新。缓存雪崩指大量 ..."
+    } ],
+    "retrievalMetrics" : {
+      "recallAt3" : 1.0,
+      "recallAt5" : 1.0,
+      "recallAt10" : 1.0,
+      "hitRateAt3" : 1.0,
+      "hitRateAt5" : 1.0,
+      "hitRateAt10" : 1.0,
+      "mrr" : 1.0,
+      "ndcgAt3" : 0.8262,
+      "ndcgAt5" : 0.9448,
+      "ndcgAt10" : 0.9448
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 2.0,
+      "completeness" : 3.0,
+      "faithfulness" : 2.0,
+      "readability" : 5.0,
+      "judgeMode" : "llm-as-judge"
+    },
+    "noAnswerMatched" : false,
+    "latencyMs" : 5858,
+    "answerPreview" : "## `allkeys-lru` 与 `volatile-lru` 的区别 根据知识库内容，二者的核心区别在于**淘汰范围不同**： - **`allkeys-lru`**：可以淘汰 Redis 中**任意 key**，无论该 key 是否设置了过期时间（TTL）。 - **`volatile-lru`**：**只淘汰设置了过期时间的 key**（即带有 TTL 的 key），不带过期时间的 key 不会被该策略选中淘汰。 知识库明确指...",
+    "passed" : false,
+    "note" : "expectation mismatch"
+  }, {
+    "caseId" : "S8-019",
+    "queryType" : "precision-term",
+    "query" : "MySQL Explain 的 type、key、rows、Extra 应该怎么看",
+    "answerable" : true,
+    "expectedSources" : [ "mysql-index.md" ],
+    "retrievalQuery" : "MySQL EXPLAIN 输出中 type、key、rows 和 Extra 字段的含义及解读方法",
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : true,
+    "hitCount" : 8,
+    "hits" : [ {
+      "sourceTitle" : "mysql-index.md",
+      "sectionTitle" : "索引失效",
+      "chunkIndex" : 3,
+      "preview" : "常见索引失效场景包括对索引列使用函数、隐式类型转换、前导模糊 like、or 条件不当、范围条件后列无法继续定位，以及统计信息不准导致优化器选择全表扫描。`where date(create_time)=...` 可能无法有效使用 create_time 索引，应该改成范围查询。 Explain 是判断执行计划的重要工具。常看字段包括 type、key、ro..."
+    }, {
+      "sourceTitle" : "star-template.md",
+      "sectionTitle" : "模板目标",
+      "chunkIndex" : 1,
+      "preview" : "STAR 模板包括 Situation、Task、Action 和 Result，用于把项目经历讲成可验证的业务故事。Situation 描述背景和约束，Task 描述目标和职责，Action 描述具体动作和技术方案，Result 描述结果和指标。面试中使用 STAR 的目的不是套格式，而是让回答有上下文、有贡献、有证据。 项目讲解最常见的问题是只讲技术名词..."
+    }, {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "隔离级别",
+      "chunkIndex" : 3,
+      "preview" : "事务隔离级别用于处理脏读、不可重复读和幻读。READ_UNCOMMITTED 可能读到未提交数据；READ_COMMITTED 避免脏读；REPEATABLE_READ 避免不可重复读，MySQL InnoDB 默认级别通常是 REPEATABLE_READ；SERIALIZABLE 最严格但并发性能最低。 回答隔离级别时要结合数据库实现。MySQL Inn..."
+    }, {
+      "sourceTitle" : "mysql-index.md",
+      "sectionTitle" : "B+Tree 索引",
+      "chunkIndex" : 1,
+      "preview" : "MySQL InnoDB 常用 B+Tree 索引。B+Tree 的非叶子节点存储键和指针，叶子节点按键有序并通过链表连接，适合等值查询、范围查询和排序。相比二叉树，B+Tree 扇出更高，树高更低，能减少磁盘 IO。面试中应说明索引提升查询速度的代价是占用空间、降低写入速度和增加维护成本。 聚簇索引的叶子节点保存整行数据，InnoDB 表通常按主键组织。二..."
+    }, {
+      "sourceTitle" : "interview-rubric.md",
+      "sectionTitle" : "追问设计",
+      "chunkIndex" : 3,
+      "preview" : "追问应该沿着同一主题逐步加深。基础题确认概念，例如“什么是 happens-before”。机制题确认原理，例如“volatile 为什么不能保证 count++ 原子性”。工程题确认经验，例如“线程池队列满了怎么办”。边界题确认判断力，例如“什么时候不该用缓存”。 好的追问会暴露真实理解。比如 MySQL 索引题可以从“联合索引最左前缀”追到“范围条件后的..."
+    }, {
+      "sourceTitle" : "mysql-index.md",
+      "sectionTitle" : "事务与锁",
+      "chunkIndex" : 4,
+      "preview" : "InnoDB 支持行锁，但行锁依赖索引。如果更新条件没有命中索引，可能扫描并锁住更多行，造成并发下降。锁类型包括记录锁、间隙锁和 next-key lock。next-key lock 是记录锁加间隙锁，用于在某些隔离级别和当前读场景下防止幻读。 MVCC 通过 undo log 和 read view 提供一致性读。READ COMMITTED 通常每次语..."
+    }, {
+      "sourceTitle" : "interview-rubric.md",
+      "sectionTitle" : "分档标准",
+      "chunkIndex" : 2,
+      "preview" : "一档回答存在明显概念错误或答非所问。例如把 volatile 说成能保证所有操作原子性，或者把缓存击穿和雪崩完全混淆。二档回答能说出名词但缺少机制，常见表现是罗列关键词却无法解释原因。三档回答能解释机制并覆盖基本场景。四档回答能结合工程实践、取舍和排查方法。五档回答能主动说明边界、指标和失败处理。 评分时要避免只看候选人是否说出某个固定术语。部分候选人可能不..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "穿透、击穿、雪崩",
+      "chunkIndex" : 2,
+      "preview" : "缓存穿透指查询不存在的数据，请求绕过缓存持续打到数据库。常见处理包括缓存空值、布隆过滤器和参数校验。缓存空值要设置较短过期时间，避免大量无效 key 占用内存。布隆过滤器适合大集合存在性判断，但有误判概率，不适合返回完整数据。 缓存击穿指热点 key 过期瞬间，大量请求同时回源。处理方式包括互斥锁、逻辑过期、热点 key 永不过期加异步刷新。缓存雪崩指大量 ..."
+    } ],
+    "retrievalMetrics" : {
+      "recallAt3" : 1.0,
+      "recallAt5" : 1.0,
+      "recallAt10" : 1.0,
+      "hitRateAt3" : 1.0,
+      "hitRateAt5" : 1.0,
+      "hitRateAt10" : 1.0,
+      "mrr" : 1.0,
+      "ndcgAt3" : 1.0,
+      "ndcgAt5" : 1.0,
+      "ndcgAt10" : 1.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 3.0,
+      "completeness" : 4.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "llm-as-judge"
+    },
+    "noAnswerMatched" : false,
+    "latencyMs" : 9214,
+    "answerPreview" : "## MySQL Explain 字段解读 根据知识库内容，`EXPLAIN` 是判断 SQL 执行计划的重要工具，需重点关注 `type`、`key`、`rows` 和 `Extra` 四个字段，其含义与判读要点如下： 1. **`type` 字段** - 表示连接类型，性能从优到劣依次为：`const`、`ref`、`range`、`index`、`ALL`。 - 但需结合实际数据量综合判断，不能仅凭类型排序直接定优劣。 2. **...",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-020",
+    "queryType" : "precision-term",
+    "query" : "Spring 事务传播 REQUIRED 和 REQUIRES_NEW 有什么区别",
+    "answerable" : true,
+    "expectedSources" : [ "spring-tx-aop.md" ],
+    "retrievalQuery" : "Spring事务传播行为中REQUIRED与REQUIRES_NEW的区别",
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : true,
+    "hitCount" : 8,
+    "hits" : [ {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "传播行为",
+      "chunkIndex" : 2,
+      "preview" : "REQUIRED 是默认传播行为，有事务就加入，没有就新建。REQUIRES_NEW 总是挂起当前事务并开启新事务，适合审计日志等希望独立提交的场景。NESTED 使用保存点实现嵌套回滚，依赖底层事务管理器和数据库支持。SUPPORTS 有事务就加入，没有事务就非事务执行。 传播行为追问通常考察边界。比如主订单创建成功后写操作日志，如果日志失败不应影响主事务..."
+    }, {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "事务代理机制",
+      "chunkIndex" : 1,
+      "preview" : "Spring 声明式事务通常通过 AOP 代理实现。调用被 `@Transactional` 标注的方法时，代理对象在方法执行前开启事务，在方法正常返回时提交，在抛出符合回滚规则的异常时回滚。默认情况下，运行时异常和 Error 会触发回滚，受检异常不会自动回滚，除非配置 rollbackFor。 事务失效的常见原因包括同类内部方法调用绕过代理、方法不是 p..."
+    }, {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "工程实践",
+      "chunkIndex" : 5,
+      "preview" : "事务方法中应避免长时间持有数据库连接，例如远程 HTTP 调用、大文件处理或复杂计算不应放在事务内。长事务会增加锁等待、连接占用和回滚成本。常见优化是先做参数校验和外部查询，再开启事务执行关键写入。 事务边界建议放在 service 层，controller 不直接管理事务，repository 只负责持久化细节。对批量写入要关注批大小、索引影响和失败补偿。..."
+    }, {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "AOP 切面顺序",
+      "chunkIndex" : 4,
+      "preview" : "Spring AOP 基于代理，JDK 动态代理面向接口，CGLIB 通过子类代理类。final 类或 final 方法不适合 CGLIB 代理增强。多个切面同时存在时，可以使用 `@Order` 控制顺序。事务切面、日志切面和鉴权切面混用时，顺序会影响日志记录的时机和异常捕获范围。 AOP 适合横切关注点，例如日志、监控、鉴权、事务和幂等校验。不适合把核心..."
+    }, {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "隔离级别",
+      "chunkIndex" : 3,
+      "preview" : "事务隔离级别用于处理脏读、不可重复读和幻读。READ_UNCOMMITTED 可能读到未提交数据；READ_COMMITTED 避免脏读；REPEATABLE_READ 避免不可重复读，MySQL InnoDB 默认级别通常是 REPEATABLE_READ；SERIALIZABLE 最严格但并发性能最低。 回答隔离级别时要结合数据库实现。MySQL Inn..."
+    }, {
+      "sourceTitle" : "mysql-index.md",
+      "sectionTitle" : "事务与锁",
+      "chunkIndex" : 4,
+      "preview" : "InnoDB 支持行锁，但行锁依赖索引。如果更新条件没有命中索引，可能扫描并锁住更多行，造成并发下降。锁类型包括记录锁、间隙锁和 next-key lock。next-key lock 是记录锁加间隙锁，用于在某些隔离级别和当前读场景下防止幻读。 MVCC 通过 undo log 和 read view 提供一致性读。READ COMMITTED 通常每次语..."
+    }, {
+      "sourceTitle" : "star-template.md",
+      "sectionTitle" : "Action 动作",
+      "chunkIndex" : 4,
+      "preview" : "动作部分应按问题拆解讲方案。可以先说定位过程，再说关键改动，再说风险控制。比如性能优化可以讲“通过日志和 APM 发现瓶颈在订单聚合查询；用覆盖索引减少回表；对低频维表增加本地缓存；对热点用户增加 Redis 缓存；上线前做压测和灰度”。 技术动作要解释取舍。为什么用缓存而不是只加索引，为什么删除缓存而不是更新缓存，为什么用有界队列而不是无界队列。能讲清替代..."
+    }, {
+      "sourceTitle" : "interview-rubric.md",
+      "sectionTitle" : "分档标准",
+      "chunkIndex" : 2,
+      "preview" : "一档回答存在明显概念错误或答非所问。例如把 volatile 说成能保证所有操作原子性，或者把缓存击穿和雪崩完全混淆。二档回答能说出名词但缺少机制，常见表现是罗列关键词却无法解释原因。三档回答能解释机制并覆盖基本场景。四档回答能结合工程实践、取舍和排查方法。五档回答能主动说明边界、指标和失败处理。 评分时要避免只看候选人是否说出某个固定术语。部分候选人可能不..."
+    } ],
+    "retrievalMetrics" : {
+      "recallAt3" : 1.0,
+      "recallAt5" : 1.0,
+      "recallAt10" : 1.0,
+      "hitRateAt3" : 1.0,
+      "hitRateAt5" : 1.0,
+      "hitRateAt10" : 1.0,
+      "mrr" : 1.0,
+      "ndcgAt3" : 1.0,
+      "ndcgAt5" : 1.0,
+      "ndcgAt10" : 1.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "llm-as-judge"
+    },
+    "noAnswerMatched" : false,
+    "latencyMs" : 8559,
+    "answerPreview" : "## REQUIRED 和 REQUIRES_NEW 的核心区别 根据知识库内容，`REQUIRED` 和 `REQUIRES_NEW` 是 Spring 事务传播行为中两种关键模式，其本质区别在于**对当前事务上下文的处理方式**： 1. **REQUIRED（默认行为）** - **语义**：有事务就加入，没有就新建。 - **特点**：方法运行在同一个物理事务中，与调用方共享事务生命周期；若异常抛出且符合回滚规则，整个事务将回滚。...",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-021",
+    "queryType" : "multi-doc",
+    "query" : "简历里怎么表达一个知识库 RAG 项目才不空泛",
+    "answerable" : true,
+    "expectedSources" : [ "resume-highlights.md", "backend-jd.md" ],
+    "retrievalQuery" : "如何在简历中具体描述知识库RAG项目以避免空泛表述",
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : true,
+    "hitCount" : 8,
+    "hits" : [ {
+      "sourceTitle" : "resume-highlights.md",
+      "sectionTitle" : "项目描述结构",
+      "chunkIndex" : 3,
+      "preview" : "项目描述可以采用“背景 + 职责 + 方案 + 结果”的结构。背景说明业务问题，职责说明个人承担范围，方案说明关键技术动作，结果说明收益。每个项目不必写成长段落，简历上可以用 3 到 5 条 bullet 展示，但每条要有信息密度。 例如一个知识库 RAG 项目可以写：负责知识库上传、解析、向量化和检索调试链路；为 chunk 写入 sourceTitle、..."
+    }, {
+      "sourceTitle" : "resume-highlights.md",
+      "sectionTitle" : "风险边界",
+      "chunkIndex" : 4,
+      "preview" : "简历不能夸大不具备的能力。没有接入公开 benchmark，就不要写“达到行业领先 RAG 水平”。没有做线上灰度和监控，就不要写“保障高可用”。如果只是 MVP，应写清楚“建立最小可复核评测集”或“补齐可解释检索证据”，不要包装成大规模生产检索平台。 对 AI Agent 项目尤其要注意边界。可以写工具调用、状态管理、guardrail、eval 和 tr..."
+    }, {
+      "sourceTitle" : "resume-highlights.md",
+      "sectionTitle" : "表达原则",
+      "chunkIndex" : 1,
+      "preview" : "简历亮点应围绕岗位匹配、问题难度、个人贡献和结果证据展开。好的简历不是把技术栈堆满，而是让面试官快速判断候选人解决过什么问题、承担过什么责任、产出了什么结果。每条亮点都应尽量包含动作和结果，例如“优化订单查询接口，将 P95 延迟从 600ms 降至 180ms”。 表达时要避免空泛词，例如“熟悉高并发”“负责系统优化”“参与核心项目”。这些词如果没有场景和..."
+    }, {
+      "sourceTitle" : "backend-jd.md",
+      "sectionTitle" : "加分能力",
+      "chunkIndex" : 4,
+      "preview" : "加分项通常包括系统设计能力、云原生基础、消息队列经验、搜索或向量检索经验、可观测性建设、自动化测试和安全意识。对于 AI Agent 或 RAG 相关岗位，额外关注工具调用边界、Prompt 安全、检索评测、知识来源可解释性和外部内容注入风险。 加分能力要有证据支撑。比如写“熟悉 RAG”时，最好能说明文档解析、chunk 策略、embedding、vect..."
+    }, {
+      "sourceTitle" : "star-template.md",
+      "sectionTitle" : "回答结构",
+      "chunkIndex" : 6,
+      "preview" : "一次完整项目讲解可以控制在 2 到 4 分钟。建议结构是：一句话概括项目价值，三句话说明背景和目标，三到五句话讲关键动作，一到两句话讲结果和复盘。被追问时再展开具体技术细节。不要在开头就陷入代码细节，否则面试官可能听不到项目价值。 常见追问包括“这个方案有什么风险”“如果 QPS 再涨十倍怎么办”“你怎么证明是你做的优化有效”“上线后出过什么问题”。准备 S..."
+    }, {
+      "sourceTitle" : "backend-jd.md",
+      "sectionTitle" : "项目经验要求",
+      "chunkIndex" : 3,
+      "preview" : "JD 中的项目经验不只是“做过几个系统”。更有价值的是候选人能说明业务背景、个人职责、技术方案、上线结果和后续治理。比如订单系统、知识库系统、权限系统、工作流系统和数据同步系统，都可以体现后端能力，但必须讲清楚复杂度在哪里。 项目经验评价重点包括：是否做过完整需求闭环，是否处理过数据一致性问题，是否有性能优化证据，是否参与过线上故障排查，是否能说明技术选型理..."
+    }, {
+      "sourceTitle" : "star-template.md",
+      "sectionTitle" : "Situation 背景",
+      "chunkIndex" : 2,
+      "preview" : "背景部分应包含业务场景、用户规模、请求量、数据量、团队约束和历史问题。背景不需要很长，但必须让面试官知道问题为什么重要。例如“系统是内部后台”与“系统是峰值每秒数千次请求的 C 端接口”会影响方案评价。 背景描述要避免泄露公司敏感信息，可以使用量级和比例。比如“不说真实收入和客户名，可以说日均订单百万级、核心链路不可用会影响交易转化”。如果没有真实指标，可以..."
+    }, {
+      "sourceTitle" : "resume-highlights.md",
+      "sectionTitle" : "改写示例",
+      "chunkIndex" : 5,
+      "preview" : "弱表达：“参与知识库模块开发，支持文档上传和智能问答。” 改写为：“负责知识库文档解析、向量化和 RAG 问答链路，补充检索 debug 信息，展示命中 chunk 的来源文档、section、顺序和预览，降低排查检索误命中的成本。” 弱表达：“熟悉并发编程，做过线程池优化。” 改写为：“针对异步任务积压问题，重设 ThreadPoolExecutor 核心..."
+    } ],
+    "retrievalMetrics" : {
+      "recallAt3" : 1.0,
+      "recallAt5" : 1.0,
+      "recallAt10" : 1.0,
+      "hitRateAt3" : 1.0,
+      "hitRateAt5" : 1.0,
+      "hitRateAt10" : 1.0,
+      "mrr" : 1.0,
+      "ndcgAt3" : 1.0,
+      "ndcgAt5" : 1.0,
+      "ndcgAt10" : 1.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "llm-as-judge"
+    },
+    "noAnswerMatched" : false,
+    "latencyMs" : 12117,
+    "answerPreview" : "## 如何在简历中避免空泛地表达知识库 RAG 项目 根据知识库内容，要使 RAG 项目描述不空泛，需紧扣 **具体动作、技术细节、可验证结果** 三要素，杜绝模糊表述。以下是关键原则与示例： - **采用“背景 + 职责 + 方案 + 结果”结构**：每条 bullet 应承载高信息密度，而非笼统概括。例如： `负责知识库上传、解析、向量化和检索调试链路；为 chunk 写入 sourceTitle、sectionTitle、chun...",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-022",
+    "queryType" : "multi-doc",
+    "query" : "面试回答 Redis 缓存穿透时怎样从合格答到高分答",
+    "answerable" : true,
+    "expectedSources" : [ "redis-cache.md", "interview-rubric.md" ],
+    "retrievalQuery" : "Redis缓存穿透面试回答如何从合格提升到高分",
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : true,
+    "hitCount" : 8,
+    "hits" : [ {
+      "sourceTitle" : "interview-rubric.md",
+      "sectionTitle" : "评分维度",
+      "chunkIndex" : 1,
+      "preview" : "技术面试回答可以从准确性、结构性、场景化、边界意识和沟通质量五个维度评分。准确性关注概念是否正确、有没有明显错误。结构性关注回答是否有层次，例如先定义问题，再讲机制，最后讲实践。场景化关注是否能结合真实业务，而不是只背概念。边界意识关注是否知道方案适用条件和风险。沟通质量关注表达是否清楚、是否能回应追问。 高分回答通常不是最长回答，而是能够抓住问题核心。比如..."
+    }, {
+      "sourceTitle" : "star-template.md",
+      "sectionTitle" : "Action 动作",
+      "chunkIndex" : 4,
+      "preview" : "动作部分应按问题拆解讲方案。可以先说定位过程，再说关键改动，再说风险控制。比如性能优化可以讲“通过日志和 APM 发现瓶颈在订单聚合查询；用覆盖索引减少回表；对低频维表增加本地缓存；对热点用户增加 Redis 缓存；上线前做压测和灰度”。 技术动作要解释取舍。为什么用缓存而不是只加索引，为什么删除缓存而不是更新缓存，为什么用有界队列而不是无界队列。能讲清替代..."
+    }, {
+      "sourceTitle" : "resume-highlights.md",
+      "sectionTitle" : "表达原则",
+      "chunkIndex" : 1,
+      "preview" : "简历亮点应围绕岗位匹配、问题难度、个人贡献和结果证据展开。好的简历不是把技术栈堆满，而是让面试官快速判断候选人解决过什么问题、承担过什么责任、产出了什么结果。每条亮点都应尽量包含动作和结果，例如“优化订单查询接口，将 P95 延迟从 600ms 降至 180ms”。 表达时要避免空泛词，例如“熟悉高并发”“负责系统优化”“参与核心项目”。这些词如果没有场景和..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "穿透、击穿、雪崩",
+      "chunkIndex" : 2,
+      "preview" : "缓存穿透指查询不存在的数据，请求绕过缓存持续打到数据库。常见处理包括缓存空值、布隆过滤器和参数校验。缓存空值要设置较短过期时间，避免大量无效 key 占用内存。布隆过滤器适合大集合存在性判断，但有误判概率，不适合返回完整数据。 缓存击穿指热点 key 过期瞬间，大量请求同时回源。处理方式包括互斥锁、逻辑过期、热点 key 永不过期加异步刷新。缓存雪崩指大量 ..."
+    }, {
+      "sourceTitle" : "backend-jd.md",
+      "sectionTitle" : "面试关注点",
+      "chunkIndex" : 5,
+      "preview" : "面试官常用基础题确认候选人下限，用项目题确认真实经验，用系统设计题确认上限。基础题可能包括 HashMap、线程池、事务传播、索引失效和 Redis 缓存问题。项目题会追问“你负责哪一部分”“为什么这么设计”“上线后指标如何”“出现问题怎么回滚”。 系统设计题通常关注拆解能力。候选人需要先澄清需求，再给出核心模型、接口、存储、缓存、异步处理、限流降级、监控和..."
+    }, {
+      "sourceTitle" : "system-design.md",
+      "sectionTitle" : "观测指标",
+      "chunkIndex" : 5,
+      "preview" : "限流和缓存上线后需要监控命中率、限流次数、拒绝率、P95/P99 延迟、错误率、队列长度、线程池活跃数、数据库连接池使用率和 Redis 慢查询。只看平均延迟会掩盖尾延迟问题。限流阈值要根据压测、容量评估和线上指标逐步调整。 压测要区分单接口压测和链路压测。单接口压测能发现局部瓶颈，链路压测能发现依赖传播和资源竞争。压测前要准备隔离环境、数据规模、监控面板和..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "性能与治理",
+      "chunkIndex" : 5,
+      "preview" : "Redis 性能问题常见来源包括大 key、热 key、慢查询、网络带宽和持久化压力。大 key 会导致删除阻塞、迁移慢和单次返回过大。热 key 会让单个节点压力过高，可以通过本地缓存、key 拆分、读副本或请求合并缓解。 线上治理要开启慢日志、监控命中率、内存使用、连接数、阻塞命令、过期 key 数量和 evicted keys。缓存命中率下降时要区分业..."
+    }, {
+      "sourceTitle" : "interview-rubric.md",
+      "sectionTitle" : "证据记录",
+      "chunkIndex" : 4,
+      "preview" : "面试评价应记录候选人的具体回答证据，而不是只写“基础一般”。可记录为“能解释线程池提交流程，但没有提到有界队列和拒绝策略风险”。这种记录能支持后续复盘，也能减少不同面试官之间的主观偏差。 如果候选人在追问后修正了答案，应记录修正过程。能够在提示后定位问题并修正，说明有一定推理能力；完全依赖提示才能说出结论，则说明知识掌握不稳定。评分要区分主动回答、轻提示回答..."
+    } ],
+    "retrievalMetrics" : {
+      "recallAt3" : 0.5,
+      "recallAt5" : 1.0,
+      "recallAt10" : 1.0,
+      "hitRateAt3" : 1.0,
+      "hitRateAt5" : 1.0,
+      "hitRateAt10" : 1.0,
+      "mrr" : 1.0,
+      "ndcgAt3" : 0.6131,
+      "ndcgAt5" : 0.8772,
+      "ndcgAt10" : 0.8772
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "llm-as-judge"
+    },
+    "noAnswerMatched" : false,
+    "latencyMs" : 11783,
+    "answerPreview" : "## 面试回答 Redis 缓存穿透的进阶路径 根据知识库内容，从**合格答**到**高分答**的演进体现在五个维度：准确性、结构性、场景化、边界意识和沟通质量。具体表现为以下三个层次： 1. **合格回答（基础准确性）** - 能准确指出缓存穿透的本质：**查询不存在的数据，请求绕过缓存持续打到数据库**。 - 这是知识库中明确给出的定义，构成回答的底线。 2. **更好回答（结构性 + 边界意识）** - 在定义基础上，**分点说明...",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-023",
+    "queryType" : "multi-doc",
+    "query" : "后端接口高峰期变慢时，为什么不应该只说加缓存，应该怎么拆解",
+    "answerable" : true,
+    "expectedSources" : [ "system-design.md", "redis-cache.md", "mysql-index.md" ],
+    "retrievalQuery" : "后端接口在高峰期响应变慢时，为何不能仅依赖加缓存解决，应如何系统性拆解性能瓶颈",
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : true,
+    "hitCount" : 8,
+    "hits" : [ {
+      "sourceTitle" : "system-design.md",
+      "sectionTitle" : "设计目标",
+      "chunkIndex" : 1,
+      "preview" : "系统设计题首先要澄清目标：用户规模、QPS、读写比例、延迟要求、一致性要求、可用性目标和成本约束。限流与缓存不是独立技巧，而是服务稳定性设计的一部分。回答时应先说明保护对象，例如保护数据库、保护第三方接口、保护核心服务线程池或保护用户体验。 一个后端接口在高峰期变慢时，不应该只加缓存。要先判断瓶颈来自数据库查询、锁竞争、外部服务、CPU、网络还是连接池。缓存..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "缓存模式",
+      "chunkIndex" : 1,
+      "preview" : "缓存旁路模式是业务最常见的方案：读请求先查缓存，缓存未命中再查数据库，然后写回缓存；写请求先更新数据库，再删除缓存。删除缓存通常比更新缓存更稳妥，因为缓存值可能由多表聚合或复杂计算得到，直接更新容易写入不一致结果。 读写一致性要说明边界。先更新数据库再删除缓存仍可能出现短暂不一致，例如删除缓存失败或并发读把旧值写回缓存。工程上可以用重试删除、消息队列补偿、延..."
+    }, {
+      "sourceTitle" : "star-template.md",
+      "sectionTitle" : "Action 动作",
+      "chunkIndex" : 4,
+      "preview" : "动作部分应按问题拆解讲方案。可以先说定位过程，再说关键改动，再说风险控制。比如性能优化可以讲“通过日志和 APM 发现瓶颈在订单聚合查询；用覆盖索引减少回表；对低频维表增加本地缓存；对热点用户增加 Redis 缓存；上线前做压测和灰度”。 技术动作要解释取舍。为什么用缓存而不是只加索引，为什么删除缓存而不是更新缓存，为什么用有界队列而不是无界队列。能讲清替代..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "性能与治理",
+      "chunkIndex" : 5,
+      "preview" : "Redis 性能问题常见来源包括大 key、热 key、慢查询、网络带宽和持久化压力。大 key 会导致删除阻塞、迁移慢和单次返回过大。热 key 会让单个节点压力过高，可以通过本地缓存、key 拆分、读副本或请求合并缓解。 线上治理要开启慢日志、监控命中率、内存使用、连接数、阻塞命令、过期 key 数量和 evicted keys。缓存命中率下降时要区分业..."
+    }, {
+      "sourceTitle" : "redis-cache.md",
+      "sectionTitle" : "穿透、击穿、雪崩",
+      "chunkIndex" : 2,
+      "preview" : "缓存穿透指查询不存在的数据，请求绕过缓存持续打到数据库。常见处理包括缓存空值、布隆过滤器和参数校验。缓存空值要设置较短过期时间，避免大量无效 key 占用内存。布隆过滤器适合大集合存在性判断，但有误判概率，不适合返回完整数据。 缓存击穿指热点 key 过期瞬间，大量请求同时回源。处理方式包括互斥锁、逻辑过期、热点 key 永不过期加异步刷新。缓存雪崩指大量 ..."
+    }, {
+      "sourceTitle" : "system-design.md",
+      "sectionTitle" : "缓存策略",
+      "chunkIndex" : 3,
+      "preview" : "缓存设计要明确 key 结构、value 格式、过期时间、更新策略和一致性边界。热点配置类数据可以较长 TTL 并支持主动刷新；用户状态类数据 TTL 应较短；强一致交易数据不应只靠缓存判断。缓存 key 要包含版本或租户维度，避免多环境、多租户数据串扰。 缓存预热适合确定的热点数据，例如首页配置、热门榜单和字典表。缓存淘汰要关注 Redis maxmemo..."
+    }, {
+      "sourceTitle" : "system-design.md",
+      "sectionTitle" : "观测指标",
+      "chunkIndex" : 5,
+      "preview" : "限流和缓存上线后需要监控命中率、限流次数、拒绝率、P95/P99 延迟、错误率、队列长度、线程池活跃数、数据库连接池使用率和 Redis 慢查询。只看平均延迟会掩盖尾延迟问题。限流阈值要根据压测、容量评估和线上指标逐步调整。 压测要区分单接口压测和链路压测。单接口压测能发现局部瓶颈，链路压测能发现依赖传播和资源竞争。压测前要准备隔离环境、数据规模、监控面板和..."
+    }, {
+      "sourceTitle" : "spring-tx-aop.md",
+      "sectionTitle" : "工程实践",
+      "chunkIndex" : 5,
+      "preview" : "事务方法中应避免长时间持有数据库连接，例如远程 HTTP 调用、大文件处理或复杂计算不应放在事务内。长事务会增加锁等待、连接占用和回滚成本。常见优化是先做参数校验和外部查询，再开启事务执行关键写入。 事务边界建议放在 service 层，controller 不直接管理事务，repository 只负责持久化细节。对批量写入要关注批大小、索引影响和失败补偿。..."
+    } ],
+    "retrievalMetrics" : {
+      "recallAt3" : 0.6667,
+      "recallAt5" : 0.6667,
+      "recallAt10" : 0.6667,
+      "hitRateAt3" : 1.0,
+      "hitRateAt5" : 1.0,
+      "hitRateAt10" : 1.0,
+      "mrr" : 1.0,
+      "ndcgAt3" : 0.81,
+      "ndcgAt5" : 0.81,
+      "ndcgAt10" : 0.81
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "llm-as-judge"
+    },
+    "noAnswerMatched" : false,
+    "latencyMs" : 15043,
+    "answerPreview" : "## 后端接口高峰期变慢时，不应只说“加缓存”的原因及系统化拆解方法 ### 为什么不能只加缓存 根据知识库内容：**“一个后端接口在高峰期变慢时，不应该只加缓存。要先判断瓶颈来自数据库查询、锁竞争、外部服务、CPU、网络还是连接池。”** 缓存仅解决特定问题——**重复读和热点读**；若瓶颈在写锁、线程池耗尽、第三方接口超时或数据库连接池打满，加缓存不仅无效，还可能掩盖真实问题、增加系统复杂度与一致性风险。 ### 应该按“定位→改动...",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-024",
+    "queryType" : "multi-doc",
+    "query" : "项目讲解中怎么说明个人职责、技术动作和量化结果",
+    "answerable" : true,
+    "expectedSources" : [ "star-template.md", "resume-highlights.md", "backend-jd.md" ],
+    "retrievalQuery" : "项目讲解中如何说明个人职责、技术动作和量化结果",
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : true,
+    "hitCount" : 8,
+    "hits" : [ {
+      "sourceTitle" : "star-template.md",
+      "sectionTitle" : "Task 职责",
+      "chunkIndex" : 3,
+      "preview" : "任务部分要讲清自己负责什么。团队项目中尤其要区分个人贡献和团队成果。可以说“我负责缓存 key 设计、接口改造和压测验证，DBA 协助建立索引，测试同学负责回归”。不要把团队全部成果包装成个人单独完成。 职责还应包含成功标准。比如“目标是在不改变业务语义的前提下，把查询接口 P95 降到 200ms 以下，并保证库存更新后 5 秒内缓存收敛”。有成功标准，后..."
+    }, {
+      "sourceTitle" : "resume-highlights.md",
+      "sectionTitle" : "项目描述结构",
+      "chunkIndex" : 3,
+      "preview" : "项目描述可以采用“背景 + 职责 + 方案 + 结果”的结构。背景说明业务问题，职责说明个人承担范围，方案说明关键技术动作，结果说明收益。每个项目不必写成长段落，简历上可以用 3 到 5 条 bullet 展示，但每条要有信息密度。 例如一个知识库 RAG 项目可以写：负责知识库上传、解析、向量化和检索调试链路；为 chunk 写入 sourceTitle、..."
+    }, {
+      "sourceTitle" : "star-template.md",
+      "sectionTitle" : "Action 动作",
+      "chunkIndex" : 4,
+      "preview" : "动作部分应按问题拆解讲方案。可以先说定位过程，再说关键改动，再说风险控制。比如性能优化可以讲“通过日志和 APM 发现瓶颈在订单聚合查询；用覆盖索引减少回表；对低频维表增加本地缓存；对热点用户增加 Redis 缓存；上线前做压测和灰度”。 技术动作要解释取舍。为什么用缓存而不是只加索引，为什么删除缓存而不是更新缓存，为什么用有界队列而不是无界队列。能讲清替代..."
+    }, {
+      "sourceTitle" : "star-template.md",
+      "sectionTitle" : "回答结构",
+      "chunkIndex" : 6,
+      "preview" : "一次完整项目讲解可以控制在 2 到 4 分钟。建议结构是：一句话概括项目价值，三句话说明背景和目标，三到五句话讲关键动作，一到两句话讲结果和复盘。被追问时再展开具体技术细节。不要在开头就陷入代码细节，否则面试官可能听不到项目价值。 常见追问包括“这个方案有什么风险”“如果 QPS 再涨十倍怎么办”“你怎么证明是你做的优化有效”“上线后出过什么问题”。准备 S..."
+    }, {
+      "sourceTitle" : "resume-highlights.md",
+      "sectionTitle" : "量化指标",
+      "chunkIndex" : 2,
+      "preview" : "常见量化指标包括延迟、吞吐、错误率、可用性、成本、人工效率、数据规模和用户规模。性能类可以写平均延迟、P95、P99、QPS、CPU 或数据库负载。效率类可以写处理时长减少、自动化覆盖率提升、人工步骤减少。稳定性类可以写故障次数下降、告警收敛或恢复时间缩短。 指标要注意口径真实。不要把压测峰值包装成线上稳定 QPS，不要把团队整体收益全部写成个人贡献。没有精..."
+    }, {
+      "sourceTitle" : "star-template.md",
+      "sectionTitle" : "模板目标",
+      "chunkIndex" : 1,
+      "preview" : "STAR 模板包括 Situation、Task、Action 和 Result，用于把项目经历讲成可验证的业务故事。Situation 描述背景和约束，Task 描述目标和职责，Action 描述具体动作和技术方案，Result 描述结果和指标。面试中使用 STAR 的目的不是套格式，而是让回答有上下文、有贡献、有证据。 项目讲解最常见的问题是只讲技术名词..."
+    }, {
+      "sourceTitle" : "star-template.md",
+      "sectionTitle" : "Result 结果",
+      "chunkIndex" : 5,
+      "preview" : "结果最好包含数字指标，例如延迟下降、错误率下降、吞吐提升、人工耗时减少、成本下降或稳定性提升。指标应有口径，例如平均值、P95、P99、峰值 QPS、样本周期。没有指标时，可以用可验证现象替代，例如“发布后两周没有再出现队列堆积告警”。 结果也要包含遗留问题和复盘。真实项目很少完美，说明后续计划反而更可信。比如“缓存方案解决了读压力，但强一致场景仍走数据库；..."
+    }, {
+      "sourceTitle" : "interview-rubric.md",
+      "sectionTitle" : "常见误区",
+      "chunkIndex" : 5,
+      "preview" : "不要把项目包装能力和技术理解混为一谈。表达流畅但内容不准确不能高分，表达稍慢但推理清楚也不应低估。不要因为候选人使用不同技术栈就完全否定其能力，应关注底层原理和迁移能力。对初中级岗位，评价重点应是基础扎实和可培养；对高级岗位，重点应是系统性、取舍能力和故障处理经验。 Rubric 还应避免单题定生死。一次回答失误可能来自紧张或题目理解偏差，应通过多个维度交叉..."
+    } ],
+    "retrievalMetrics" : {
+      "recallAt3" : 0.6667,
+      "recallAt5" : 0.6667,
+      "recallAt10" : 0.6667,
+      "hitRateAt3" : 1.0,
+      "hitRateAt5" : 1.0,
+      "hitRateAt10" : 1.0,
+      "mrr" : 1.0,
+      "ndcgAt3" : 0.8303,
+      "ndcgAt5" : 0.8303,
+      "ndcgAt10" : 0.8303
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "llm-as-judge"
+    },
+    "noAnswerMatched" : false,
+    "latencyMs" : 15625,
+    "answerPreview" : "## 个人职责说明 - **明确区分个人与团队贡献**：在团队项目中，需清晰界定“我负责……”的具体工作，例如“我负责缓存 key 设计、接口改造和压测验证，DBA 协助建立索引，测试同学负责回归”，避免将团队成果包装为个人单独完成。 - **包含可验证的成功标准**：职责描述应嵌入量化目标，如“目标是在不改变业务语义的前提下，把查询接口 P95 降到 200ms 以下，并保证库存更新后 5 秒内缓存收敛”，使后续 Action 和 R...",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-025",
+    "queryType" : "weak-hit",
+    "query" : "Kafka exactly-once 和事务消息的实现原理",
+    "answerable" : false,
+    "expectedSources" : [ ],
+    "retrievalQuery" : null,
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : false,
+    "hitCount" : 0,
+    "hits" : [ ],
+    "retrievalMetrics" : {
+      "recallAt3" : 0.0,
+      "recallAt5" : 0.0,
+      "recallAt10" : 0.0,
+      "hitRateAt3" : 0.0,
+      "hitRateAt5" : 0.0,
+      "hitRateAt10" : 0.0,
+      "mrr" : 0.0,
+      "ndcgAt3" : 0.0,
+      "ndcgAt5" : 0.0,
+      "ndcgAt10" : 0.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "no-answer-rule"
+    },
+    "noAnswerMatched" : true,
+    "latencyMs" : 1340,
+    "answerPreview" : "抱歉，在选定的知识库中未检索到相关信息。请换一个更具体的关键词或补充上下文后再试。",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-026",
+    "queryType" : "no-answer",
+    "query" : "Elasticsearch 倒排索引和 BM25 评分公式怎么计算",
+    "answerable" : false,
+    "expectedSources" : [ ],
+    "retrievalQuery" : null,
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : false,
+    "hitCount" : 0,
+    "hits" : [ ],
+    "retrievalMetrics" : {
+      "recallAt3" : 0.0,
+      "recallAt5" : 0.0,
+      "recallAt10" : 0.0,
+      "hitRateAt3" : 0.0,
+      "hitRateAt5" : 0.0,
+      "hitRateAt10" : 0.0,
+      "mrr" : 0.0,
+      "ndcgAt3" : 0.0,
+      "ndcgAt5" : 0.0,
+      "ndcgAt10" : 0.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "no-answer-rule"
+    },
+    "noAnswerMatched" : true,
+    "latencyMs" : 1470,
+    "answerPreview" : "抱歉，在选定的知识库中未检索到相关信息。请换一个更具体的关键词或补充上下文后再试。",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-027",
+    "queryType" : "no-answer",
+    "query" : "TCP 三次握手和 TIME_WAIT 为什么要等 2MSL",
+    "answerable" : false,
+    "expectedSources" : [ ],
+    "retrievalQuery" : null,
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : false,
+    "hitCount" : 0,
+    "hits" : [ ],
+    "retrievalMetrics" : {
+      "recallAt3" : 0.0,
+      "recallAt5" : 0.0,
+      "recallAt10" : 0.0,
+      "hitRateAt3" : 0.0,
+      "hitRateAt5" : 0.0,
+      "hitRateAt10" : 0.0,
+      "mrr" : 0.0,
+      "ndcgAt3" : 0.0,
+      "ndcgAt5" : 0.0,
+      "ndcgAt10" : 0.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "no-answer-rule"
+    },
+    "noAnswerMatched" : true,
+    "latencyMs" : 1228,
+    "answerPreview" : "抱歉，在选定的知识库中未检索到相关信息。请换一个更具体的关键词或补充上下文后再试。",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-028",
+    "queryType" : "no-answer",
+    "query" : "RabbitMQ publisher confirm 和 consumer ack 的区别",
+    "answerable" : false,
+    "expectedSources" : [ ],
+    "retrievalQuery" : null,
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : false,
+    "hitCount" : 0,
+    "hits" : [ ],
+    "retrievalMetrics" : {
+      "recallAt3" : 0.0,
+      "recallAt5" : 0.0,
+      "recallAt10" : 0.0,
+      "hitRateAt3" : 0.0,
+      "hitRateAt5" : 0.0,
+      "hitRateAt10" : 0.0,
+      "mrr" : 0.0,
+      "ndcgAt3" : 0.0,
+      "ndcgAt5" : 0.0,
+      "ndcgAt10" : 0.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "no-answer-rule"
+    },
+    "noAnswerMatched" : true,
+    "latencyMs" : 1729,
+    "answerPreview" : "抱歉，在选定的知识库中未检索到相关信息。请换一个更具体的关键词或补充上下文后再试。",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-029",
+    "queryType" : "no-answer",
+    "query" : "Vue3 composition API 里 reactive 和 ref 的区别",
+    "answerable" : false,
+    "expectedSources" : [ ],
+    "retrievalQuery" : null,
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : false,
+    "hitCount" : 0,
+    "hits" : [ ],
+    "retrievalMetrics" : {
+      "recallAt3" : 0.0,
+      "recallAt5" : 0.0,
+      "recallAt10" : 0.0,
+      "hitRateAt3" : 0.0,
+      "hitRateAt5" : 0.0,
+      "hitRateAt10" : 0.0,
+      "mrr" : 0.0,
+      "ndcgAt3" : 0.0,
+      "ndcgAt5" : 0.0,
+      "ndcgAt10" : 0.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "no-answer-rule"
+    },
+    "noAnswerMatched" : true,
+    "latencyMs" : 875,
+    "answerPreview" : "抱歉，在选定的知识库中未检索到相关信息。请换一个更具体的关键词或补充上下文后再试。",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  }, {
+    "caseId" : "S8-030",
+    "queryType" : "weak-hit",
+    "query" : "Linux epoll 水平触发和边缘触发有什么区别",
+    "answerable" : false,
+    "expectedSources" : [ ],
+    "retrievalQuery" : null,
+    "topK" : 8,
+    "minScore" : 0.28,
+    "effectiveHit" : false,
+    "hitCount" : 0,
+    "hits" : [ ],
+    "retrievalMetrics" : {
+      "recallAt3" : 0.0,
+      "recallAt5" : 0.0,
+      "recallAt10" : 0.0,
+      "hitRateAt3" : 0.0,
+      "hitRateAt5" : 0.0,
+      "hitRateAt10" : 0.0,
+      "mrr" : 0.0,
+      "ndcgAt3" : 0.0,
+      "ndcgAt5" : 0.0,
+      "ndcgAt10" : 0.0
+    },
+    "generationScores" : {
+      "correctness" : 5.0,
+      "attribution" : 5.0,
+      "completeness" : 5.0,
+      "faithfulness" : 5.0,
+      "readability" : 5.0,
+      "judgeMode" : "no-answer-rule"
+    },
+    "noAnswerMatched" : true,
+    "latencyMs" : 1177,
+    "answerPreview" : "抱歉，在选定的知识库中未检索到相关信息。请换一个更具体的关键词或补充上下文后再试。",
+    "passed" : true,
+    "note" : "matched Stage 8 expectations"
+  } ]
+}

@@ -21,11 +21,23 @@
 - `stage-7-injection-safety-set.md`
 - `stage-7-tool-routing-set.md`
 
+## 已有运行入口，需显式外部依赖运行
+
+- `stage-8-rag-real-eval-pipeline.md`
+
 ## Stage 7 说明
 
 Stage 7 的阶段入口是：
 
 - `docs/agent-stages/stage-7-rag-trust-tool-routing-and-injection-safety.md`
+
+## Stage 8 说明
+
+Stage 8 的阶段入口是：
+
+- `docs/agent-stages/stage-8-rag-real-eval-pipeline.md`
+
+Stage 8 是 Stage 7 RAG 评测的升级：从 mock harness 推进到真实端到端评测，覆盖检索质量、生成质量和系统性能三个维度。
 
 ## 规则
 
