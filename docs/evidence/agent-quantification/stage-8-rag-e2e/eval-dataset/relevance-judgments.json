@@ -1,0 +1,539 @@
+{
+  "suiteId": "stage-8-rag-e2e",
+  "version": "1.1",
+  "corpus": {
+    "source": "docs/evidence/agent-quantification/stage-7-rag-corpus/sample-docs",
+    "documentCount": 10
+  },
+  "queries": [
+    {
+      "id": "S8-001",
+      "query": "volatile count++ 为什么不是原子操作",
+      "queryType": "concept",
+      "answerable": true,
+      "expectedSources": ["java-concurrency.md"],
+      "relevanceJudgments": [
+        {
+          "docId": "java-concurrency.md",
+          "section": "volatile 与原子类",
+          "relevance": 3,
+          "reason": "直接说明 volatile 不能保证 count++ 这类复合操作的原子性"
+        },
+        {
+          "docId": "java-concurrency.md",
+          "section": "基础模型",
+          "relevance": 2,
+          "reason": "提供可见性、原子性和 happens-before 背景"
+        }
+      ]
+    },
+    {
+      "id": "S8-002",
+      "query": "ThreadPoolExecutor 队列满了以后任务提交流程和拒绝策略",
+      "queryType": "concept",
+      "answerable": true,
+      "expectedSources": ["java-concurrency.md"],
+      "relevanceJudgments": [
+        {
+          "docId": "java-concurrency.md",
+          "section": "线程池",
+          "relevance": 3,
+          "reason": "完整描述核心线程、队列、非核心线程和 rejectedExecutionHandler"
+        }
+      ]
+    },
+    {
+      "id": "S8-003",
+      "query": "Java heap space OOM 应该怎么排查",
+      "queryType": "concept",
+      "answerable": true,
+      "expectedSources": ["jvm-gc.md"],
+      "relevanceJudgments": [
+        {
+          "docId": "jvm-gc.md",
+          "section": "常见问题排查",
+          "relevance": 3,
+          "reason": "直接说明 Java heap space、内存泄漏和 heap dump 排查"
+        },
+        {
+          "docId": "jvm-gc.md",
+          "section": "GC Roots 与可达性",
+          "relevance": 2,
+          "reason": "提供对象存活和引用链分析背景"
+        }
+      ]
+    },
+    {
+      "id": "S8-004",
+      "query": "Spring @Transactional 同类内部调用为什么会失效",
+      "queryType": "concept",
+      "answerable": true,
+      "expectedSources": ["spring-tx-aop.md"],
+      "relevanceJudgments": [
+        {
+          "docId": "spring-tx-aop.md",
+          "section": "事务代理机制",
+          "relevance": 3,
+          "reason": "直接说明声明式事务通过代理实现，同类内部调用绕过代理"
+        },
+        {
+          "docId": "spring-tx-aop.md",
+          "section": "AOP 切面顺序",
+          "relevance": 1,
+          "reason": "提供代理背景，但不是事务失效主答案"
+        }
+      ]
+    },
+    {
+      "id": "S8-005",
+      "query": "MVCC 在 READ COMMITTED 和 REPEATABLE READ 下 read view 有什么区别",
+      "queryType": "precision-term",
+      "answerable": true,
+      "expectedSources": ["mysql-index.md"],
+      "relevanceJudgments": [
+        {
+          "docId": "mysql-index.md",
+          "section": "事务与锁",
+          "relevance": 3,
+          "reason": "直接说明 MVCC、undo log、read view 以及不同隔离级别的生成时机"
+        }
+      ]
+    },
+    {
+      "id": "S8-006",
+      "query": "Redis 缓存穿透、击穿、雪崩分别怎么处理",
+      "queryType": "concept",
+      "answerable": true,
+      "expectedSources": ["redis-cache.md"],
+      "relevanceJudgments": [
+        {
+          "docId": "redis-cache.md",
+          "section": "穿透、击穿、雪崩",
+          "relevance": 3,
+          "reason": "完整说明三类问题及处理方式"
+        },
+        {
+          "docId": "system-design.md",
+          "section": "缓存策略",
+          "relevance": 1,
+          "reason": "提供缓存策略背景，但不完整回答三类故障"
+        }
+      ]
+    },
+    {
+      "id": "S8-007",
+      "query": "接口限流和缓存治理应该监控哪些指标",
+      "queryType": "multi-doc",
+      "answerable": true,
+      "expectedSources": ["system-design.md", "redis-cache.md"],
+      "relevanceJudgments": [
+        {
+          "docId": "system-design.md",
+          "section": "观测指标",
+          "relevance": 3,
+          "reason": "完整列出限流、缓存、延迟、错误率和资源指标"
+        },
+        {
+          "docId": "redis-cache.md",
+          "section": "性能与治理",
+          "relevance": 2,
+          "reason": "补充 Redis 慢查询、命中率、内存和 evicted keys 等治理指标"
+        }
+      ]
+    },
+    {
+      "id": "S8-008",
+      "query": "事务里为什么不应该放远程 HTTP 调用，和连接池锁等待有什么关系",
+      "queryType": "multi-doc",
+      "answerable": true,
+      "expectedSources": ["spring-tx-aop.md", "mysql-index.md"],
+      "relevanceJudgments": [
+        {
+          "docId": "spring-tx-aop.md",
+          "section": "工程实践",
+          "relevance": 3,
+          "reason": "直接说明事务内避免远程调用、大文件处理和复杂计算"
+        },
+        {
+          "docId": "mysql-index.md",
+          "section": "事务与锁",
+          "relevance": 2,
+          "reason": "补充锁等待和行锁范围对并发的影响"
+        }
+      ]
+    },
+    {
+      "id": "S8-009",
+      "query": "Kubernetes HPA 根据 CPU 和自定义指标扩容的流程",
+      "queryType": "no-answer",
+      "answerable": false,
+      "expectedSources": [],
+      "relevanceJudgments": []
+    },
+    {
+      "id": "S8-010",
+      "query": "OAuth2 authorization code PKCE flow",
+      "queryType": "weak-hit",
+      "answerable": false,
+      "expectedSources": [],
+      "relevanceJudgments": [
+        {
+          "docId": "system-design.md",
+          "section": "降级与熔断",
+          "relevance": 0,
+          "reason": "属于系统稳定性背景，不包含 OAuth2 或 PKCE 答案"
+        }
+      ]
+    },
+    {
+      "id": "S8-011",
+      "query": "synchronized 和 ReentrantLock 在工程上怎么取舍",
+      "queryType": "concept",
+      "answerable": true,
+      "expectedSources": ["java-concurrency.md"],
+      "relevanceJudgments": [
+        {
+          "docId": "java-concurrency.md",
+          "section": "synchronized 与 ReentrantLock",
+          "relevance": 3,
+          "reason": "直接说明两类锁的语义、能力差异和取舍建议"
+        }
+      ]
+    },
+    {
+      "id": "S8-012",
+      "query": "JVM 运行时数据区和 Java 内存模型有什么区别",
+      "queryType": "concept",
+      "answerable": true,
+      "expectedSources": ["jvm-gc.md", "java-concurrency.md"],
+      "relevanceJudgments": [
+        {
+          "docId": "jvm-gc.md",
+          "section": "运行时数据区",
+          "relevance": 3,
+          "reason": "直接区分 JVM 运行时数据区和 Java 内存模型"
+        },
+        {
+          "docId": "java-concurrency.md",
+          "section": "基础模型",
+          "relevance": 2,
+          "reason": "补充 Java 内存模型中的可见性、原子性、有序性和 happens-before"
+        }
+      ]
+    },
+    {
+      "id": "S8-013",
+      "query": "Redis 分布式锁为什么要用 SET NX PX 和 Lua 脚本释放",
+      "queryType": "concept",
+      "answerable": true,
+      "expectedSources": ["redis-cache.md"],
+      "relevanceJudgments": [
+        {
+          "docId": "redis-cache.md",
+          "section": "分布式锁",
+          "relevance": 3,
+          "reason": "直接说明 SET key value NX PX ttl、唯一 value 和 Lua 原子释放"
+        }
+      ]
+    },
+    {
+      "id": "S8-014",
+      "query": "MySQL 联合索引最左前缀和范围条件后的列还能不能用",
+      "queryType": "concept",
+      "answerable": true,
+      "expectedSources": ["mysql-index.md"],
+      "relevanceJudgments": [
+        {
+          "docId": "mysql-index.md",
+          "section": "联合索引",
+          "relevance": 3,
+          "reason": "直接说明最左前缀原则和范围条件后续列的使用边界"
+        },
+        {
+          "docId": "mysql-index.md",
+          "section": "索引失效",
+          "relevance": 2,
+          "reason": "补充范围条件和执行计划相关背景"
+        }
+      ]
+    },
+    {
+      "id": "S8-015",
+      "query": "AOP 适合做什么，不适合把什么逻辑放到切面里",
+      "queryType": "concept",
+      "answerable": true,
+      "expectedSources": ["spring-tx-aop.md"],
+      "relevanceJudgments": [
+        {
+          "docId": "spring-tx-aop.md",
+          "section": "AOP 切面顺序",
+          "relevance": 3,
+          "reason": "直接说明 AOP 适合横切关注点，不适合隐藏核心业务流程"
+        },
+        {
+          "docId": "spring-tx-aop.md",
+          "section": "事务代理机制",
+          "relevance": 1,
+          "reason": "提供 AOP 代理背景，但不是取舍主答案"
+        }
+      ]
+    },
+    {
+      "id": "S8-016",
+      "query": "CAS 的 ABA 问题和 AtomicStampedReference 是什么关系",
+      "queryType": "precision-term",
+      "answerable": true,
+      "expectedSources": ["java-concurrency.md"],
+      "relevanceJudgments": [
+        {
+          "docId": "java-concurrency.md",
+          "section": "volatile 与原子类",
+          "relevance": 3,
+          "reason": "直接说明 CAS、ABA 问题和 AtomicStampedReference"
+        }
+      ]
+    },
+    {
+      "id": "S8-017",
+      "query": "Metaspace OOM 通常和什么有关",
+      "queryType": "precision-term",
+      "answerable": true,
+      "expectedSources": ["jvm-gc.md"],
+      "relevanceJudgments": [
+        {
+          "docId": "jvm-gc.md",
+          "section": "常见问题排查",
+          "relevance": 3,
+          "reason": "直接说明 Metaspace 与动态生成类、类加载器未释放有关"
+        }
+      ]
+    },
+    {
+      "id": "S8-018",
+      "query": "Redis maxmemory-policy 里 allkeys-lru 和 volatile-lru 有什么区别",
+      "queryType": "precision-term",
+      "answerable": true,
+      "expectedSources": ["system-design.md"],
+      "relevanceJudgments": [
+        {
+          "docId": "system-design.md",
+          "section": "缓存策略",
+          "relevance": 3,
+          "reason": "直接说明 allkeys-lru 和 volatile-lru 的淘汰范围差异"
+        },
+        {
+          "docId": "redis-cache.md",
+          "section": "性能与治理",
+          "relevance": 1,
+          "reason": "包含 Redis 内存治理背景，但没有直接说明两个策略差异"
+        }
+      ]
+    },
+    {
+      "id": "S8-019",
+      "query": "MySQL Explain 的 type、key、rows、Extra 应该怎么看",
+      "queryType": "precision-term",
+      "answerable": true,
+      "expectedSources": ["mysql-index.md"],
+      "relevanceJudgments": [
+        {
+          "docId": "mysql-index.md",
+          "section": "索引失效",
+          "relevance": 3,
+          "reason": "直接列出 Explain 的 type、key、rows、filtered、Extra 和 filesort/temporary"
+        }
+      ]
+    },
+    {
+      "id": "S8-020",
+      "query": "Spring 事务传播 REQUIRED 和 REQUIRES_NEW 有什么区别",
+      "queryType": "precision-term",
+      "answerable": true,
+      "expectedSources": ["spring-tx-aop.md"],
+      "relevanceJudgments": [
+        {
+          "docId": "spring-tx-aop.md",
+          "section": "传播行为",
+          "relevance": 3,
+          "reason": "直接说明 REQUIRED 加入或新建事务，REQUIRES_NEW 挂起当前事务并新建事务"
+        }
+      ]
+    },
+    {
+      "id": "S8-021",
+      "query": "简历里怎么表达一个知识库 RAG 项目才不空泛",
+      "queryType": "multi-doc",
+      "answerable": true,
+      "expectedSources": ["resume-highlights.md", "backend-jd.md"],
+      "relevanceJudgments": [
+        {
+          "docId": "resume-highlights.md",
+          "section": "改写示例",
+          "relevance": 3,
+          "reason": "直接给出知识库 RAG 项目的具体简历改写示例"
+        },
+        {
+          "docId": "resume-highlights.md",
+          "section": "项目描述结构",
+          "relevance": 2,
+          "reason": "补充背景、职责、方案、结果的表达结构"
+        },
+        {
+          "docId": "backend-jd.md",
+          "section": "加分能力",
+          "relevance": 2,
+          "reason": "说明 RAG 岗位关注 eval set、debug hit、topK、minScore 等证据"
+        }
+      ]
+    },
+    {
+      "id": "S8-022",
+      "query": "面试回答 Redis 缓存穿透时怎样从合格答到高分答",
+      "queryType": "multi-doc",
+      "answerable": true,
+      "expectedSources": ["redis-cache.md", "interview-rubric.md"],
+      "relevanceJudgments": [
+        {
+          "docId": "redis-cache.md",
+          "section": "穿透、击穿、雪崩",
+          "relevance": 3,
+          "reason": "提供缓存穿透的定义和缓存空值、布隆过滤器、参数校验等方案"
+        },
+        {
+          "docId": "interview-rubric.md",
+          "section": "评分维度",
+          "relevance": 3,
+          "reason": "直接说明合格、更好、优秀回答的差异"
+        }
+      ]
+    },
+    {
+      "id": "S8-023",
+      "query": "后端接口高峰期变慢时，为什么不应该只说加缓存，应该怎么拆解",
+      "queryType": "multi-doc",
+      "answerable": true,
+      "expectedSources": ["system-design.md", "redis-cache.md", "mysql-index.md"],
+      "relevanceJudgments": [
+        {
+          "docId": "system-design.md",
+          "section": "设计目标",
+          "relevance": 3,
+          "reason": "直接说明接口变慢时要判断数据库、锁、外部服务、CPU、网络和连接池等瓶颈"
+        },
+        {
+          "docId": "redis-cache.md",
+          "section": "缓存模式",
+          "relevance": 2,
+          "reason": "补充缓存能解决重复读和热点读，但有一致性边界"
+        },
+        {
+          "docId": "mysql-index.md",
+          "section": "优化实践",
+          "relevance": 2,
+          "reason": "补充慢 SQL 优化流程和不要一上来就加索引的思路"
+        }
+      ]
+    },
+    {
+      "id": "S8-024",
+      "query": "项目讲解中怎么说明个人职责、技术动作和量化结果",
+      "queryType": "multi-doc",
+      "answerable": true,
+      "expectedSources": ["star-template.md", "resume-highlights.md", "backend-jd.md"],
+      "relevanceJudgments": [
+        {
+          "docId": "star-template.md",
+          "section": "Task 职责",
+          "relevance": 3,
+          "reason": "直接说明团队项目中要区分个人贡献和团队成果，并说明成功标准"
+        },
+        {
+          "docId": "star-template.md",
+          "section": "Action 动作",
+          "relevance": 3,
+          "reason": "直接说明定位过程、关键改动、风险控制和取舍解释"
+        },
+        {
+          "docId": "resume-highlights.md",
+          "section": "量化指标",
+          "relevance": 3,
+          "reason": "直接说明延迟、吞吐、错误率、成本等量化指标口径"
+        },
+        {
+          "docId": "backend-jd.md",
+          "section": "项目经验要求",
+          "relevance": 2,
+          "reason": "补充项目经验评价重点：职责、方案、结果和治理"
+        }
+      ]
+    },
+    {
+      "id": "S8-025",
+      "query": "Kafka exactly-once 和事务消息的实现原理",
+      "queryType": "weak-hit",
+      "answerable": false,
+      "expectedSources": [],
+      "relevanceJudgments": [
+        {
+          "docId": "spring-tx-aop.md",
+          "section": "工程实践",
+          "relevance": 1,
+          "reason": "只提到事务消息、outbox 和补偿任务，不包含 Kafka exactly-once 实现原理"
+        },
+        {
+          "docId": "backend-jd.md",
+          "section": "加分能力",
+          "relevance": 0,
+          "reason": "只泛泛提到消息队列经验，不支持 Kafka 事务答案"
+        }
+      ]
+    },
+    {
+      "id": "S8-026",
+      "query": "Elasticsearch 倒排索引和 BM25 评分公式怎么计算",
+      "queryType": "no-answer",
+      "answerable": false,
+      "expectedSources": [],
+      "relevanceJudgments": []
+    },
+    {
+      "id": "S8-027",
+      "query": "TCP 三次握手和 TIME_WAIT 为什么要等 2MSL",
+      "queryType": "no-answer",
+      "answerable": false,
+      "expectedSources": [],
+      "relevanceJudgments": []
+    },
+    {
+      "id": "S8-028",
+      "query": "RabbitMQ publisher confirm 和 consumer ack 的区别",
+      "queryType": "no-answer",
+      "answerable": false,
+      "expectedSources": [],
+      "relevanceJudgments": []
+    },
+    {
+      "id": "S8-029",
+      "query": "Vue3 composition API 里 reactive 和 ref 的区别",
+      "queryType": "no-answer",
+      "answerable": false,
+      "expectedSources": [],
+      "relevanceJudgments": []
+    },
+    {
+      "id": "S8-030",
+      "query": "Linux epoll 水平触发和边缘触发有什么区别",
+      "queryType": "weak-hit",
+      "answerable": false,
+      "expectedSources": [],
+      "relevanceJudgments": [
+        {
+          "docId": "backend-jd.md",
+          "section": "必备技术能力",
+          "relevance": 1,
+          "reason": "岗位能力里提到 Linux，但不包含 epoll、LT 或 ET 的答案"
+        }
+      ]
+    }
+  ]
+}

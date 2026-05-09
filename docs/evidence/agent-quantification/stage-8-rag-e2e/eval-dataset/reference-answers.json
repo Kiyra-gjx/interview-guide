@@ -1,0 +1,138 @@
+{
+  "suiteId": "stage-8-rag-e2e",
+  "version": "1.1",
+  "answers": [
+    {
+      "queryId": "S8-001",
+      "referenceAnswer": "volatile 保证可见性和禁止相关重排序，但不能保证复合操作的原子性。count++ 包含读、加一、写回三个步骤，多个线程并发执行时仍可能丢失更新。需要用 AtomicInteger、synchronized 等机制保证原子更新；AtomicInteger 底层通过 CAS 比较旧值并重试。",
+      "keyPoints": ["volatile", "可见性", "原子性", "count++", "AtomicInteger", "CAS"],
+      "sourceDocuments": ["java-concurrency.md"]
+    },
+    {
+      "queryId": "S8-002",
+      "referenceAnswer": "ThreadPoolExecutor 提交任务时先创建核心线程；核心线程满后任务进入 workQueue；队列满后再创建非核心线程；线程数达到 maximumPoolSize 后触发 rejectedExecutionHandler。生产环境应显式设置有界队列、线程命名和拒绝策略，并监控队列长度、活跃线程数、拒绝次数和任务耗时。",
+      "keyPoints": ["corePoolSize", "workQueue", "maximumPoolSize", "rejectedExecutionHandler", "有界队列"],
+      "sourceDocuments": ["java-concurrency.md"]
+    },
+    {
+      "queryId": "S8-003",
+      "referenceAnswer": "Java heap space 通常表示堆不足或内存泄漏。排查时先确认堆使用是否持续上升，再结合 GC 日志、heap dump、对象数量和引用链定位泄漏或对象分配热点。不要只调大堆，应区分对象分配速率、老年代增长、Full GC 频率和业务代码引用链。",
+      "keyPoints": ["Java heap space", "堆不足", "内存泄漏", "GC 日志", "heap dump", "引用链"],
+      "sourceDocuments": ["jvm-gc.md"]
+    },
+    {
+      "queryId": "S8-004",
+      "referenceAnswer": "Spring 声明式事务通常通过 AOP 代理实现。外部调用经过代理时，代理会在方法前后开启、提交或回滚事务；同类内部方法调用直接走 this，不经过代理对象，因此 @Transactional 可能失效。常见失效原因还包括方法不是 public、类没有被 Spring 管理、异常被捕获未抛出、数据库引擎不支持事务等。",
+      "keyPoints": ["AOP", "代理", "同类内部调用", "@Transactional", "this", "回滚规则"],
+      "sourceDocuments": ["spring-tx-aop.md"]
+    },
+    {
+      "queryId": "S8-005",
+      "referenceAnswer": "MVCC 通过 undo log 和 read view 提供一致性读。READ COMMITTED 通常每条语句生成新的 read view，因此同一事务内两次查询可能看到不同已提交版本；REPEATABLE READ 通常事务内复用 read view，从而保持快照读一致。当前读如 select for update、update、delete 会读取最新版本并加锁。",
+      "keyPoints": ["MVCC", "undo log", "read view", "READ COMMITTED", "REPEATABLE READ", "当前读"],
+      "sourceDocuments": ["mysql-index.md"]
+    },
+    {
+      "queryId": "S8-006",
+      "referenceAnswer": "缓存穿透是查询不存在的数据持续打到数据库，可用缓存空值、布隆过滤器和参数校验处理。缓存击穿是热点 key 过期瞬间大量请求回源，可用互斥锁、逻辑过期、热点 key 永不过期加异步刷新处理。缓存雪崩是大量 key 同时过期或 Redis 不可用导致数据库压力，可用过期时间随机抖动、分批预热、多级缓存、限流降级和 Redis 高可用处理。",
+      "keyPoints": ["缓存穿透", "缓存击穿", "缓存雪崩", "布隆过滤器", "互斥锁", "随机抖动", "限流降级"],
+      "sourceDocuments": ["redis-cache.md"]
+    },
+    {
+      "queryId": "S8-007",
+      "referenceAnswer": "接口限流和缓存治理要监控命中率、限流次数、拒绝率、P95/P99 延迟、错误率、队列长度、线程池活跃数、数据库连接池使用率和 Redis 慢查询。Redis 侧还要关注内存使用、连接数、阻塞命令、过期 key 数量和 evicted keys。只看平均延迟会掩盖尾延迟问题。",
+      "keyPoints": ["命中率", "限流次数", "拒绝率", "P95", "P99", "Redis 慢查询", "evicted keys"],
+      "sourceDocuments": ["system-design.md", "redis-cache.md"]
+    },
+    {
+      "queryId": "S8-008",
+      "referenceAnswer": "事务方法中不应放远程 HTTP 调用，因为长时间持有数据库连接会增加锁等待、连接占用和回滚成本。事务内的慢操作会放大并发冲突，更新条件如果没有命中索引还可能锁住更多行。常见优化是先做参数校验和外部查询，再开启事务执行关键写入，把事务边界放在 service 层。",
+      "keyPoints": ["远程 HTTP 调用", "长事务", "数据库连接", "锁等待", "回滚成本", "service 层"],
+      "sourceDocuments": ["spring-tx-aop.md", "mysql-index.md"]
+    },
+    {
+      "queryId": "S8-011",
+      "referenceAnswer": "synchronized 是 JVM 内置监视器锁，语义简单、异常时自动释放，普通互斥场景优先使用。ReentrantLock 是 JUC 显式锁，需要在 finally 中释放，支持公平锁、可中断获取、限时获取和多个 Condition 队列。取舍重点不是简单说性能更好，而是看是否需要 tryLock、lockInterruptibly 或多个等待队列等能力。",
+      "keyPoints": ["synchronized", "ReentrantLock", "finally", "tryLock", "lockInterruptibly", "Condition"],
+      "sourceDocuments": ["java-concurrency.md"]
+    },
+    {
+      "queryId": "S8-012",
+      "referenceAnswer": "JVM 运行时数据区描述虚拟机内部内存布局，包括堆、虚拟机栈、本地方法栈、程序计数器和方法区。Java 内存模型描述多线程下共享变量的可见性、原子性和有序性规则，例如 happens-before。两者都和内存有关，但一个偏 JVM 内部区域，一个偏并发语义和同步规则。",
+      "keyPoints": ["运行时数据区", "Java 内存模型", "堆", "虚拟机栈", "可见性", "happens-before"],
+      "sourceDocuments": ["jvm-gc.md", "java-concurrency.md"]
+    },
+    {
+      "queryId": "S8-013",
+      "referenceAnswer": "Redis 分布式锁的基础写法是 SET key value NX PX ttl，NX 保证不存在时才设置，PX 设置过期时间，value 要唯一用于释放时校验持有者。释放锁应使用 Lua 脚本把判断 value 和删除 key 做成原子操作。只用 setnx 再 expire 分两步，进程崩溃时可能留下无过期锁。",
+      "keyPoints": ["SET", "NX", "PX", "ttl", "唯一 value", "Lua", "原子性"],
+      "sourceDocuments": ["redis-cache.md"]
+    },
+    {
+      "queryId": "S8-014",
+      "referenceAnswer": "联合索引遵循最左前缀原则，索引 (a,b,c) 可以支持 a、a,b、a,b,c 的前缀查询，也可以在 a 等值后对 b 做范围。遇到范围条件后，后续列通常不能继续用于精确定位，但可能仍用于索引下推过滤。联合索引设计应结合 where、order by、group by 和业务查询模式，而不是只看选择性。",
+      "keyPoints": ["联合索引", "最左前缀", "范围条件", "索引下推", "where", "order by"],
+      "sourceDocuments": ["mysql-index.md"]
+    },
+    {
+      "queryId": "S8-015",
+      "referenceAnswer": "AOP 适合日志、监控、鉴权、事务、幂等校验等横切关注点，可以复用通用增强逻辑。它不适合把核心业务流程隐藏进切面，否则调用链会隐式化，增加阅读和调试成本。多个切面同时存在时可以用 @Order 控制顺序，顺序会影响日志记录时机和异常捕获范围。",
+      "keyPoints": ["AOP", "横切关注点", "日志", "监控", "鉴权", "核心业务流程", "@Order"],
+      "sourceDocuments": ["spring-tx-aop.md"]
+    },
+    {
+      "queryId": "S8-016",
+      "referenceAnswer": "CAS 通过比较内存旧值，匹配时才写入新值，实现无阻塞的原子更新。ABA 问题是值从 A 变成 B 又变回 A，CAS 只比较当前值可能误以为没有变化。可以通过版本号或 AtomicStampedReference 处理，因为它把值和版本戳一起比较。",
+      "keyPoints": ["CAS", "旧值", "原子更新", "ABA", "版本号", "AtomicStampedReference"],
+      "sourceDocuments": ["java-concurrency.md"]
+    },
+    {
+      "queryId": "S8-017",
+      "referenceAnswer": "Metaspace OOM 通常和动态生成类过多、类加载器未释放或元空间压力有关。排查时要结合 OOM 类型判断，不要只按 Java heap space 处理；可以观察类加载数量、类加载器引用和相关内存指标，定位是否存在动态代理、热部署或类加载泄漏。",
+      "keyPoints": ["Metaspace", "动态生成类", "类加载器", "未释放", "OOM 类型"],
+      "sourceDocuments": ["jvm-gc.md"]
+    },
+    {
+      "queryId": "S8-018",
+      "referenceAnswer": "Redis maxmemory-policy 中，allkeys-lru 可以从任意 key 中按 LRU 策略淘汰；volatile-lru 只会淘汰设置了过期时间的 key。业务要避免关键 key 没有 TTL 或大量 key 同时过期，并结合缓存 key、TTL、更新策略和一致性边界设计缓存。",
+      "keyPoints": ["maxmemory-policy", "allkeys-lru", "volatile-lru", "任意 key", "过期时间", "TTL"],
+      "sourceDocuments": ["system-design.md"]
+    },
+    {
+      "queryId": "S8-019",
+      "referenceAnswer": "Explain 用于判断 SQL 执行计划，常看 type、key、rows、filtered 和 Extra。type 从 const、ref、range 到 index、ALL 通常逐渐变差，但要结合数据量判断；key 表示使用的索引；rows 是预估扫描行数；Extra 中 Using index 可能表示覆盖索引，Using filesort 表示额外排序，Using temporary 表示使用临时表。",
+      "keyPoints": ["Explain", "type", "key", "rows", "Extra", "Using filesort", "Using temporary"],
+      "sourceDocuments": ["mysql-index.md"]
+    },
+    {
+      "queryId": "S8-020",
+      "referenceAnswer": "REQUIRED 是默认传播行为，当前存在事务就加入，没有事务就新建。REQUIRES_NEW 总是挂起当前事务并开启新事务，适合审计日志等希望独立提交的场景。选择传播行为要看边界：日志失败不应影响主事务时可用 REQUIRES_NEW，库存扣减必须和订单创建同生共死时应使用 REQUIRED 并让异常传播。",
+      "keyPoints": ["REQUIRED", "REQUIRES_NEW", "挂起当前事务", "新事务", "审计日志", "异常传播"],
+      "sourceDocuments": ["spring-tx-aop.md"]
+    },
+    {
+      "queryId": "S8-021",
+      "referenceAnswer": "简历里不要只写“实现 RAG 功能”，应说明具体职责、技术动作和可复核证据。例如负责知识库上传、解析、向量化和检索调试链路，为 chunk 写入 sourceTitle、sectionTitle、chunkIndex、preview 元数据，构建固定语料和 eval set，支持查看 topK、minScore 和 debug hit。这样的表述比堆技术栈更能证明真实 RAG 能力。",
+      "keyPoints": ["RAG", "知识库上传", "向量化", "sourceTitle", "sectionTitle", "chunkIndex", "eval set", "topK", "minScore"],
+      "sourceDocuments": ["resume-highlights.md", "backend-jd.md"]
+    },
+    {
+      "queryId": "S8-022",
+      "referenceAnswer": "缓存穿透的合格回答要能说清它是查询不存在数据导致请求持续打到数据库，并给出缓存空值、布隆过滤器、参数校验等方案。更高分回答要解释每个方案的适用场景和副作用，例如缓存空值要短 TTL，布隆过滤器有误判概率。优秀回答还会补充监控空值命中率、异常 key 分布，并按准确性、结构性、场景化和边界意识组织回答。",
+      "keyPoints": ["缓存穿透", "缓存空值", "布隆过滤器", "参数校验", "短 TTL", "误判概率", "监控"],
+      "sourceDocuments": ["redis-cache.md", "interview-rubric.md"]
+    },
+    {
+      "queryId": "S8-023",
+      "referenceAnswer": "后端接口高峰期变慢时，不应该只说加缓存。要先判断瓶颈来自数据库查询、锁竞争、外部服务、CPU、网络还是连接池，再决定用索引优化、缓存、限流、降级、熔断或线程池隔离。缓存主要解决重复读和热点读；慢 SQL 要确认 SQL、执行计划、索引、返回行数、锁等待和 IO；限流和降级用于过载保护和保主流程。",
+      "keyPoints": ["高峰期变慢", "数据库查询", "锁竞争", "外部服务", "CPU", "连接池", "缓存", "限流", "降级"],
+      "sourceDocuments": ["system-design.md", "redis-cache.md", "mysql-index.md"]
+    },
+    {
+      "queryId": "S8-024",
+      "referenceAnswer": "项目讲解可以按 STAR 展开：Situation 讲背景和约束，Task 讲个人职责和成功标准，Action 讲定位过程、关键改动、风险控制和技术取舍，Result 讲结果指标和复盘。团队项目要区分个人贡献和团队成果；量化结果要说明口径，例如 P95/P99、QPS、错误率、人工耗时、样本周期和指标来源，避免把团队收益全部包装成个人贡献。",
+      "keyPoints": ["STAR", "Situation", "Task", "Action", "Result", "个人职责", "成功标准", "量化指标"],
+      "sourceDocuments": ["star-template.md", "resume-highlights.md", "backend-jd.md"]
+    }
+  ]
+}

@@ -186,3 +186,19 @@ tasks.register('agentStage7ToolRoutingEval', Test) {
         includeTestsMatching 'interview.guide.modules.agent.eval.AgentStage7ToolRoutingEvalTest'
     }
 }
+
+tasks.register('agentStage8RagE2eEval', Test) {
+    description = 'Runs the opt-in Stage 8 real RAG end-to-end eval suite.'
+    group = 'verification'
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    maxHeapSize = System.getenv('APP_STAGE8_RAG_E2E_MAX_HEAP') ?: '4g'
+    jvmArgs '-Dfile.encoding=UTF-8'
+    outputs.upToDateWhen { false }
+    systemProperty 'app.stage8.rag-e2e.enabled', System.getenv('APP_STAGE8_RAG_E2E_ENABLED') ?: 'false'
+    systemProperty 'app.stage8.rag-e2e.case-limit', System.getenv('APP_STAGE8_RAG_E2E_CASE_LIMIT') ?: ''
+    filter {
+        includeTestsMatching 'interview.guide.modules.agent.eval.AgentStage8RagE2eEvalTest'
+    }
+}
