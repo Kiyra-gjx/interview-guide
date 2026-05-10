@@ -16,8 +16,8 @@ services:
     container_name: interview-agent-postgres
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: interview_agent
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: interview_guide
     volumes:
       # 数据持久化：确保容器重启或删除后，数据库数据不丢失
       - postgres_data:/var/lib/postgresql/data
@@ -47,12 +47,13 @@ services:
   redis:
     image: redis:7
     container_name: interview-agent-redis
+    command: redis-server --requirepass 123456
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "123456", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -142,13 +143,14 @@ services:
       # 使用服务名 'postgres' 作为主机名，Docker 内部 DNS 会自动解析
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_DB: interview_agent
+      POSTGRES_DB: interview_guide
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      
+      POSTGRES_PASSWORD: 123456
+
       # === Redis 连接 ===
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      REDIS_PASSWORD: 123456
       
       # === 对象存储配置 ===
       # 注意：后端在容器内访问 MinIO，使用 http://minio:9000
