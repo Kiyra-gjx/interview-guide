@@ -1,5 +1,6 @@
 package interview.guide.modules.agent.service;
 
+import interview.guide.common.ai.LlmProviderRegistry;
 import interview.guide.common.ai.StructuredOutputInvoker;
 import interview.guide.common.exception.ErrorCode;
 import interview.guide.modules.agent.guardrail.AgentGuardrailCode;
@@ -69,6 +70,8 @@ public class AgentOrchestrator {
     private static final Pattern TRACE_JSON_STRING_FIELD_PATTERN = Pattern.compile("\"([^\"]+)\"\\s*:\\s*\"([^\"]*)\"");
 
     private final ChatClient chatClient;
+    private final LlmProviderRegistry llmProviderRegistry;
+    private final ThreadLocal<ChatClient> turnScopedClient = new ThreadLocal<>();
     private final StructuredOutputInvoker structuredOutputInvoker;
     private final ToolRegistry toolRegistry;
     private final AgentSessionService sessionService;
@@ -85,6 +88,7 @@ public class AgentOrchestrator {
 
     public AgentOrchestrator(
         ChatClient.Builder chatClientBuilder,
+        LlmProviderRegistry llmProviderRegistry,
         StructuredOutputInvoker structuredOutputInvoker,
         ToolRegistry toolRegistry,
         AgentSessionService sessionService,
@@ -98,6 +102,7 @@ public class AgentOrchestrator {
         AgentApprovalRuntimeService approvalRuntimeService
     ) {
         this.chatClient = chatClientBuilder.build();
+        this.llmProviderRegistry = llmProviderRegistry;
         this.structuredOutputInvoker = structuredOutputInvoker;
         this.toolRegistry = toolRegistry;
         this.sessionService = sessionService;
@@ -127,6 +132,7 @@ public class AgentOrchestrator {
         AgentMemorySnapshot lastKnownMemory = null;
 
         try {
+            turnScopedClient.set(selectChatClient(request.runtimeConfig()));
             expirePendingApprovals(sessionId);
             // 1. 创建 turn，并先把用户消息落库，确保本轮执行有唯一归属。
             AgentSessionService.StartedTurn startedTurn = sessionService.startTurn(sessionId, request.message());
@@ -207,6 +213,8 @@ public class AgentOrchestrator {
                 metricsService.stopTurnLatency(latencySample, "response_error");
             }
             throw e;
+        } finally {
+            turnScopedClient.remove();
         }
 
         return response;
@@ -444,7 +452,7 @@ public class AgentOrchestrator {
         );
         int estimatedTokens = estimateModelTokens(systemPrompt, userPrompt);
         AgentHandoffResultDTO result = structuredOutputInvoker.invoke(
-            chatClient,
+            activeChatClient(),
             systemPrompt,
             userPrompt,
             handoffOutputConverter,
@@ -719,7 +727,7 @@ public class AgentOrchestrator {
         try {
             // 1. 组装系统提示词和用户提示词，让模型输出结构化决策。
             AgentDecisionDTO decision = structuredOutputInvoker.invoke(
-                chatClient,
+                activeChatClient(),
                 systemPrompt,
                 userPrompt,
                 decisionOutputConverter,
@@ -1507,7 +1515,7 @@ public class AgentOrchestrator {
             );
             String userPrompt = promptService.buildAnswerUserPrompt(assembledContext, toolName, toolResult);
             int estimatedTokens = estimateModelTokens(systemPrompt, userPrompt);
-            String content = chatClient.prompt()
+            String content = activeChatClient().prompt()
                 .system(systemPrompt)
                 .user(userPrompt)
                 .call()
@@ -1669,6 +1677,18 @@ public class AgentOrchestrator {
                 DEFAULT_MULTI_STEP_MAX_ESTIMATED_MODEL_TOKENS
             )
         );
+    }
+
+    private ChatClient activeChatClient() {
+        ChatClient scoped = turnScopedClient.get();
+        return scoped != null ? scoped : chatClient;
+    }
+
+    private ChatClient selectChatClient(AgentRuntimeConfig runtimeConfig) {
+        if (runtimeConfig != null && runtimeConfig.preferredProviderId() != null) {
+            return llmProviderRegistry.getChatClient(runtimeConfig.preferredProviderId());
+        }
+        return chatClient;
     }
 
     /**

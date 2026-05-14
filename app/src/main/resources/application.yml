@@ -89,10 +89,26 @@ spring:
 # Application custom configuration
 app:
   ai:
-    # 结构化输出重试次数（用于 BeanOutputConverter 解析失败时的业务层重试）
-    structured-max-attempts: ${APP_AI_STRUCTURED_MAX_ATTEMPTS:2}
-    # 重试时是否将上次错误原因注入提示词，帮助模型定向修复输出
-    structured-include-last-error: ${APP_AI_STRUCTURED_INCLUDE_LAST_ERROR:true}
+    default-provider: dashscope
+    default-embedding-provider: dashscope
+    embedding-dimensions: 1024
+    encryption-key: ${LLM_ENCRYPTION_KEY:default-dev-key-change-in-prod}
+    providers:
+      dashscope:
+        base-url: https://dashscope.aliyuncs.com/compatible-mode
+        api-key: ${AI_BAILIAN_API_KEY}
+        model: ${AI_MODEL:qwen-plus}
+        embedding-model: text-embedding-v3
+        embedding-dimensions: 1024
+        supports-embedding: true
+        temperature: 0.2
+    structured-output:
+      max-attempts: ${APP_AI_STRUCTURED_MAX_ATTEMPTS:2}
+      include-last-error: ${APP_AI_STRUCTURED_INCLUDE_LAST_ERROR:true}
+      retry-use-repair-prompt: true
+      append-strict-json-instruction: true
+      error-message-max-length: 200
+      metrics-enabled: true
     advisors:
       prompt-sanitizer-enabled: ${APP_AI_PROMPT_SANITIZER_ENABLED:true}
     rag:

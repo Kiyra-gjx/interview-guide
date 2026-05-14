@@ -72,7 +72,13 @@ public enum ErrorCode {
     AGENT_INVALID_INPUT(9004, "Agent 输入参数无效"),
     AGENT_TURN_CONFLICT(9005, "Agent 当前轮次冲突"),
     AGENT_TURN_EXPIRED(9006, "Agent 当前轮次已失效"),
-    AGENT_TURN_NOT_FOUND(9007, "Agent 轮次不存在");
+    AGENT_TURN_NOT_FOUND(9007, "Agent 轮次不存在"),
+
+    // ========== LLM Provider 模块错误 10xxx ==========
+    LLM_PROVIDER_NOT_FOUND(10001, "LLM Provider 不存在"),
+    LLM_PROVIDER_DISABLED(10002, "LLM Provider 已禁用"),
+    LLM_PROVIDER_ALREADY_EXISTS(10003, "LLM Provider 已存在"),
+    LLM_PROVIDER_CONNECTION_FAILED(10004, "LLM Provider 连通性测试失败");
 
     private final Integer code;
     private final String message;

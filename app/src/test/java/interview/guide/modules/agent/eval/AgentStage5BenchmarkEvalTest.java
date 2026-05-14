@@ -1,5 +1,6 @@
 package interview.guide.modules.agent.eval;
 
+import interview.guide.common.ai.LlmProviderRegistry;
 import interview.guide.common.ai.PromptSanitizer;
 import interview.guide.common.ai.StructuredOutputInvoker;
 import interview.guide.modules.agent.guardrail.AgentGuardrailService;
@@ -319,7 +320,7 @@ class AgentStage5BenchmarkEvalTest {
         String turnId = "turn-handoff";
         AgentChatRequest request = new AgentChatRequest(
             "先帮我拆解一下现在最值得先讲的亮点，再给最终建议",
-            new AgentRuntimeConfig(true, 3, 15_000L, 4_000)
+            new AgentRuntimeConfig(true, 3, 15_000L, 4_000, null)
         );
         AgentSessionEntity session = createSession(sessionId, "准备 Java 面试", 42L);
         AgentMemorySnapshot memory = createMemory();
@@ -462,7 +463,7 @@ class AgentStage5BenchmarkEvalTest {
         String turnId = "turn-step-budget";
         AgentChatRequest request = new AgentChatRequest(
             "先读取我的简历，再继续推导",
-            new AgentRuntimeConfig(true, 1, 15_000L, 4_000)
+            new AgentRuntimeConfig(true, 1, 15_000L, 4_000, null)
         );
         AgentSessionEntity session = createSession(sessionId, "准备 Java 面试", 42L);
         AgentMemorySnapshot memory = createMemory();
@@ -800,6 +801,7 @@ class AgentStage5BenchmarkEvalTest {
         private final ChatClient.Builder chatClientBuilder = mock(ChatClient.Builder.class);
         private final ChatClient chatClient = mock(ChatClient.class);
         private final StructuredOutputInvoker structuredOutputInvoker = mock(StructuredOutputInvoker.class);
+        private final LlmProviderRegistry llmProviderRegistry = mock(LlmProviderRegistry.class);
         private final ToolRegistry toolRegistry = mock(ToolRegistry.class);
         private final AgentSessionService sessionService = mock(AgentSessionService.class);
         private final AgentMemoryService memoryService = mock(AgentMemoryService.class);
@@ -856,6 +858,7 @@ class AgentStage5BenchmarkEvalTest {
             });
             orchestrator = new AgentOrchestrator(
                 chatClientBuilder,
+                llmProviderRegistry,
                 structuredOutputInvoker,
                 toolRegistry,
                 sessionService,

@@ -1,5 +1,6 @@
 package interview.guide.modules.agent.service;
 
+import interview.guide.common.ai.LlmProviderRegistry;
 import interview.guide.common.ai.PromptSanitizer;
 import interview.guide.common.ai.StructuredOutputInvoker;
 import interview.guide.common.exception.BusinessException;
@@ -94,6 +95,8 @@ class AgentOrchestratorTest {
     @Mock
     private StructuredOutputInvoker structuredOutputInvoker;
     @Mock
+    private LlmProviderRegistry llmProviderRegistry;
+    @Mock
     private ToolRegistry toolRegistry;
     @Mock
     private AgentSessionService sessionService;
@@ -133,6 +136,7 @@ class AgentOrchestratorTest {
             .thenReturn("handoff-user");
         orchestrator = new AgentOrchestrator(
             chatClientBuilder,
+            llmProviderRegistry,
             structuredOutputInvoker,
             toolRegistry,
             sessionService,
@@ -2461,7 +2465,7 @@ class AgentOrchestratorTest {
         String turnId = "turn-multi-step";
         AgentChatRequest request = new AgentChatRequest(
             "先读取我的简历，再给我下一步建议",
-            new AgentRuntimeConfig(true, 3, 15_000L, 4_000)
+            new AgentRuntimeConfig(true, 3, 15_000L, 4_000, null)
         );
         AgentSessionEntity session = createSession(sessionId, "准备 Java 面试", 42L);
         AgentMemorySnapshot memory = createMemory();
@@ -2572,7 +2576,7 @@ class AgentOrchestratorTest {
         String turnId = "turn-handoff";
         AgentChatRequest request = new AgentChatRequest(
             "先帮我拆解一下现在最值得先讲的亮点，再给最终建议",
-            new AgentRuntimeConfig(true, 3, 15_000L, 4_000)
+            new AgentRuntimeConfig(true, 3, 15_000L, 4_000, null)
         );
         AgentSessionEntity session = createSession(sessionId, "准备 Java 面试", 42L);
         AgentMemorySnapshot memory = createMemory();
@@ -2842,7 +2846,7 @@ class AgentOrchestratorTest {
         String turnId = "turn-budget-overrun-direct";
         AgentChatRequest request = new AgentChatRequest(
             "直接给我一句总结建议",
-            new AgentRuntimeConfig(true, 3, 15_000L, 1)
+            new AgentRuntimeConfig(true, 3, 15_000L, 1, null)
         );
         AgentSessionEntity session = createSession(sessionId, "准备 Java 面试", 42L);
         AgentMemorySnapshot memory = createMemory();
@@ -2905,7 +2909,7 @@ class AgentOrchestratorTest {
         String turnId = "turn-step-budget-direct";
         AgentChatRequest request = new AgentChatRequest(
             "给我一句最终建议",
-            new AgentRuntimeConfig(true, 1, 15_000L, 4_000)
+            new AgentRuntimeConfig(true, 1, 15_000L, 4_000, null)
         );
         AgentSessionEntity session = createSession(sessionId, "准备 Java 面试", 42L);
         AgentMemorySnapshot memory = createMemory();
@@ -2969,7 +2973,7 @@ class AgentOrchestratorTest {
         String turnId = "turn-step-budget";
         AgentChatRequest request = new AgentChatRequest(
             "先读取我的简历，再继续推导",
-            new AgentRuntimeConfig(true, 1, 15_000L, 4_000)
+            new AgentRuntimeConfig(true, 1, 15_000L, 4_000, null)
         );
         AgentSessionEntity session = createSession(sessionId, "准备 Java 面试", 42L);
         AgentMemorySnapshot memory = createMemory();

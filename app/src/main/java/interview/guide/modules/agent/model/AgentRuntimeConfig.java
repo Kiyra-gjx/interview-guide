@@ -8,6 +8,7 @@ public record AgentRuntimeConfig(
     Boolean multiStepEnabled,
     Integer maxSteps,
     Long maxDurationMillis,
-    Integer maxEstimatedModelTokens
+    Integer maxEstimatedModelTokens,
+    String preferredProviderId
 ) {
 }

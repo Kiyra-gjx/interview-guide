@@ -176,7 +176,7 @@ class AgentSessionServiceTest {
     @Test
     @DisplayName("should reject session creation when the resume resource does not exist")
     void shouldRejectSessionCreationWhenResumeResourceDoesNotExist() {
-        CreateAgentSessionRequest request = new CreateAgentSessionRequest("title", "goal", 42L, List.of());
+        CreateAgentSessionRequest request = new CreateAgentSessionRequest("title", "goal", 42L, List.of(), null);
         when(resumeRepository.existsById(42L)).thenReturn(false);
 
         assertThatThrownBy(() -> sessionService.createSession(request))
@@ -191,7 +191,7 @@ class AgentSessionServiceTest {
     @Test
     @DisplayName("should reject session creation when any knowledge base resource does not exist")
     void shouldRejectSessionCreationWhenKnowledgeBaseResourceDoesNotExist() {
-        CreateAgentSessionRequest request = new CreateAgentSessionRequest("title", "goal", null, List.of(1L, 3L));
+        CreateAgentSessionRequest request = new CreateAgentSessionRequest("title", "goal", null, List.of(1L, 3L), null);
         when(knowledgeBaseRepository.findAllById(List.of(1L, 3L))).thenReturn(List.of(kb(1L)));
 
         assertThatThrownBy(() -> sessionService.createSession(request))
@@ -206,7 +206,7 @@ class AgentSessionServiceTest {
     @Test
     @DisplayName("should reject session creation when a knowledge base is not active")
     void shouldRejectSessionCreationWhenKnowledgeBaseIsNotActive() {
-        CreateAgentSessionRequest request = new CreateAgentSessionRequest("title", "goal", null, List.of(1L, 2L));
+        CreateAgentSessionRequest request = new CreateAgentSessionRequest("title", "goal", null, List.of(1L, 2L), null);
         KnowledgeBaseEntity deleting = kb(2L);
         deleting.setLifecycleStatus(KnowledgeBaseLifecycleStatus.DELETING);
         when(knowledgeBaseRepository.findAllById(List.of(1L, 2L))).thenReturn(List.of(kb(1L), deleting));
@@ -223,7 +223,7 @@ class AgentSessionServiceTest {
     @Test
     @DisplayName("should normalize duplicate knowledge base ids before saving a session")
     void shouldNormalizeDuplicateKnowledgeBaseIdsBeforeSavingSession() throws Exception {
-        CreateAgentSessionRequest request = new CreateAgentSessionRequest("title", "goal", null, List.of(1L, 2L, 1L, 2L));
+        CreateAgentSessionRequest request = new CreateAgentSessionRequest("title", "goal", null, List.of(1L, 2L, 1L, 2L), null);
         AgentSessionEntity savedSession = new AgentSessionEntity();
         savedSession.setSessionId("session-created");
         savedSession.setTitle("title");

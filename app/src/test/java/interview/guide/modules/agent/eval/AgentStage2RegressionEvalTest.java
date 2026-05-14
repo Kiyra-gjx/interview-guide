@@ -1,5 +1,6 @@
 package interview.guide.modules.agent.eval;
 
+import interview.guide.common.ai.LlmProviderRegistry;
 import interview.guide.common.ai.PromptSanitizer;
 import interview.guide.common.ai.StructuredOutputInvoker;
 import interview.guide.common.exception.ErrorCode;
@@ -900,6 +901,7 @@ class AgentStage2RegressionEvalTest {
         private final ChatClient.Builder chatClientBuilder = mock(ChatClient.Builder.class);
         private final ChatClient chatClient = mock(ChatClient.class);
         private final StructuredOutputInvoker structuredOutputInvoker = mock(StructuredOutputInvoker.class);
+        private final LlmProviderRegistry llmProviderRegistry = mock(LlmProviderRegistry.class);
         private final ToolRegistry toolRegistry = mock(ToolRegistry.class);
         private final AgentSessionService sessionService = mock(AgentSessionService.class);
         private final AgentMemoryService memoryService = mock(AgentMemoryService.class);
@@ -951,6 +953,7 @@ class AgentStage2RegressionEvalTest {
             });
             orchestrator = new AgentOrchestrator(
                 chatClientBuilder,
+                llmProviderRegistry,
                 structuredOutputInvoker,
                 toolRegistry,
                 sessionService,

@@ -12,6 +12,7 @@ public record CreateAgentSessionRequest(
     @NotBlank(message = "goal 不能为空")
     String goal,
     Long resumeId,
-    List<Long> knowledgeBaseIds
+    List<Long> knowledgeBaseIds,
+    String preferredProviderId
 ) {
 }
