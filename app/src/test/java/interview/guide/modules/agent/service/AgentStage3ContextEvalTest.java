@@ -1,5 +1,6 @@
 package interview.guide.modules.agent.service;
 
+import interview.guide.common.ai.PromptSanitizer;
 import interview.guide.modules.agent.model.AgentMemorySnapshot;
 import interview.guide.modules.agent.model.AgentSessionEntity;
 import interview.guide.modules.agent.support.AgentAssembledContext;
@@ -7,6 +8,7 @@ import interview.guide.modules.agent.support.AgentContextSection;
 import interview.guide.modules.agent.support.AgentContextSectionStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.file.Files;
@@ -422,7 +424,7 @@ class AgentStage3ContextEvalTest {
 
     private AgentContextAssemblyService contextServiceFor(List<Long> knowledgeBaseIds) {
         AgentSessionService sessionService = mock(AgentSessionService.class);
-        AgentContextAssemblyService service = new AgentContextAssemblyService(sessionService);
+        AgentContextAssemblyService service = new AgentContextAssemblyService(sessionService, testSanitizer());
         when(sessionService.readKnowledgeBaseIds(org.mockito.ArgumentMatchers.any())).thenReturn(knowledgeBaseIds);
         return service;
     }
@@ -586,5 +588,11 @@ class AgentStage3ContextEvalTest {
     @FunctionalInterface
     private interface ScenarioVerifier {
         ContextVerificationResult verify(AgentAssembledContext context);
+    }
+
+    private static PromptSanitizer testSanitizer() {
+        PromptSanitizer s = new PromptSanitizer();
+        ReflectionTestUtils.setField(s, "enabled", true);
+        return s;
     }
 }

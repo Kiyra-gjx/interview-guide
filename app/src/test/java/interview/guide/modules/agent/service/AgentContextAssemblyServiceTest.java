@@ -1,5 +1,6 @@
 package interview.guide.modules.agent.service;
 
+import interview.guide.common.ai.PromptSanitizer;
 import interview.guide.modules.agent.model.AgentMemorySnapshot;
 import interview.guide.modules.agent.model.AgentSessionEntity;
 import interview.guide.modules.agent.support.AgentAssembledContext;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 
@@ -27,7 +29,9 @@ class AgentContextAssemblyServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AgentContextAssemblyService(sessionService);
+        PromptSanitizer sanitizer = new PromptSanitizer();
+        ReflectionTestUtils.setField(sanitizer, "enabled", true);
+        service = new AgentContextAssemblyService(sessionService, sanitizer);
     }
 
     @Test

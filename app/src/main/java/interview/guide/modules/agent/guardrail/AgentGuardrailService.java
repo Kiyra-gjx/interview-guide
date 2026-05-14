@@ -1,6 +1,9 @@
 package interview.guide.modules.agent.guardrail;
 
+import interview.guide.common.ai.PromptSanitizer;
 import interview.guide.modules.agent.tool.AgentTool;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
@@ -14,7 +17,9 @@ import java.util.regex.Pattern;
  * 这里先提供最小可用的输入、工具和输出拦截规则。
  * 每一层只处理自己的边界问题，业务决策仍交给 orchestrator 统一收口。
  */
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class AgentGuardrailService {
 
     private static final int INPUT_MESSAGE_MAX_LENGTH = 4000;
@@ -31,6 +36,8 @@ public class AgentGuardrailService {
         "(\\bsystem\\s*prompt\\b\\s*(?:=|:|：))|(\\bchain\\s*of\\s*thought\\b\\s*(?:=|:|：))|(\\b(debugpayload|toolinputjson|memorybefore|memoryafter|answerpayload|summarytruncated|answertruncated|debugtruncated|factstruncated)\\b)|(\\btool\\s*output\\b\\s*(?:=|[:：]\\s*[\\[{]|\\.))|(\\bnormalization\\b\\s*(?:=|[:：]\\s*[\\[{]|\\.))",
         Pattern.CASE_INSENSITIVE
     );
+
+    private final PromptSanitizer promptSanitizer;
 
     /**
      * 评估输入 Guardrail。
@@ -75,6 +82,12 @@ public class AgentGuardrailService {
                     "请求暴露系统提示词或内部调试信息"
                 )
             );
+        }
+        // 3. 检测潜在 Prompt 注入尝试（仅告警，不阻断）。
+        if (promptSanitizer.detectInjectionAttempt(normalizedMessage)) {
+            log.warn("检测到潜在 Prompt 注入尝试: length={}, preview={}",
+                normalizedMessage.length(),
+                normalizedMessage.substring(0, Math.min(normalizedMessage.length(), 100)));
         }
         return InputGuardrailDecision.allowed(normalizedMessage);
     }

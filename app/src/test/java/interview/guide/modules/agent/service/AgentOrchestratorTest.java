@@ -1,5 +1,6 @@
 package interview.guide.modules.agent.service;
 
+import interview.guide.common.ai.PromptSanitizer;
 import interview.guide.common.ai.StructuredOutputInvoker;
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
@@ -48,6 +49,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.ai.chat.client.ChatClient;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -78,6 +80,12 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class AgentOrchestratorTest {
+
+    private static PromptSanitizer testSanitizer() {
+        PromptSanitizer s = new PromptSanitizer();
+        ReflectionTestUtils.setField(s, "enabled", true);
+        return s;
+    }
 
     @Mock
     private ChatClient.Builder chatClientBuilder;
@@ -133,7 +141,7 @@ class AgentOrchestratorTest {
             metricsService,
             promptService,
             contextAssemblyService,
-            new AgentGuardrailService(),
+            new AgentGuardrailService(testSanitizer()),
             approvalService,
             approvalRuntimeService
         );

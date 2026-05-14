@@ -1,5 +1,6 @@
 package interview.guide.modules.agent.eval;
 
+import interview.guide.common.ai.PromptSanitizer;
 import interview.guide.common.ai.StructuredOutputInvoker;
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
@@ -53,6 +54,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.test.util.ReflectionTestUtils;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.file.Files;
@@ -901,10 +903,16 @@ class AgentStage5RecoveryEvalTest {
                 metricsService,
                 promptService,
                 contextAssemblyService,
-                new AgentGuardrailService(),
+                new AgentGuardrailService(testSanitizer()),
                 approvalService,
                 approvalRuntimeService
             );
         }
+    }
+
+    private static PromptSanitizer testSanitizer() {
+        PromptSanitizer s = new PromptSanitizer();
+        ReflectionTestUtils.setField(s, "enabled", true);
+        return s;
     }
 }

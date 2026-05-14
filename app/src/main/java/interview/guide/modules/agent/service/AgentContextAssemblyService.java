@@ -1,5 +1,6 @@
 package interview.guide.modules.agent.service;
 
+import interview.guide.common.ai.PromptSanitizer;
 import interview.guide.modules.agent.model.AgentMemorySnapshot;
 import interview.guide.modules.agent.model.AgentSessionEntity;
 import interview.guide.modules.agent.support.AgentAssembledContext;
@@ -27,6 +28,7 @@ public class AgentContextAssemblyService {
     private static final int UNBOUNDED_SECTION_CHARS = Integer.MAX_VALUE;
 
     private final AgentSessionService sessionService;
+    private final PromptSanitizer promptSanitizer;
 
     /**
      * 按默认预算装配上下文。
@@ -374,7 +376,8 @@ public class AgentContextAssemblyService {
      * @return 事实摘要
      */
     private String buildConfirmedFacts(AgentMemorySnapshot memorySnapshot) {
-        return joinDistinct(memorySnapshot.confirmedFacts(), " | ");
+        String raw = joinDistinct(memorySnapshot.confirmedFacts(), " | ");
+        return raw == null ? null : promptSanitizer.sanitize(raw);
     }
 
     /**

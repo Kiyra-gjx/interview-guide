@@ -1,5 +1,6 @@
 package interview.guide.modules.agent.eval;
 
+import interview.guide.common.ai.PromptSanitizer;
 import interview.guide.common.ai.StructuredOutputInvoker;
 import interview.guide.modules.agent.guardrail.AgentGuardrailResult;
 import interview.guide.modules.agent.model.AgentApprovalDTO;
@@ -42,6 +43,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.test.util.ReflectionTestUtils;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.file.Files;
@@ -822,6 +824,7 @@ class AgentStage7InjectionSafetyEvalTest {
         private EvalHarness(InjectionSafetyScenario scenario) throws Exception {
             AgentPromptService promptService = new AgentPromptService(
                 new ObjectMapper(),
+                testSanitizer(),
                 new ClassPathResource("prompts/agent-system.st"),
                 new ClassPathResource("prompts/agent-user.st"),
                 new ClassPathResource("prompts/agent-answer-user.st")
@@ -885,7 +888,7 @@ class AgentStage7InjectionSafetyEvalTest {
                 metricsService,
                 promptService,
                 contextAssemblyService,
-                new AgentGuardrailService(),
+                new AgentGuardrailService(testSanitizer()),
                 approvalService,
                 approvalRuntimeService
             );
@@ -1213,5 +1216,11 @@ class AgentStage7InjectionSafetyEvalTest {
         private boolean executed() {
             return executed;
         }
+    }
+
+    private static PromptSanitizer testSanitizer() {
+        PromptSanitizer s = new PromptSanitizer();
+        ReflectionTestUtils.setField(s, "enabled", true);
+        return s;
     }
 }

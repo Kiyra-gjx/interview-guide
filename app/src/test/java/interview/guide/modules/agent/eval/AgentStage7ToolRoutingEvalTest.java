@@ -1,5 +1,6 @@
 package interview.guide.modules.agent.eval;
 
+import interview.guide.common.ai.PromptSanitizer;
 import interview.guide.common.ai.StructuredOutputInvoker;
 import interview.guide.modules.agent.model.AgentApprovalDTO;
 import interview.guide.modules.agent.model.AgentApprovalStatus;
@@ -37,6 +38,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.test.util.ReflectionTestUtils;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.file.Files;
@@ -1228,7 +1230,7 @@ class AgentStage7ToolRoutingEvalTest {
                 metricsService,
                 promptService,
                 contextAssemblyService,
-                new interview.guide.modules.agent.guardrail.AgentGuardrailService(),
+                new interview.guide.modules.agent.guardrail.AgentGuardrailService(testSanitizer()),
                 approvalService,
                 approvalRuntimeService
             );
@@ -1462,5 +1464,11 @@ class AgentStage7ToolRoutingEvalTest {
                 )
             )
         );
+    }
+
+    private static PromptSanitizer testSanitizer() {
+        PromptSanitizer s = new PromptSanitizer();
+        ReflectionTestUtils.setField(s, "enabled", true);
+        return s;
     }
 }

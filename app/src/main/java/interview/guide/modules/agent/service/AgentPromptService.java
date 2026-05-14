@@ -1,5 +1,7 @@
 package interview.guide.modules.agent.service;
 
+import interview.guide.common.ai.PromptSanitizer;
+import interview.guide.common.ai.PromptSecurityConstants;
 import interview.guide.modules.agent.model.AgentMemorySnapshot;
 import interview.guide.modules.agent.support.AgentAssembledContext;
 import interview.guide.modules.agent.support.AgentToolResult;
@@ -48,14 +50,17 @@ Return structured JSON with:
     private final PromptTemplate userPromptTemplate;
     private final PromptTemplate answerUserPromptTemplate;
     private final ObjectMapper objectMapper;
+    private final PromptSanitizer promptSanitizer;
 
     public AgentPromptService(
         ObjectMapper objectMapper,
+        PromptSanitizer promptSanitizer,
         @Value("classpath:prompts/agent-system.st") Resource systemPromptResource,
         @Value("classpath:prompts/agent-user.st") Resource userPromptResource,
         @Value("classpath:prompts/agent-answer-user.st") Resource answerUserPromptResource
     ) throws IOException {
         this.objectMapper = objectMapper;
+        this.promptSanitizer = promptSanitizer;
         this.systemPromptTemplate = new PromptTemplate(systemPromptResource.getContentAsString(StandardCharsets.UTF_8));
         this.userPromptTemplate = new PromptTemplate(userPromptResource.getContentAsString(StandardCharsets.UTF_8));
         this.answerUserPromptTemplate = new PromptTemplate(answerUserPromptResource.getContentAsString(StandardCharsets.UTF_8));
@@ -64,7 +69,8 @@ Return structured JSON with:
     public String buildDecisionSystemPrompt(String toolDescriptions, String formatInstructions) {
         Map<String, Object> variables = new HashMap<>();
         variables.put("toolDescriptions", toolDescriptions);
-        return systemPromptTemplate.render(variables) + "\n\n" + formatInstructions;
+        return systemPromptTemplate.render(variables) + "\n\n" + formatInstructions
+            + PromptSecurityConstants.ANTI_INJECTION_INSTRUCTION;
     }
 
     /**
@@ -113,11 +119,11 @@ Return structured JSON with:
     }
 
     public String buildAnswerSystemPrompt() {
-        return ANSWER_SYSTEM_PROMPT;
+        return ANSWER_SYSTEM_PROMPT + PromptSecurityConstants.ANTI_INJECTION_INSTRUCTION;
     }
 
     public String buildHandoffSystemPrompt() {
-        return HANDOFF_SYSTEM_PROMPT;
+        return HANDOFF_SYSTEM_PROMPT + PromptSecurityConstants.ANTI_INJECTION_INSTRUCTION;
     }
 
     /**
@@ -172,7 +178,7 @@ Return structured JSON with:
         variables.put("latestUserMessage", nullToEmpty(assembledContext == null ? null : assembledContext.latestUserMessage()));
         variables.put("contextSummary", contextSummary(assembledContext));
         variables.put("toolName", nullToEmpty(toolName));
-        variables.put("toolAnswerJson", toJson(toolResult.promptPayload()));
+        variables.put("toolAnswerJson", sanitizeAndWrapToolJson(toolResult));
         return answerUserPromptTemplate.render(variables);
     }
 
@@ -192,7 +198,7 @@ Return structured JSON with:
         variables.put("memorySummary", summarizeMemory(memorySnapshot));
         variables.put("contextSummary", summarizeMemory(memorySnapshot));
         variables.put("toolName", nullToEmpty(toolName));
-        variables.put("toolAnswerJson", toJson(toolResult.promptPayload()));
+        variables.put("toolAnswerJson", sanitizeAndWrapToolJson(toolResult));
         return answerUserPromptTemplate.render(variables);
     }
 
@@ -223,6 +229,15 @@ Return structured JSON with:
         } catch (Exception e) {
             return "{}";
         }
+    }
+
+    private String sanitizeAndWrapToolJson(AgentToolResult toolResult) {
+        String toolJson = toJson(toolResult.promptPayload());
+        String sanitized = promptSanitizer.sanitize(toolJson);
+        if (sanitized == null || sanitized.isBlank()) {
+            sanitized = toolJson;
+        }
+        return promptSanitizer.wrapWithDelimiters("tool-result", sanitized);
     }
 
     private String nullToEmpty(String value) {

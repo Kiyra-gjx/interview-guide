@@ -1,11 +1,13 @@
 package interview.guide.modules.agent.guardrail;
 
+import interview.guide.common.ai.PromptSanitizer;
 import interview.guide.modules.agent.support.AgentToolContext;
 import interview.guide.modules.agent.support.AgentToolResult;
 import interview.guide.modules.agent.tool.AgentTool;
 import interview.guide.modules.agent.tool.AgentToolRiskLevel;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -15,7 +17,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class AgentGuardrailServiceTest {
 
-    private final AgentGuardrailService guardrailService = new AgentGuardrailService();
+    private final AgentGuardrailService guardrailService = new AgentGuardrailService(testSanitizer());
+
+    private static PromptSanitizer testSanitizer() {
+        PromptSanitizer s = new PromptSanitizer();
+        ReflectionTestUtils.setField(s, "enabled", true);
+        return s;
+    }
 
     @Test
     @DisplayName("should allow normal security explanations without degrading output")

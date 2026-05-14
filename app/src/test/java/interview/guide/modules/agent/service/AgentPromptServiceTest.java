@@ -1,5 +1,6 @@
 package interview.guide.modules.agent.service;
 
+import interview.guide.common.ai.PromptSanitizer;
 import interview.guide.modules.agent.model.AgentMemorySnapshot;
 import interview.guide.modules.agent.support.AgentAssembledContext;
 import interview.guide.modules.agent.support.AgentContextBudget;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.test.util.ReflectionTestUtils;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
@@ -20,11 +22,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class AgentPromptServiceTest {
 
+    private static PromptSanitizer testSanitizer() {
+        PromptSanitizer s = new PromptSanitizer();
+        ReflectionTestUtils.setField(s, "enabled", true);
+        return s;
+    }
+
     @Test
     @DisplayName("should expose full goal and latest message alongside the assembled summary in the decision prompt")
     void shouldExposeFullGoalAndLatestMessageAlongsideTheAssembledSummaryInTheDecisionPrompt() throws Exception {
         AgentPromptService promptService = new AgentPromptService(
             new ObjectMapper(),
+            testSanitizer(),
             utf8Resource("system"),
             utf8Resource("目标={userGoal}\n消息={latestUserMessage}\n上下文={contextSummary}\n步骤={stepIndex}"),
             utf8Resource("answer")
@@ -43,6 +52,7 @@ class AgentPromptServiceTest {
     void shouldExposeFullGoalAndLatestMessageWhileOnlyPassingTheNormalizedAnswerViewToTheFinalAnswerPrompt() throws Exception {
         AgentPromptService promptService = new AgentPromptService(
             new ObjectMapper(),
+            testSanitizer(),
             utf8Resource("system"),
             utf8Resource("user"),
             utf8Resource("目标={userGoal}\n消息={latestUserMessage}\n上下文={contextSummary}\n工具={toolName}\n视图={toolAnswerJson}")

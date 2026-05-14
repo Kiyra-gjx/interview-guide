@@ -1,5 +1,6 @@
 package interview.guide.modules.agent.service;
 
+import interview.guide.common.ai.PromptSanitizer;
 import interview.guide.common.ai.StructuredOutputInvoker;
 import interview.guide.modules.agent.guardrail.AgentGuardrailService;
 import interview.guide.modules.agent.model.AgentChatRequest;
@@ -27,6 +28,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.test.util.ReflectionTestUtils;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.file.Files;
@@ -838,10 +840,16 @@ class AgentStage3MemoryEvalTest {
                 metricsService,
                 promptService,
                 contextAssemblyService,
-                new AgentGuardrailService(),
+                new AgentGuardrailService(testSanitizer()),
                 approvalService,
                 approvalRuntimeService
             );
         }
+    }
+
+    private static PromptSanitizer testSanitizer() {
+        PromptSanitizer s = new PromptSanitizer();
+        ReflectionTestUtils.setField(s, "enabled", true);
+        return s;
     }
 }
