@@ -110,6 +110,16 @@ app:
       # It defaults to true in code so legacy append-strict-json-instruction can still override when only the old key is configured.
       error-message-max-length: 200
       metrics-enabled: true
+    evaluation:
+      batch-size: ${APP_AI_EVALUATION_BATCH_SIZE:${APP_INTERVIEW_EVALUATION_BATCH_SIZE:5}}
+      system-prompt-path: classpath:prompts/evaluation-system.st
+      user-prompt-path: classpath:prompts/evaluation-user.st
+      summary-system-prompt-path: classpath:prompts/evaluation-summary-system.st
+      summary-user-prompt-path: classpath:prompts/evaluation-summary-user.st
+      resume-max-chars: ${APP_AI_EVALUATION_RESUME_MAX_CHARS:3000}
+      reference-context-max-chars: ${APP_AI_EVALUATION_REFERENCE_MAX_CHARS:6000}
+      question-highlights-limit: ${APP_AI_EVALUATION_QUESTION_HIGHLIGHTS_LIMIT:20}
+      list-item-limit: ${APP_AI_EVALUATION_LIST_ITEM_LIMIT:8}
     advisors:
       prompt-sanitizer-enabled: ${APP_AI_PROMPT_SANITIZER_ENABLED:true}
     rag:
@@ -124,8 +134,6 @@ app:
         min-score-default: ${APP_AI_RAG_MIN_SCORE_DEFAULT:0.28}
   interview:
     follow-up-count: ${APP_INTERVIEW_FOLLOW_UP_COUNT:1}
-    evaluation:
-      batch-size: ${APP_INTERVIEW_EVALUATION_BATCH_SIZE:8}
   actuator:
     allow-public-access: ${APP_ACTUATOR_ALLOW_PUBLIC_ACCESS:false}
   resume:

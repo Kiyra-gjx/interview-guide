@@ -291,7 +291,7 @@ class InterviewToolContextServiceTest {
         InterviewSessionEntity session = session(
             "session-not-evaluated",
             42L,
-            InterviewSessionEntity.SessionStatus.COMPLETED,
+            InterviewSessionEntity.SessionStatus.IN_PROGRESS,
             LocalDateTime.of(2026, 4, 23, 12, 0),
             "[{\"questionIndex\":0}]"
         );
@@ -408,6 +408,7 @@ class InterviewToolContextServiceTest {
     ) {
         ResumeEntity resume = new ResumeEntity();
         resume.setId(resumeId);
+        resume.setResumeText("resume text");
 
         InterviewSessionEntity session = new InterviewSessionEntity();
         session.setSessionId(sessionId);
