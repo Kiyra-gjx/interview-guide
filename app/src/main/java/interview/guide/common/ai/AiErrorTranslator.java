@@ -125,7 +125,7 @@ public class AiErrorTranslator {
     }
 
     private boolean isStructuredOutputError(Throwable throwable, Throwable rootCause, String normalizedMessage) {
-        return throwable instanceof StructuredOutputException
+        return containsCause(throwable, StructuredOutputException.class)
             || rootCause instanceof JsonProcessingException
             || containsAny(normalizedMessage, STRUCTURED_OUTPUT_KEYWORDS);
     }
@@ -164,5 +164,19 @@ public class AiErrorTranslator {
             current = current.getCause();
         }
         return current;
+    }
+
+    private boolean containsCause(Throwable throwable, Class<? extends Throwable> type) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (type.isInstance(current)) {
+                return true;
+            }
+            if (current.getCause() == current) {
+                return false;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 }

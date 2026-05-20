@@ -13,9 +13,21 @@ public class StructuredOutputProperties {
 
     private boolean retryUseRepairPrompt = true;
 
+    private Boolean retryAppendStrictJsonInstruction;
+
+    /**
+     * @deprecated Use {@code retry-append-strict-json-instruction}.
+     */
+    @Deprecated
     private boolean appendStrictJsonInstruction = true;
 
     private int errorMessageMaxLength = 200;
 
     private boolean metricsEnabled = true;
+
+    public boolean shouldAppendStrictJsonInstruction() {
+        return retryAppendStrictJsonInstruction != null
+            ? retryAppendStrictJsonInstruction
+            : appendStrictJsonInstruction;
+    }
 }

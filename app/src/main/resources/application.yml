@@ -106,7 +106,8 @@ app:
       max-attempts: ${APP_AI_STRUCTURED_MAX_ATTEMPTS:2}
       include-last-error: ${APP_AI_STRUCTURED_INCLUDE_LAST_ERROR:true}
       retry-use-repair-prompt: true
-      append-strict-json-instruction: true
+      # Prefer retry-append-strict-json-instruction for new deployments.
+      # It defaults to true in code so legacy append-strict-json-instruction can still override when only the old key is configured.
       error-message-max-length: 200
       metrics-enabled: true
     advisors:

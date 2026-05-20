@@ -58,6 +58,7 @@ public class StructuredOutputInvoker {
         String contextTag = normalizeContextTag(logContext);
         int maxAttempts = Math.max(1, properties.getMaxAttempts());
         Exception lastError = null;
+        StructuredOutputException finalStructuredError = null;
 
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             String attemptSystemPrompt = buildAttemptSystemPrompt(systemPromptWithFormat, attempt, lastError);
@@ -77,23 +78,30 @@ public class StructuredOutputInvoker {
                 throw e;
             } catch (Exception e) {
                 recordAttempt(contextTag, "failure");
-                if (!shouldRetry(e, attempt, maxAttempts)) {
+                lastError = e;
+                if (!isStructuredOutputError(e)) {
                     recordInvocation(contextTag, "failure", startNanos);
                     throw e;
                 }
-                lastError = e;
+                if (!shouldRetry(e, attempt, maxAttempts)) {
+                    finalStructuredError = buildStructuredOutputException(errorCode, errorPrefix, logContext, e);
+                    break;
+                }
                 log.warn("{}结构化解析失败，准备重试: attempt={}, error={}",
                     logContext, attempt, e.getMessage());
             }
         }
 
         recordInvocation(contextTag, "failure", startNanos);
-        throw new StructuredOutputException(buildFailureMessage(errorPrefix, logContext), lastError);
+        if (finalStructuredError != null) {
+            throw finalStructuredError;
+        }
+        throw buildStructuredOutputException(errorCode, errorPrefix, logContext, lastError);
     }
 
     String buildAttemptSystemPrompt(String systemPromptWithFormat, int attempt, Exception lastError) {
         if (attempt == 1) {
-            if (properties.isAppendStrictJsonInstruction()) {
+            if (properties.shouldAppendStrictJsonInstruction()) {
                 return systemPromptWithFormat + "\n\n" + STRICT_JSON_INSTRUCTION;
             }
             return systemPromptWithFormat;
@@ -101,12 +109,24 @@ public class StructuredOutputInvoker {
         return buildRetrySystemPrompt(systemPromptWithFormat, lastError);
     }
 
-    private String buildFailureMessage(String errorPrefix, String logContext) {
+    private StructuredOutputException buildStructuredOutputException(
+        ErrorCode errorCode,
+        String errorPrefix,
+        String logContext,
+        Exception cause
+    ) {
+        return new StructuredOutputException(buildFailureMessage(errorCode, errorPrefix, logContext), cause);
+    }
+
+    private String buildFailureMessage(ErrorCode errorCode, String errorPrefix, String logContext) {
         if (logContext != null && !logContext.isBlank()) {
             return logContext + "结构化输出解析失败";
         }
         if (errorPrefix != null && !errorPrefix.isBlank()) {
             return errorPrefix + "结构化输出解析失败";
+        }
+        if (errorCode != null) {
+            return errorCode.getMessage();
         }
         return "结构化输出解析失败";
     }
@@ -141,7 +161,7 @@ public class StructuredOutputInvoker {
     private String buildRetrySystemPrompt(String systemPromptWithFormat, Exception lastError) {
         StringBuilder prompt = new StringBuilder(systemPromptWithFormat);
 
-        if (properties.isAppendStrictJsonInstruction()) {
+        if (properties.shouldAppendStrictJsonInstruction()) {
             prompt.append("\n\n").append(STRICT_JSON_INSTRUCTION);
         }
 
